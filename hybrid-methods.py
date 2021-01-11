@@ -249,13 +249,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
     # Combine all training data into a single data frame and glance at a few rows
     train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
 
-    # # Read past results
-    # if not os.path.isfile(hybrid_results_file_name):
-    #     all_results = []
-    # else:
-    #     with open(hybrid_results_file_name, 'r') as _file:
-    #         all_results = json.load(_file)
-
     results = []
 
     # Subsampling process
@@ -295,7 +288,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
             print(f"Processing: fraction {f}, sample {n}")
 
-            # get samples
+            # Get a sample of the training data
             subsampling = train_all.sample(frac=f, random_state=n + 20)
             subsampling = subsampling.reset_index()
             subsampling = subsampling.drop(columns=['index'])
@@ -304,7 +297,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             X_train = tmp.iloc[:, :-1]
             y_train = tmp.iloc[:, -1]
 
-            # Expgrad on sub dataset
+            # Expgrad on sample
             expgrad_X_logistic_frac = ExponentiatedGradient(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
                 constraints=DemographicParity(), eps=eps, nu=1e-6)
@@ -320,13 +313,13 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Qexp(X):
                 return expgrad_X_logistic_frac._pmf_predict(X)[:, 1]
 
-            # violation of log res
+            # Violation of log res
             disparity_moment = DemographicParity()
             disparity_moment.load_data(X_train_all, y_train_all,
                                        sensitive_features=A_train_all)
             violation_expgrad_logistic_frac = disparity_moment.gamma(Qexp).max()
 
-            # error of log res
+            # Error of log res
             error = ErrorRate()
             error.load_data(X_train_all, y_train_all,
                             sensitive_features=A_train_all)
@@ -335,7 +328,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             _error_expgrad_fracs.append(error_expgrad_logistic_frac)
             _vio_expgrad_fracs.append(violation_expgrad_logistic_frac)
 
-            # Hybrid 5: run LP with full dataset on predictors trained on partial dataset only
+            #################################################################################################
+            # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
+            #################################################################################################
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
             expgrad_predictors = expgrad_X_logistic_frac._predictors
@@ -358,7 +353,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 no_grid_errors.append(error_no_grid_frac)
 
             no_grid_errors = pd.Series(no_grid_errors)
-            new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=0.05, nu=1e-6,
+            # TODO: SHOULD WE COUNT TIME TO solve_linprog? YES
+            new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=eps, nu=1e-6,
                                                 pred=expgrad_predictors)
 
             def Q_rewts_no_grid(X):
@@ -377,8 +373,13 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             _vio_no_grid_rewts.append(vio_rewts_no_grid_)
             _error_no_grid_rewts.append(error_rewts_no_grid_)
 
+            #################################################################################################
+            # TODO: Is this correct?
+            # Hybrid 1: Just Grid Search
+            #################################################################################################
             # Grid Search part
             print("Running GridSearch...")
+            # TODO: Change constraint_weight according to eps
             lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian
             grid_search_logistic_frac = GridSearch(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
@@ -410,7 +411,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             _vio_hybrids.append(violation_grid_frac)
             _error_hybrids.append(error_grid_frac)
 
+            #################################################################################################
             # Hybrid 2: pmf_predict with exp grad weights in grid search
+            #################################################################################################
             print("Running Hybrid 2...")
             _weights_logistic = expgrad_X_logistic_frac._weights
             _predictors = grid_search_logistic_frac._predictors
@@ -432,12 +435,16 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             _error_grid_pmf_fracs.append(error_grid_search_pmf)
             print("Hybrid 2 done")
 
+            #################################################################################################
             # Hybrid 0: grid of best lambdas of each subset
+            #################################################################################################
             # lambda_vecs = expgrad_X_logistic_frac._lambda_vecs_LP
             # keys = lambda_vecs.keys()
             # _best_lambda[n] = lambda_vecs[keys[-1]]
 
+            #################################################################################################
             # Hybrid 3: re-weight using LP
+            #################################################################################################
             print("Running Hybrid 3...")
             grid_errors = []
             grid_vio = pd.DataFrame()
@@ -460,7 +467,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 grid_errors.append(error_grid_frac)
 
             grid_errors = pd.Series(grid_errors)
-            new_weights = solve_linprog(errors=grid_errors, gammas=grid_vio, eps=0.05, nu=1e-6, pred=_predictors)
+            # TODO: Take time
+            new_weights = solve_linprog(errors=grid_errors, gammas=grid_vio, eps=eps, nu=1e-6, pred=_predictors)
 
             def Q_rewts(X):
                 return _pmf_predict(X, _predictors, new_weights)[:, 1]
@@ -479,7 +487,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             _error_rewts.append(error_rewts_pmf_)
             print("Hybrid 3 done")
 
+            #################################################################################################
             # Hybrid 4: re-weight only the non-zero weight predictors using LP
+            #################################################################################################
             print("Running Hybrid 4...")
             re_wts_predictors = []
             for x in range(len(_weights_logistic)):
@@ -504,7 +514,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 grid_errors_partial.append(error_grid_frac_partial)
 
             grid_errors_partial = pd.Series(grid_errors_partial)
-            new_weights_partial = solve_linprog(errors=grid_errors_partial, gammas=grid_vio_partial, eps=0.05, nu=1e-6,
+            # TODO: Should we count this time?
+            new_weights_partial = solve_linprog(errors=grid_errors_partial, gammas=grid_vio_partial, eps=eps, nu=1e-6,
                                                 pred=re_wts_predictors)
 
             def Q_rewts_partial(X):
