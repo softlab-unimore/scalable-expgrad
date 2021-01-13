@@ -333,7 +333,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             #################################################################################################
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
-            expgrad_predictors = expgrad_X_logistic_frac._predictors
+            expgrad_predictors = expgrad_X_logistic_frac.predictors_
             for x in range(len(expgrad_predictors)):
                 def Q_preds_no_grid(X): return expgrad_predictors[x].predict(X)
 
@@ -380,7 +380,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             # Grid Search part
             print("Running GridSearch...")
             # TODO: Change constraint_weight according to eps
-            lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian
+            lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_
             grid_search_logistic_frac = GridSearch(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
                 constraints=DemographicParity(), grid=lambda_vecs_logistic)
@@ -415,8 +415,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             # Hybrid 2: pmf_predict with exp grad weights in grid search
             #################################################################################################
             print("Running Hybrid 2...")
-            _weights_logistic = expgrad_X_logistic_frac._weights
-            _predictors = grid_search_logistic_frac._predictors
+            _weights_logistic = expgrad_X_logistic_frac.weights_
+            _predictors = grid_search_logistic_frac.predictors_
 
             def Qlog(X):
                 return _pmf_predict(X, _predictors, _weights_logistic)[:, 1]
@@ -438,7 +438,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             #################################################################################################
             # Hybrid 0: grid of best lambdas of each subset
             #################################################################################################
-            # lambda_vecs = expgrad_X_logistic_frac._lambda_vecs_LP
+            # lambda_vecs = expgrad_X_logistic_frac.lambda_vecs_LP_
             # keys = lambda_vecs.keys()
             # _best_lambda[n] = lambda_vecs[keys[-1]]
 
