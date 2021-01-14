@@ -263,7 +263,11 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
         _time_expgrad_fracs = []
         _time_grid_fracs = []
-        _time_hybrids = []
+        _time_hybrid1 = []
+        _time_hybrid2 = []
+        _time_hybrid3 = []
+        _time_hybrid4 = []
+        _time_hybrid5 = []
 
         _error_expgrad_fracs = []
         _error_hybrids = []
@@ -353,9 +357,15 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 no_grid_errors.append(error_no_grid_frac)
 
             no_grid_errors = pd.Series(no_grid_errors)
-            # TODO: SHOULD WE COUNT TIME TO solve_linprog? YES
+
+            # SHOULD WE COUNT TIME TO solve_linprog? YES
+            # In hybrid 5, lin program is done on top of expgrad partial.
+            a = datetime.now()
             new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=eps, nu=1e-6,
                                                 pred=expgrad_predictors)
+            b = datetime.now()
+            time_lin_prog = (b - a).total_seconds()
+            _time_hybrid5.append(time_expgrad_frac + time_lin_prog)
 
             def Q_rewts_no_grid(X):
                 return _pmf_predict(X, expgrad_predictors, new_weights_no_grid)[:, 1]
@@ -375,7 +385,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
             #################################################################################################
             # TODO: Is this correct?
-            # Hybrid 1: Just Grid Search
+            # Hybrid 1: Just Grid Search -> expgrad partial + grid search
             #################################################################################################
             # Grid Search part
             print("Running GridSearch...")
@@ -390,7 +400,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             b = datetime.now()
             time_grid_frac = (b - a).total_seconds()
             _time_grid_fracs.append(time_grid_frac)
-            _time_hybrids.append(time_grid_frac + time_expgrad_frac)
+            _time_hybrid1.append(time_grid_frac + time_expgrad_frac)
             print(f"GridSearch done in {b - a}")
 
             def Qgrid(X):
@@ -417,6 +427,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             print("Running Hybrid 2...")
             _weights_logistic = expgrad_X_logistic_frac.weights_
             _predictors = grid_search_logistic_frac.predictors_
+
+            # Time taken by hybrid 2 to fit a model is same as hybrid 1. The only change is while predicting
+            _time_hybrid2.append(time_grid_frac + time_expgrad_frac)
 
             def Qlog(X):
                 return _pmf_predict(X, _predictors, _weights_logistic)[:, 1]
@@ -467,8 +480,13 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 grid_errors.append(error_grid_frac)
 
             grid_errors = pd.Series(grid_errors)
-            # TODO: Take time
+
+            # In hybrid 3, time for linprogramming is added on top of hybrid 1 time.
+            a = datetime.now()
             new_weights = solve_linprog(errors=grid_errors, gammas=grid_vio, eps=eps, nu=1e-6, pred=_predictors)
+            b = datetime.now()
+            time_lin_program = (b - a).total_seconds()
+            _time_hybrid3.append(time_grid_frac + time_expgrad_frac + time_lin_program)
 
             def Q_rewts(X):
                 return _pmf_predict(X, _predictors, new_weights)[:, 1]
@@ -514,9 +532,15 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                 grid_errors_partial.append(error_grid_frac_partial)
 
             grid_errors_partial = pd.Series(grid_errors_partial)
-            # TODO: Should we count this time?
+
+            # Should we count this time? -> Yes
+            # In hybrid 4, time taken to do perform lin programming is added on top of hybrid 1.
+            a = datetime.now()
             new_weights_partial = solve_linprog(errors=grid_errors_partial, gammas=grid_vio_partial, eps=eps, nu=1e-6,
                                                 pred=re_wts_predictors)
+            b = datetime.now()
+            time_new_lin_program = (b - a).total_seconds()
+            _time_hybrid4.append(time_grid_frac + time_expgrad_frac + time_new_lin_program)
 
             def Q_rewts_partial(X):
                 return _pmf_predict(X, re_wts_predictors, new_weights_partial)[:, 1]
@@ -543,7 +567,11 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
         results.append({
             "frac": f,
             "_time_expgrad_fracs": _time_expgrad_fracs,
-            "_time_hybrids": _time_hybrids,
+            "_time_hybrid1": _time_hybrid1,
+            "_time_hybrid2": _time_hybrid2,
+            "_time_hybrid3": _time_hybrid3,
+            "_time_hybrid4": _time_hybrid4,
+            "_time_hybrid5": _time_hybrid5,
             "_error_expgrad_fracs": _error_expgrad_fracs,
             "_vio_expgrad_fracs": _vio_expgrad_fracs,
             "_error_hybrids": _error_hybrids,
