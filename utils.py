@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 try:
@@ -73,11 +74,7 @@ def cache(url, file_name=None):
 # load data
 def load_data():
     X, Y = adult()
-    sensitive_attribute = 'Sex'
-
-    A = X[sensitive_attribute]
     X = pd.get_dummies(X)
-
     sc = StandardScaler()
     X_scaled = sc.fit_transform(X)
     X_scaled = pd.DataFrame(X_scaled, columns=X.columns)
@@ -85,13 +82,18 @@ def load_data():
     le = LabelEncoder()
     Y = le.fit_transform(Y)
 
-    X = X.reset_index(drop=True)
-    A = A.reset_index(drop=True)
+    X_train, X_test, Y_train, Y_test = train_test_split(X_scaled, Y, test_size=0.3, random_state=42)
 
-    X_train_all = pd.DataFrame(X)
-    A_train_all = pd.Series(A)
-    y_train_all = pd.Series(Y)
+    sensitive_attribute = 'Sex'
+    A_train, A_test = X_train[sensitive_attribute], X_test[sensitive_attribute]
 
-    return X_train_all, y_train_all, A_train_all
+    X_train, X_test = X_train.reset_index(drop=True), X_test.reset_index(drop=True)
+    A_train, A_test = A_train.reset_index(drop=True), A_test.reset_index(drop=True)
+
+    X_train_all, X_test_all = pd.DataFrame(X_train), pd.DataFrame(X_test)
+    A_train_all, A_test_all = pd.Series(A_train), pd.Series(A_test)
+    y_train_all, y_test_all = pd.Series(Y_train), pd.Series(Y_test)
+
+    return X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all
 
 

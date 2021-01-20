@@ -243,7 +243,7 @@ def solve_linprog(errors=None, gammas=None, eps=0.05, nu=1e-6, pred=None):
     return Q
 
 
-def run_methods(X_train_all, y_train_all, A_train_all, eps):
+def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps):
     # RUN hybrid models
 
     # Combine all training data into a single data frame and glance at a few rows
@@ -253,14 +253,11 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
     # Subsampling process
     num_samples = 10  # 20
-    # fractions = [0.1, 0.5]
     num_fractions = 6  # 20
     fractions = np.logspace(-3, 0, num=num_fractions)
 
     # Iterations on difference fractions
     for i, f in enumerate(fractions):
-        # if i > 0: break
-
         _time_expgrad_fracs = []
         _time_grid_fracs = []
         _time_hybrid1 = []
@@ -269,29 +266,42 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
         _time_hybrid4 = []
         _time_hybrid5 = []
 
-        _error_expgrad_fracs = []
-        _error_hybrids = []
-        _error_grid_pmf_fracs = []
-        _error_rewts = []
+        # Training arrays
+        _train_error_expgrad_fracs = []
+        _train_error_hybrids = []
+        _train_error_grid_pmf_fracs = []
+        _train_error_rewts = []
 
-        _vio_expgrad_fracs = []
-        _vio_hybrids = []
-        _vio_grid_pmf_fracs = []
-        _vio_rewts = []
+        _train_vio_expgrad_fracs = []
+        _train_vio_hybrids = []
+        _train_vio_grid_pmf_fracs = []
+        _train_vio_rewts = []
 
-        _vio_rewts_partial = []
-        _error_rewts_partial = []
+        _train_vio_rewts_partial = []
+        _train_error_rewts_partial = []
 
-        _vio_no_grid_rewts = []
-        _error_no_grid_rewts = []
+        _train_vio_no_grid_rewts = []
+        _train_error_no_grid_rewts = []
 
-        _best_lambda = pd.DataFrame()
+        # Testing arrays
+        _test_error_expgrad_fracs = []
+        _test_error_hybrids = []
+        _test_error_grid_pmf_fracs = []
+        _test_error_rewts = []
+
+        _test_vio_expgrad_fracs = []
+        _test_vio_hybrids = []
+        _test_vio_grid_pmf_fracs = []
+        _test_vio_rewts = []
+
+        _test_vio_rewts_partial = []
+        _test_error_rewts_partial = []
+
+        _test_vio_no_grid_rewts = []
+        _test_error_no_grid_rewts = []
 
         for n in range(num_samples):
-            # if n > 1: break
-
             print(f"Processing: fraction {f}, sample {n}")
-
             # Get a sample of the training data
             subsampling = train_all.sample(frac=f, random_state=n + 20)
             subsampling = subsampling.reset_index()
@@ -317,20 +327,23 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Qexp(X):
                 return expgrad_X_logistic_frac._pmf_predict(X)[:, 1]
 
-            # Violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all,
-                                       sensitive_features=A_train_all)
-            violation_expgrad_logistic_frac = disparity_moment.gamma(Qexp).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Qexp).max()
 
-            # Error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all,
-                            sensitive_features=A_train_all)
-            error_expgrad_logistic_frac = error.gamma(Qexp)[0]
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Qexp)[0]
 
-            _error_expgrad_fracs.append(error_expgrad_logistic_frac)
-            _vio_expgrad_fracs.append(violation_expgrad_logistic_frac)
+            # Training Violation & Error of expgrad frac
+            _train_error_expgrad_fracs.append(getError(X_train_all, y_train_all, A_train_all))
+            _train_vio_expgrad_fracs.append(getViolation(X_train_all, y_train_all, A_train_all))
+
+            # Testing Violation & Error of expgrad frac
+            _test_error_expgrad_fracs.append(getError(X_test_all, y_test_all, A_test_all))
+            _test_vio_expgrad_fracs.append(getViolation(X_test_all, y_test_all, A_test_all))
 
             #################################################################################################
             # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
@@ -338,6 +351,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
             expgrad_predictors = expgrad_X_logistic_frac.predictors_
+            a = datetime.now()
             for x in range(len(expgrad_predictors)):
                 def Q_preds_no_grid(X): return expgrad_predictors[x].predict(X)
 
@@ -360,7 +374,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
             # SHOULD WE COUNT TIME TO solve_linprog? YES
             # In hybrid 5, lin program is done on top of expgrad partial.
-            a = datetime.now()
             new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=eps, nu=1e-6,
                                                 pred=expgrad_predictors)
             b = datetime.now()
@@ -370,21 +383,26 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Q_rewts_no_grid(X):
                 return _pmf_predict(X, expgrad_predictors, new_weights_no_grid)[:, 1]
 
-            # violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            vio_rewts_no_grid_ = disparity_moment.gamma(Q_rewts_no_grid).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Q_rewts_no_grid).max()
 
-            # error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            error_rewts_no_grid_ = error.gamma(Q_rewts_no_grid)[0]
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Q_rewts_no_grid)[0]
 
-            _vio_no_grid_rewts.append(vio_rewts_no_grid_)
-            _error_no_grid_rewts.append(error_rewts_no_grid_)
+            # Training violation & error of hybrid 5
+            _train_vio_no_grid_rewts.append(getViolation(X_train_all, y_train_all, A_train_all))
+            _train_error_no_grid_rewts.append(getError(X_train_all, y_train_all, A_train_all))
+
+            # Testing violation & error of hybrid 5
+            _test_vio_no_grid_rewts.append(getViolation(X_test_all, y_test_all, A_test_all))
+            _test_error_no_grid_rewts.append(getError(X_test_all, y_test_all, A_test_all))
 
             #################################################################################################
-            # TODO: Is this correct?
+            # Is this correct? >> YES
             # Hybrid 1: Just Grid Search -> expgrad partial + grid search
             #################################################################################################
             # Grid Search part
@@ -406,20 +424,23 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Qgrid(X):
                 return grid_search_logistic_frac.predict(X)
 
-            # violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all,
-                                       sensitive_features=A_train_all)
-            violation_grid_frac = disparity_moment.gamma(Qgrid).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Qgrid).max()
 
-            # error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all,
-                            sensitive_features=A_train_all)
-            error_grid_frac = error.gamma(Qgrid)['all']
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Qgrid)[0]
 
-            _vio_hybrids.append(violation_grid_frac)
-            _error_hybrids.append(error_grid_frac)
+            # Training violation & error of hybrid 1
+            _train_vio_hybrids.append(getViolation(X_train_all, y_train_all, A_train_all))
+            _train_error_hybrids.append(getError(X_train_all, y_train_all, A_train_all))
+
+            # Testing violation & error of hybrid 1
+            _test_vio_hybrids.append(getViolation(X_test_all, y_test_all, A_test_all))
+            _test_error_hybrids.append(getError(X_test_all, y_test_all, A_test_all))
 
             #################################################################################################
             # Hybrid 2: pmf_predict with exp grad weights in grid search
@@ -434,26 +455,24 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Qlog(X):
                 return _pmf_predict(X, _predictors, _weights_logistic)[:, 1]
 
-            # violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            violation_grid_search_pmf = disparity_moment.gamma(Qlog).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Qlog).max()
 
-            # error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            error_grid_search_pmf = error.gamma(Qlog)[0]
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Qlog)[0]
 
-            _vio_grid_pmf_fracs.append(violation_grid_search_pmf)
-            _error_grid_pmf_fracs.append(error_grid_search_pmf)
+            # Training violation & error of hybrid 2
+            _train_vio_grid_pmf_fracs.append(getViolation(X_train_all, y_train_all, A_train_all))
+            _train_error_grid_pmf_fracs.append(getError(X_train_all, y_train_all, A_train_all))
+
+            # Testing violation & error of hybrid 2
+            _test_vio_grid_pmf_fracs.append(getViolation(X_test_all, y_test_all, A_test_all))
+            _test_error_grid_pmf_fracs.append(getError(X_test_all, y_test_all, A_test_all))
             print("Hybrid 2 done")
-
-            #################################################################################################
-            # Hybrid 0: grid of best lambdas of each subset
-            #################################################################################################
-            # lambda_vecs = expgrad_X_logistic_frac.lambda_vecs_LP_
-            # keys = lambda_vecs.keys()
-            # _best_lambda[n] = lambda_vecs[keys[-1]]
 
             #################################################################################################
             # Hybrid 3: re-weight using LP
@@ -461,6 +480,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             print("Running Hybrid 3...")
             grid_errors = []
             grid_vio = pd.DataFrame()
+            a = datetime.now()
             for x in range(len(_predictors)):
                 def Q_preds(X): return _predictors[x].predict(X)
 
@@ -482,7 +502,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             grid_errors = pd.Series(grid_errors)
 
             # In hybrid 3, time for linprogramming is added on top of hybrid 1 time.
-            a = datetime.now()
             new_weights = solve_linprog(errors=grid_errors, gammas=grid_vio, eps=eps, nu=1e-6, pred=_predictors)
             b = datetime.now()
             time_lin_program = (b - a).total_seconds()
@@ -491,18 +510,23 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Q_rewts(X):
                 return _pmf_predict(X, _predictors, new_weights)[:, 1]
 
-            # violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            vio_rewts_pmf_ = disparity_moment.gamma(Q_rewts).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Q_rewts).max()
 
-            # error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            error_rewts_pmf_ = error.gamma(Q_rewts)[0]
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Q_rewts)[0]
 
-            _vio_rewts.append(vio_rewts_pmf_)
-            _error_rewts.append(error_rewts_pmf_)
+            # Training violation & error of hybrid 3
+            _train_vio_rewts.append(getViolation(X_train_all, y_train_all, A_train_all))
+            _train_error_rewts.append(getError(X_train_all, y_train_all, A_train_all))
+
+            # Testing violation & error of hybrid 3
+            _test_vio_rewts.append(getViolation(X_test_all, y_test_all, A_test_all))
+            _test_error_rewts.append(getError(X_test_all, y_test_all, A_test_all))
             print("Hybrid 3 done")
 
             #################################################################################################
@@ -515,6 +539,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
                     re_wts_predictors.append(_predictors[x])
             grid_errors_partial = []
             grid_vio_partial = pd.DataFrame()
+            a = datetime.now()
             for x in range(len(re_wts_predictors)):
                 def Q_preds_partial(X): return re_wts_predictors[x].predict(X)
 
@@ -535,7 +560,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
 
             # Should we count this time? -> Yes
             # In hybrid 4, time taken to do perform lin programming is added on top of hybrid 1.
-            a = datetime.now()
             new_weights_partial = solve_linprog(errors=grid_errors_partial, gammas=grid_vio_partial, eps=eps, nu=1e-6,
                                                 pred=re_wts_predictors)
             b = datetime.now()
@@ -545,45 +569,65 @@ def run_methods(X_train_all, y_train_all, A_train_all, eps):
             def Q_rewts_partial(X):
                 return _pmf_predict(X, re_wts_predictors, new_weights_partial)[:, 1]
 
-            # violation of log res
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            vio_rewts_partial_ = disparity_moment.gamma(Q_rewts_partial).max()
+            def getViolation(X, Y, A):
+                disparity_moment = DemographicParity()
+                disparity_moment.load_data(X, Y, sensitive_features=A)
+                return disparity_moment.gamma(Q_rewts_partial).max()
 
-            # error of log res
-            error = ErrorRate()
-            error.load_data(X_train_all, y_train_all, sensitive_features=A_train_all)
-            error_rewts_partial_ = error.gamma(Q_rewts_partial)[0]
+            def getError(X, Y, A):
+                error = ErrorRate()
+                error.load_data(X, Y, sensitive_features=A)
+                return error.gamma(Q_rewts_partial)[0]
 
-            _vio_rewts_partial.append(vio_rewts_partial_)
-            _error_rewts_partial.append(error_rewts_partial_)
+            # Training violation & error of hybrid 3
+            _train_vio_rewts_partial.append(getViolation(X_train_all, y_train_all, A_train_all))
+            _train_error_rewts_partial.append(getError(X_train_all, y_train_all, A_train_all))
+
+            # Testing violation & error of hybrid 3
+            _test_vio_rewts_partial.append(getViolation(X_test_all, y_test_all, A_test_all))
+            _test_error_rewts_partial.append(getError(X_test_all, y_test_all, A_test_all))
             print("Hybrid 4 done")
 
             print("Sample processing complete.")
             print()
 
-        print(f"Done {len(_error_expgrad_fracs)} samples for fraction {f}")
+        print(f"Done {len(_train_error_expgrad_fracs)} samples for fraction {f}")
 
         results.append({
             "frac": f,
+
             "_time_expgrad_fracs": _time_expgrad_fracs,
             "_time_hybrid1": _time_hybrid1,
             "_time_hybrid2": _time_hybrid2,
             "_time_hybrid3": _time_hybrid3,
             "_time_hybrid4": _time_hybrid4,
             "_time_hybrid5": _time_hybrid5,
-            "_error_expgrad_fracs": _error_expgrad_fracs,
-            "_vio_expgrad_fracs": _vio_expgrad_fracs,
-            "_error_hybrids": _error_hybrids,
-            "_vio_hybrids": _vio_hybrids,
-            "_error_grid_pmf_fracs": _error_grid_pmf_fracs,
-            "_vio_grid_pmf_fracs": _vio_grid_pmf_fracs,
-            "_error_rewts": _error_rewts,
-            "_vio_rewts": _vio_rewts,
-            "_error_rewts_partial": _error_rewts_partial,
-            "_vio_rewts_partial": _vio_rewts_partial,
-            "_error_no_grid_rewts": _error_no_grid_rewts,
-            "_vio_no_grid_rewts": _vio_no_grid_rewts,
+
+            "_train_error_expgrad_fracs": _train_error_expgrad_fracs,
+            "_train_vio_expgrad_fracs": _train_vio_expgrad_fracs,
+            "_train_error_hybrids": _train_error_hybrids,
+            "_train_vio_hybrids": _train_vio_hybrids,
+            "_train_error_grid_pmf_fracs": _train_error_grid_pmf_fracs,
+            "_train_vio_grid_pmf_fracs": _train_vio_grid_pmf_fracs,
+            "_train_error_rewts": _train_error_rewts,
+            "_train_vio_rewts": _train_vio_rewts,
+            "_train_error_rewts_partial": _train_error_rewts_partial,
+            "_train_vio_rewts_partial": _train_vio_rewts_partial,
+            "_train_error_no_grid_rewts": _train_error_no_grid_rewts,
+            "_train_vio_no_grid_rewts": _train_vio_no_grid_rewts,
+
+            "_test_error_expgrad_fracs": _test_error_expgrad_fracs,
+            "_test_vio_expgrad_fracs": _test_vio_expgrad_fracs,
+            "_test_error_hybrids": _test_error_hybrids,
+            "_test_vio_hybrids": _test_vio_hybrids,
+            "_test_error_grid_pmf_fracs": _test_error_grid_pmf_fracs,
+            "_test_vio_grid_pmf_fracs": _test_vio_grid_pmf_fracs,
+            "_test_error_rewts": _test_error_rewts,
+            "_test_vio_rewts": _test_vio_rewts,
+            "_test_error_rewts_partial": _test_error_rewts_partial,
+            "_test_vio_rewts_partial": _test_vio_rewts_partial,
+            "_test_error_no_grid_rewts": _test_error_no_grid_rewts,
+            "_test_vio_no_grid_rewts": _test_vio_no_grid_rewts,
         })
 
     return results
@@ -599,9 +643,9 @@ def main():
     hybrid_results_file_name = \
         f'results/{host_name}/{str(eps)}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_hybrid.json'
 
-    X_train_all, y_train_all, A_train_all = load_data()
+    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
 
-    results = run_methods(X_train_all, y_train_all, A_train_all, eps)
+    results = run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps)
 
     # Store results
     base_dir = os.path.dirname(hybrid_results_file_name)
