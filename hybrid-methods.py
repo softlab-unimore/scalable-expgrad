@@ -638,7 +638,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 hybrid4 = ((1 - alpha) * train_vio_hybrid4) + (alpha * train_error_hybrid4)
                 hybrid5 = ((1 - alpha) * train_vio_hybrid5) + (alpha * train_error_hybrid5)
 
-                max_hybrid = max(hybrid1, hybrid2, hybrid3, hybrid4, hybrid5)
+                max_hybrid = min(hybrid1, hybrid2, hybrid3, hybrid4, hybrid5)
 
                 if max_hybrid == hybrid1:
                     return train_vio_hybrid1, train_error_hybrid1, test_vio_hybrid1, test_error_hybrid1
