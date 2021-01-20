@@ -265,6 +265,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         _time_hybrid3 = []
         _time_hybrid4 = []
         _time_hybrid5 = []
+        _time_combined = []
 
         # Training arrays
         _train_error_expgrad_fracs = []
@@ -283,6 +284,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         _train_vio_no_grid_rewts = []
         _train_error_no_grid_rewts = []
 
+        _train_vio_combined = []
+        _train_error_combined = []
+
         # Testing arrays
         _test_error_expgrad_fracs = []
         _test_error_hybrids = []
@@ -299,6 +303,9 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
 
         _test_vio_no_grid_rewts = []
         _test_error_no_grid_rewts = []
+
+        _test_vio_combined = []
+        _test_error_combined = []
 
         for n in range(num_samples):
             print(f"Processing: fraction {f}, sample {n}")
@@ -377,8 +384,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=eps, nu=1e-6,
                                                 pred=expgrad_predictors)
             b = datetime.now()
-            time_lin_prog = (b - a).total_seconds()
-            _time_hybrid5.append(time_expgrad_frac + time_lin_prog)
+            time_lin_prog5 = (b - a).total_seconds()
+            _time_hybrid5.append(time_expgrad_frac + time_lin_prog5)
 
             def Q_rewts_no_grid(X):
                 return _pmf_predict(X, expgrad_predictors, new_weights_no_grid)[:, 1]
@@ -394,12 +401,19 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 return error.gamma(Q_rewts_no_grid)[0]
 
             # Training violation & error of hybrid 5
-            _train_vio_no_grid_rewts.append(getViolation(X_train_all, y_train_all, A_train_all))
-            _train_error_no_grid_rewts.append(getError(X_train_all, y_train_all, A_train_all))
+            a = datetime.now()
+            train_vio_hybrid5 = getViolation(X_train_all, y_train_all, A_train_all)
+            train_error_hybrid5 = getError(X_train_all, y_train_all, A_train_all)
+            b = datetime.now()
+            time_h5 = (b - a).total_seconds()
+            _train_vio_no_grid_rewts.append(train_vio_hybrid5)
+            _train_error_no_grid_rewts.append(train_error_hybrid5)
 
             # Testing violation & error of hybrid 5
-            _test_vio_no_grid_rewts.append(getViolation(X_test_all, y_test_all, A_test_all))
-            _test_error_no_grid_rewts.append(getError(X_test_all, y_test_all, A_test_all))
+            test_vio_hybrid5 = getViolation(X_test_all, y_test_all, A_test_all)
+            test_error_hybrid5 = getError(X_test_all, y_test_all, A_test_all)
+            _test_vio_no_grid_rewts.append(test_vio_hybrid5)
+            _test_error_no_grid_rewts.append(test_error_hybrid5)
 
             #################################################################################################
             # Is this correct? >> YES
@@ -435,12 +449,19 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 return error.gamma(Qgrid)[0]
 
             # Training violation & error of hybrid 1
-            _train_vio_hybrids.append(getViolation(X_train_all, y_train_all, A_train_all))
-            _train_error_hybrids.append(getError(X_train_all, y_train_all, A_train_all))
+            a = datetime.now()
+            train_vio_hybrid1 = getViolation(X_train_all, y_train_all, A_train_all)
+            train_error_hybrid1 = getError(X_train_all, y_train_all, A_train_all)
+            b = datetime.now()
+            time_h1 = (b - a).total_seconds()
+            _train_vio_hybrids.append(train_vio_hybrid1)
+            _train_error_hybrids.append(train_error_hybrid1)
 
             # Testing violation & error of hybrid 1
-            _test_vio_hybrids.append(getViolation(X_test_all, y_test_all, A_test_all))
-            _test_error_hybrids.append(getError(X_test_all, y_test_all, A_test_all))
+            test_vio_hybrid1 = getViolation(X_test_all, y_test_all, A_test_all)
+            test_error_hybrid1 = getError(X_test_all, y_test_all, A_test_all)
+            _test_vio_hybrids.append(test_vio_hybrid1)
+            _test_error_hybrids.append(test_error_hybrid1)
 
             #################################################################################################
             # Hybrid 2: pmf_predict with exp grad weights in grid search
@@ -466,12 +487,19 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 return error.gamma(Qlog)[0]
 
             # Training violation & error of hybrid 2
-            _train_vio_grid_pmf_fracs.append(getViolation(X_train_all, y_train_all, A_train_all))
-            _train_error_grid_pmf_fracs.append(getError(X_train_all, y_train_all, A_train_all))
+            a = datetime.now()
+            train_vio_hybrid2 = getViolation(X_train_all, y_train_all, A_train_all)
+            train_error_hybrid2 = getError(X_train_all, y_train_all, A_train_all)
+            b = datetime.now()
+            time_h2 = (b - a).total_seconds()
+            _train_vio_grid_pmf_fracs.append(train_vio_hybrid2)
+            _train_error_grid_pmf_fracs.append(train_error_hybrid2)
 
             # Testing violation & error of hybrid 2
-            _test_vio_grid_pmf_fracs.append(getViolation(X_test_all, y_test_all, A_test_all))
-            _test_error_grid_pmf_fracs.append(getError(X_test_all, y_test_all, A_test_all))
+            test_vio_hybrid2 = getViolation(X_test_all, y_test_all, A_test_all)
+            test_error_hybrid2 = getError(X_test_all, y_test_all, A_test_all)
+            _test_vio_grid_pmf_fracs.append(test_vio_hybrid2)
+            _test_error_grid_pmf_fracs.append(test_error_hybrid2)
             print("Hybrid 2 done")
 
             #################################################################################################
@@ -521,12 +549,19 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 return error.gamma(Q_rewts)[0]
 
             # Training violation & error of hybrid 3
-            _train_vio_rewts.append(getViolation(X_train_all, y_train_all, A_train_all))
-            _train_error_rewts.append(getError(X_train_all, y_train_all, A_train_all))
+            a = datetime.now()
+            train_vio_hybrid3 = getViolation(X_train_all, y_train_all, A_train_all)
+            train_error_hybrid3 = getError(X_train_all, y_train_all, A_train_all)
+            b = datetime.now()
+            time_h3 = (b - a).total_seconds()
+            _train_vio_rewts.append(train_vio_hybrid3)
+            _train_error_rewts.append(train_error_hybrid3)
 
             # Testing violation & error of hybrid 3
-            _test_vio_rewts.append(getViolation(X_test_all, y_test_all, A_test_all))
-            _test_error_rewts.append(getError(X_test_all, y_test_all, A_test_all))
+            test_vio_hybrid3 = getViolation(X_test_all, y_test_all, A_test_all)
+            test_error_hybrid3 = getError(X_test_all, y_test_all, A_test_all)
+            _test_vio_rewts.append(test_vio_hybrid3)
+            _test_error_rewts.append(test_error_hybrid3)
             print("Hybrid 3 done")
 
             #################################################################################################
@@ -579,14 +614,53 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 error.load_data(X, Y, sensitive_features=A)
                 return error.gamma(Q_rewts_partial)[0]
 
-            # Training violation & error of hybrid 3
-            _train_vio_rewts_partial.append(getViolation(X_train_all, y_train_all, A_train_all))
-            _train_error_rewts_partial.append(getError(X_train_all, y_train_all, A_train_all))
+            # Training violation & error of hybrid 4
+            a = datetime.now()
+            train_vio_hybrid4 = getViolation(X_train_all, y_train_all, A_train_all)
+            train_error_hybrid4 = getError(X_train_all, y_train_all, A_train_all)
+            b = datetime.now()
+            time_h4 = (b - a).total_seconds()
+            _train_vio_rewts_partial.append(train_vio_hybrid4)
+            _train_error_rewts_partial.append(train_error_hybrid4)
 
-            # Testing violation & error of hybrid 3
-            _test_vio_rewts_partial.append(getViolation(X_test_all, y_test_all, A_test_all))
-            _test_error_rewts_partial.append(getError(X_test_all, y_test_all, A_test_all))
+            # Testing violation & error of hybrid 4
+            test_vio_hybrid4 = getViolation(X_test_all, y_test_all, A_test_all)
+            test_error_hybrid4 = getError(X_test_all, y_test_all, A_test_all)
+            _test_vio_rewts_partial.append(test_vio_hybrid4)
+            _test_error_rewts_partial.append(test_error_hybrid4)
             print("Hybrid 4 done")
+
+            # combined time
+            def get_combined_hybrid(alpha):
+                hybrid1 = ((1-alpha) * train_vio_hybrid1) + (alpha * train_error_hybrid1)
+                hybrid2 = ((1 - alpha) * train_vio_hybrid2) + (alpha * train_error_hybrid2)
+                hybrid3 = ((1 - alpha) * train_vio_hybrid3) + (alpha * train_error_hybrid3)
+                hybrid4 = ((1 - alpha) * train_vio_hybrid4) + (alpha * train_error_hybrid4)
+                hybrid5 = ((1 - alpha) * train_vio_hybrid5) + (alpha * train_error_hybrid5)
+
+                max_hybrid = max(hybrid1, hybrid2, hybrid3, hybrid4, hybrid5)
+
+                if max_hybrid == hybrid1:
+                    return train_vio_hybrid1, train_error_hybrid1, test_vio_hybrid1, test_error_hybrid1
+                if max_hybrid == hybrid2:
+                    return train_vio_hybrid2, train_error_hybrid2, test_vio_hybrid2, test_error_hybrid2
+                if max_hybrid == hybrid3:
+                    return train_vio_hybrid3, train_error_hybrid3, test_vio_hybrid3, test_error_hybrid3
+                if max_hybrid == hybrid4:
+                    return train_vio_hybrid4, train_error_hybrid4, test_vio_hybrid4, test_error_hybrid4
+                if max_hybrid == hybrid5:
+                    return train_vio_hybrid5, train_error_hybrid5, test_vio_hybrid5, test_error_hybrid5
+
+            alpha = 0.5
+            train_vio_combined, train_error_combined, test_vio_combined, test_error_combined = get_combined_hybrid(
+                alpha)
+            _train_vio_combined.append(train_vio_combined)
+            _train_error_combined.append(train_error_combined)
+            _test_vio_combined.append(test_vio_combined)
+            _test_error_combined.append(test_error_combined)
+            _time_combined.append(time_grid_frac + time_expgrad_frac +
+                                  time_new_lin_program + time_lin_prog5 + time_lin_program +
+                                  time_h1 + time_h2 + time_h3 + time_h4 + time_h5)
 
             print("Sample processing complete.")
             print()
@@ -602,6 +676,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             "_time_hybrid3": _time_hybrid3,
             "_time_hybrid4": _time_hybrid4,
             "_time_hybrid5": _time_hybrid5,
+            "_time_combined": _time_combined,
 
             "_train_error_expgrad_fracs": _train_error_expgrad_fracs,
             "_train_vio_expgrad_fracs": _train_vio_expgrad_fracs,
@@ -615,6 +690,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             "_train_vio_rewts_partial": _train_vio_rewts_partial,
             "_train_error_no_grid_rewts": _train_error_no_grid_rewts,
             "_train_vio_no_grid_rewts": _train_vio_no_grid_rewts,
+            "_train_error_combined": _train_error_combined,
+            "_train_vio_combined": _train_vio_combined,
 
             "_test_error_expgrad_fracs": _test_error_expgrad_fracs,
             "_test_vio_expgrad_fracs": _test_vio_expgrad_fracs,
@@ -628,6 +705,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             "_test_vio_rewts_partial": _test_vio_rewts_partial,
             "_test_error_no_grid_rewts": _test_error_no_grid_rewts,
             "_test_vio_no_grid_rewts": _test_vio_no_grid_rewts,
+            "_test_error_combined": _test_error_combined,
+            "_test_vio_combined": _test_vio_combined,
         })
 
     return results
