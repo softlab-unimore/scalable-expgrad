@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import socket
 from datetime import datetime
@@ -35,14 +36,17 @@ def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_al
     # Training Error & Violation of unmitigated estimator
     log_train_violation_unmitigated = getViolation(X_train_all, y_train_all, A_train_all)
     log_train_error_unmitigated = getError(X_train_all, y_train_all, A_train_all)
-    print('Logistic Regression - Time: {} seconds; Training Violation: {}; Training Error: {}'.format(
-        time_unmitigated, log_train_violation_unmitigated, log_train_error_unmitigated))
+    print(f'Logistic Regression : '
+          f'Training Violation: {log_train_violation_unmitigated:.6f}; '
+          f'Training Error: {log_train_error_unmitigated:.6f}; '
+          f'Time: {time_unmitigated:.2f} seconds')
 
     # Testing error and violation of unmitigated estimator
     log_test_violation_unmitigated = getViolation(X_test_all, y_test_all, A_test_all)
     log_test_error_unmitigated = getError(X_test_all, y_test_all, A_test_all)
-    print('Logistic Regression - Testing Violation: {}; Testing Error: {}'.format(log_test_violation_unmitigated,
-                                                                                  log_test_error_unmitigated))
+    print(f'Logistic Regression : '
+          f' Testing Violation: {log_test_violation_unmitigated:.6f}; '
+          f' Testing Error: {log_test_error_unmitigated:.6f}')
 
     results = {
         "time_unmitigated": [time_unmitigated],
@@ -93,16 +97,18 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
         train_violation_expgrad_all = getViolation(X_train_all, y_train_all, A_train_all)
         train_error_expgrad_all = getError(X_train_all, y_train_all, A_train_all)
         print(
-            'Exponentiated gradient on full dataset : Time: {} seconds; Training Violation: {}; Training Errror: {}'.format(
-                time_expgrad_all, train_violation_expgrad_all, train_error_expgrad_all))
+            f'Exponentiated Gradient on full dataset : '
+            f'Training Violation: {train_violation_expgrad_all:.6f}; '
+            f'Training Error: {train_error_expgrad_all:.6f}; '
+            f'Time: {time_expgrad_all:.2f} seconds')
 
         # training violation & error of exp
         test_violation_expgrad_all = getViolation(X_test_all, y_test_all, A_test_all)
         test_error_expgrad_all = getError(X_test_all, y_test_all, A_test_all)
         print(
-            'Exponentiated gradient on full dataset : Testing Violation: {}; Testing Errror: {}'.format(
-                test_violation_expgrad_all, test_error_expgrad_all))
-
+            f'Exponentiated Gradient on full dataset : '
+            f' Testing Violation: {test_violation_expgrad_all:.6f}; '
+            f' Testing Error: {test_error_expgrad_all:.6f}')
 
         _time_expgrad_all.append(time_expgrad_all)
         _train_error_expgrad_all.append(train_error_expgrad_all)
@@ -123,6 +129,8 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
 
 
 def main():
+    # logging.basicConfig(level=logging.DEBUG)
+
     host_name = socket.gethostname()
     if "." in host_name:
         host_name = host_name.split(".")[-1]
@@ -153,6 +161,8 @@ def main():
         os.makedirs(base_dir, exist_ok=True)
     with open(fairlearn_results_file_name, 'w') as _file:
         json.dump(fairlearn_full_results, _file, indent=2)
+
+    print(fairlearn_full_results)
 
 
 if __name__ == "__main__":

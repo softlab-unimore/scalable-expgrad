@@ -357,7 +357,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             #################################################################################################
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
-            expgrad_predictors = expgrad_X_logistic_frac.predictors_
+            # expgrad_predictors = expgrad_X_logistic_frac.predictors_  # fairlearn==0.5.0
+            expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4.6
             a = datetime.now()
             for x in range(len(expgrad_predictors)):
                 def Q_preds_no_grid(X): return expgrad_predictors[x].predict(X)
@@ -422,7 +423,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             # Grid Search part
             print("Running GridSearch...")
             # TODO: Change constraint_weight according to eps
-            lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_
+            # lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_  # 0.5.0
+            lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian  # 0.4.6
             grid_search_logistic_frac = GridSearch(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
                 constraints=DemographicParity(), grid=lambda_vecs_logistic)
@@ -432,7 +434,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             b = datetime.now()
             time_grid_frac = (b - a).total_seconds()
             _time_grid_fracs.append(time_grid_frac)
-            _time_hybrid1.append(time_grid_frac + time_expgrad_frac)
             print(f"GridSearch done in {b - a}")
 
             def Qgrid(X):
@@ -454,6 +455,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             train_error_hybrid1 = getError(X_train_all, y_train_all, A_train_all)
             b = datetime.now()
             time_h1 = (b - a).total_seconds()
+            _time_hybrid1.append(time_grid_frac + time_expgrad_frac + time_h1)
             _train_vio_hybrids.append(train_vio_hybrid1)
             _train_error_hybrids.append(train_error_hybrid1)
 
@@ -467,11 +469,13 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             # Hybrid 2: pmf_predict with exp grad weights in grid search
             #################################################################################################
             print("Running Hybrid 2...")
-            _weights_logistic = expgrad_X_logistic_frac.weights_
-            _predictors = grid_search_logistic_frac.predictors_
+            # _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.5.0
+            # _predictors = grid_search_logistic_frac.predictors_  # 0.5.0
+            _weights_logistic = expgrad_X_logistic_frac._weights  # 0.4.6
+            _predictors = grid_search_logistic_frac._predictors  # 0.4.6
 
             # Time taken by hybrid 2 to fit a model is same as hybrid 1. The only change is while predicting
-            _time_hybrid2.append(time_grid_frac + time_expgrad_frac)
+            _time_hybrid2.append(time_grid_frac + time_expgrad_frac + time_h1)
 
             def Qlog(X):
                 return _pmf_predict(X, _predictors, _weights_logistic)[:, 1]
@@ -632,7 +636,7 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
 
             # combined time
             def get_combined_hybrid(alpha):
-                hybrid1 = ((1-alpha) * train_vio_hybrid1) + (alpha * train_error_hybrid1)
+                hybrid1 = ((1 - alpha) * train_vio_hybrid1) + (alpha * train_error_hybrid1)
                 hybrid2 = ((1 - alpha) * train_vio_hybrid2) + (alpha * train_error_hybrid2)
                 hybrid3 = ((1 - alpha) * train_vio_hybrid3) + (alpha * train_error_hybrid3)
                 hybrid4 = ((1 - alpha) * train_vio_hybrid4) + (alpha * train_error_hybrid4)
