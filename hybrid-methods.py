@@ -18,6 +18,8 @@ from time import time
 from sklearn.linear_model import LogisticRegression
 
 from utils import load_data
+from synthetic_data import get_data, data_split
+
 
 _PRECISION = 1e-8
 _LINE = "_" * 9
@@ -726,7 +728,9 @@ def main():
     hybrid_results_file_name = \
         f'results/{host_name}/{str(eps)}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_hybrid.json'
 
-    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+    #X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+    All = get_data(10000, 4, 0.5, 0.3, 0.6, 40)
+    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, 0.3)
 
     results = run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps)
 

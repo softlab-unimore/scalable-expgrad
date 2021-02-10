@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import socket
 from datetime import datetime
@@ -8,6 +7,7 @@ from fairlearn.reductions import DemographicParity, ErrorRate, ExponentiatedGrad
 from sklearn.linear_model import LogisticRegression
 
 from utils import load_data
+from synthetic_data import get_data, data_split
 
 
 def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all):
@@ -129,7 +129,6 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
 
 
 def main():
-    # logging.basicConfig(level=logging.DEBUG)
 
     host_name = socket.gethostname()
     if "." in host_name:
@@ -143,7 +142,10 @@ def main():
     fairlearn_results_file_name = \
         f'results/{host_name}/{str(eps)}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_fairlearn.json'
 
-    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+    #X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+
+    All = get_data(10000, 4, 0.5, 0.3, 0.6, 40)
+    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, 0.3)
 
     unmitigated_results = run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all)
     fairlearn_full_results = run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all,
