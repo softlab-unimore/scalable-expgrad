@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import socket
+from argparse import ArgumentParser
 from datetime import datetime
 
 import numpy as np
@@ -245,18 +246,14 @@ def solve_linprog(errors=None, gammas=None, eps=0.05, nu=1e-6, pred=None):
     return Q
 
 
-def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps):
+def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
+                sample_indices, fractions, grid_fraction):
     # RUN hybrid models
 
-    # Combine all training data into a single data frame and glance at a few rows
+    # Combine all training data into a single data frame
     train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
 
     results = []
-
-    # Subsampling process
-    num_samples = 10  # 20
-    num_fractions = 6  # 20
-    fractions = np.logspace(-3, 0, num=num_fractions)
 
     # Iterations on difference fractions
     for i, f in enumerate(fractions):
@@ -309,8 +306,27 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         _test_vio_combined = []
         _test_error_combined = []
 
-        for n in range(num_samples):
+        for n in sample_indices:
             print(f"Processing: fraction {f}, sample {n}")
+
+
+
+            # 2 algorithms:
+            # - Expgrad + Grid
+            # - Expgrad + Grid + LP (on all predictors, or top -k)
+            # The actual LP is actually very expensive (can't run it). So we're using a "heuristic LP"
+
+
+
+            # GridSearch data fraction
+            grid_subsampling = train_all.sample(frac=grid_fraction, random_state=n + 60)
+            grid_subsampling = grid_subsampling.reset_index()
+            grid_subsampling = grid_subsampling.drop(columns=['index'])
+            grid_tmp = grid_subsampling.iloc[:, :-1]
+            grid_A_train = grid_subsampling.iloc[:, -1]
+            grid_X_train = grid_tmp.iloc[:, :-1]
+            grid_y_train = grid_tmp.iloc[:, -1]
+
             # Get a sample of the training data
             subsampling = train_all.sample(frac=f, random_state=n + 20)
             subsampling = subsampling.reset_index()
@@ -356,11 +372,13 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
 
             #################################################################################################
             # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
+            # Get rid
             #################################################################################################
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
             # expgrad_predictors = expgrad_X_logistic_frac.predictors_  # fairlearn==0.5.0
             expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4.6
+
             a = datetime.now()
             for x in range(len(expgrad_predictors)):
                 def Q_preds_no_grid(X): return expgrad_predictors[x].predict(X)
@@ -382,7 +400,6 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
 
             no_grid_errors = pd.Series(no_grid_errors)
 
-            # SHOULD WE COUNT TIME TO solve_linprog? YES
             # In hybrid 5, lin program is done on top of expgrad partial.
             new_weights_no_grid = solve_linprog(errors=no_grid_errors, gammas=no_grid_vio, eps=eps, nu=1e-6,
                                                 pred=expgrad_predictors)
@@ -404,11 +421,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 return error.gamma(Q_rewts_no_grid)[0]
 
             # Training violation & error of hybrid 5
-            a = datetime.now()
             train_vio_hybrid5 = getViolation(X_train_all, y_train_all, A_train_all)
             train_error_hybrid5 = getError(X_train_all, y_train_all, A_train_all)
-            b = datetime.now()
-            time_h5 = (b - a).total_seconds()
             _train_vio_no_grid_rewts.append(train_vio_hybrid5)
             _train_error_no_grid_rewts.append(train_error_hybrid5)
 
@@ -419,11 +433,10 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             _test_error_no_grid_rewts.append(test_error_hybrid5)
 
             #################################################################################################
-            # Is this correct? >> YES
             # Hybrid 1: Just Grid Search -> expgrad partial + grid search
             #################################################################################################
             # Grid Search part
-            print("Running GridSearch...")
+            print(f"Running GridSearch (fraction={grid_fraction})...")
             # TODO: Change constraint_weight according to eps
             # lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_  # 0.5.0
             lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian  # 0.4.6
@@ -431,14 +444,18 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 LogisticRegression(solver='liblinear', fit_intercept=True),
                 constraints=DemographicParity(), grid=lambda_vecs_logistic)
             a = datetime.now()
-            grid_search_logistic_frac.fit(X_train_all, y_train_all,
-                                          sensitive_features=A_train_all)
+            # grid_search_logistic_frac.fit(X_train_all, y_train_all,
+            #                               sensitive_features=A_train_all)
+            grid_search_logistic_frac.fit(grid_X_train, grid_y_train, sensitive_features=grid_A_train)
             b = datetime.now()
             time_grid_frac = (b - a).total_seconds()
             _time_grid_fracs.append(time_grid_frac)
-            print(f"GridSearch done in {b - a}")
+            print(f"GridSearch (fraction={grid_fraction}) done in {b - a}")
 
+
+            # Remove this part
             def Qgrid(X):
+                # Biased coin toss every predict
                 return grid_search_logistic_frac.predict(X)
 
             def getViolation(X, Y, A):
@@ -469,10 +486,12 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
 
             #################################################################################################
             # Hybrid 2: pmf_predict with exp grad weights in grid search
+            # Keep this, remove Hybrid 1.
             #################################################################################################
             print("Running Hybrid 2...")
             # _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.5.0
             # _predictors = grid_search_logistic_frac.predictors_  # 0.5.0
+            # Weights from ExpGrad
             _weights_logistic = expgrad_X_logistic_frac._weights  # 0.4.6
             _predictors = grid_search_logistic_frac._predictors  # 0.4.6
 
@@ -529,6 +548,8 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
                 error.load_data(X_train_all, y_train_all,
                                 sensitive_features=A_train_all)
                 error_grid_frac = error.gamma(Q_preds)['all']
+
+                # error_grid_frac is a small vector (e.g. 4)
 
                 grid_vio[x] = violation_grid_frac
                 grid_errors.append(error_grid_frac)
@@ -666,15 +687,17 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             _test_error_combined.append(test_error_combined)
             _time_combined.append(time_grid_frac + time_expgrad_frac +
                                   time_new_lin_program + time_lin_prog5 + time_lin_program +
-                                  time_h1 + time_h2 + time_h3 + time_h4 + time_h5)
+                                  time_h1 + time_h2 + time_h3 + time_h4)
 
-            print("Sample processing complete.")
+            print("Fraction processing complete.")
             print()
 
         print(f"Done {len(_train_error_expgrad_fracs)} samples for fraction {f}")
 
         results.append({
+            "eps": eps,
             "frac": f,
+            "grid_frac": grid_fraction,
 
             "_time_expgrad_fracs": _time_expgrad_fracs,
             "_time_hybrid1": _time_hybrid1,
@@ -718,29 +741,46 @@ def run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
     return results
 
 
-def main():
-    host_name = socket.gethostname()
-    if "." in host_name:
-        host_name = host_name.split(".")[-1]
-
-    eps = 0.05
-
-    hybrid_results_file_name = \
-        f'results/{host_name}/{str(eps)}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_hybrid.json'
-
-    #X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
-    All = get_data(10000, 4, 0.5, 0.3, 0.6, 40)
-    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, 0.3)
-
-    results = run_methods(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps)
-
-    # Store results
-    base_dir = os.path.dirname(hybrid_results_file_name)
-    if not os.path.isdir(base_dir):
-        os.makedirs(base_dir, exist_ok=True)
-    with open(hybrid_results_file_name, 'w') as _file:
-        json.dump(results, _file, indent=2)
-
-
-if __name__ == "__main__":
-    main()
+# def main():
+#     host_name = socket.gethostname()
+#     if "." in host_name:
+#         host_name = host_name.split(".")[-1]
+#
+#     eps = 0.05
+#     num_data_pts = 10000000
+#     num_features = 4
+#     type_ratio = 0.5
+#     t0_ratio = 0.3
+#     t1_ratio = 0.6
+#     random_variation = 1
+#     dataset_str = f"synth_n{num_data_pts}_f{num_features}_r{type_ratio}_{t0_ratio}_{t1_ratio}_v{random_variation}"
+#
+#     hybrid_results_file_name = \
+#         f'results/{host_name}/{dataset_str}/{str(eps)}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_hybrid.json'
+#
+#     #X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+#
+#     print("Generating synth data...")
+#     All = get_data(
+#         num_data_pts=num_data_pts,
+#         num_features=num_features,
+#         type_ratio=type_ratio,
+#         t0_ratio=t0_ratio,
+#         t1_ratio=t1_ratio,
+#         random_seed=random_variation + 40)
+#     X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, 0.3)
+#
+#     print(hybrid_results_file_name)
+#
+#     results = run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps)
+#
+#     # Store results
+#     base_dir = os.path.dirname(hybrid_results_file_name)
+#     if not os.path.isdir(base_dir):
+#         os.makedirs(base_dir, exist_ok=True)
+#     with open(hybrid_results_file_name, 'w') as _file:
+#         json.dump(results, _file, indent=2)
+#
+#
+# if __name__ == "__main__":
+#     main()
