@@ -1,0 +1,434 @@
+[
+  {
+    "frac": 0.001,
+    "_time_expgrad_fracs": [
+      1.263197
+    ],
+    "_time_hybrid1": [
+      27.315876
+    ],
+    "_time_hybrid2": [
+      27.315876
+    ],
+    "_time_hybrid3": [
+      27.733334
+    ],
+    "_time_hybrid4": [
+      27.429592
+    ],
+    "_time_hybrid5": [
+      1.783137
+    ],
+    "_time_combined": [
+      29.216354
+    ],
+    "_train_error_expgrad_fracs": [
+      0.25179040978941397
+    ],
+    "_train_vio_expgrad_fracs": [
+      0.026428299454176157
+    ],
+    "_train_error_hybrids": [
+      0.03691428571428571
+    ],
+    "_train_vio_hybrids": [
+      0.12163584732911792
+    ],
+    "_train_error_grid_pmf_fracs": [
+      0.030791690381331838
+    ],
+    "_train_vio_grid_pmf_fracs": [
+      0.13114964452795352
+    ],
+    "_train_error_rewts": [
+      0.1074524805357521
+    ],
+    "_train_vio_rewts": [
+      0.04999999999982174
+    ],
+    "_train_error_rewts_partial": [
+      0.031285714285714285
+    ],
+    "_train_vio_rewts_partial": [
+      0.13026862464593286
+    ],
+    "_train_error_no_grid_rewts": [
+      0.20613572318495263
+    ],
+    "_train_vio_no_grid_rewts": [
+      0.04999999999998883
+    ],
+    "_train_error_combined": [
+      0.1074524805357521
+    ],
+    "_train_vio_combined": [
+      0.04999999999982174
+    ],
+    "_test_error_expgrad_fracs": [
+      0.24841507304116883
+    ],
+    "_test_vio_expgrad_fracs": [
+      0.0311728354447168
+    ],
+    "_test_error_hybrids": [
+      0.03833333333333333
+    ],
+    "_test_vio_hybrids": [
+      0.11448720150254893
+    ],
+    "_test_error_grid_pmf_fracs": [
+      0.03216938911022578
+    ],
+    "_test_vio_grid_pmf_fracs": [
+      0.1236940253474928
+    ],
+    "_test_error_rewts": [
+      0.1081118152210176
+    ],
+    "_test_vio_rewts": [
+      0.04340179832752683
+    ],
+    "_test_error_rewts_partial": [
+      0.032766666666666666
+    ],
+    "_test_vio_rewts_partial": [
+      0.12273861908594941
+    ],
+    "_test_error_no_grid_rewts": [
+      0.20589170924908481
+    ],
+    "_test_vio_no_grid_rewts": [
+      0.04436264512247601
+    ],
+    "_test_error_combined": [
+      0.1081118152210176
+    ],
+    "_test_vio_combined": [
+      0.04340179832752683
+    ]
+  },
+  {
+    "frac": 0.01,
+    "_time_expgrad_fracs": [
+      2.16909
+    ],
+    "_time_hybrid1": [
+      33.580893999999994
+    ],
+    "_time_hybrid2": [
+      33.580893999999994
+    ],
+    "_time_hybrid3": [
+      34.098395999999994
+    ],
+    "_time_hybrid4": [
+      33.694928
+    ],
+    "_time_hybrid5": [
+      2.78845
+    ],
+    "_time_combined": [
+      35.693020999999995
+    ],
+    "_train_error_expgrad_fracs": [
+      0.14114982656954575
+    ],
+    "_train_vio_expgrad_fracs": [
+      0.02992548653796251
+    ],
+    "_train_error_hybrids": [
+      0.036757142857142856
+    ],
+    "_train_vio_hybrids": [
+      0.12182160167091072
+    ],
+    "_train_error_grid_pmf_fracs": [
+      0.05412209008473332
+    ],
+    "_train_vio_grid_pmf_fracs": [
+      0.10629928731223015
+    ],
+    "_train_error_rewts": [
+      0.10747527317978833
+    ],
+    "_train_vio_rewts": [
+      0.050000000000076705
+    ],
+    "_train_error_rewts_partial": [
+      0.10936336770009633
+    ],
+    "_train_vio_rewts_partial": [
+      0.050000000000153255
+    ],
+    "_train_error_no_grid_rewts": [
+      0.12211856519605717
+    ],
+    "_train_vio_no_grid_rewts": [
+      0.04999999999999405
+    ],
+    "_train_error_combined": [
+      0.10747527317978833
+    ],
+    "_train_vio_combined": [
+      0.050000000000076705
+    ],
+    "_test_error_expgrad_fracs": [
+      0.14158238139283938
+    ],
+    "_test_vio_expgrad_fracs": [
+      0.02231583981863111
+    ],
+    "_test_error_hybrids": [
+      0.0382
+    ],
+    "_test_vio_hybrids": [
+      0.11475633664251855
+    ],
+    "_test_error_grid_pmf_fracs": [
+      0.055565259952981234
+    ],
+    "_test_vio_grid_pmf_fracs": [
+      0.09891179911447956
+    ],
+    "_test_error_rewts": [
+      0.10815392775058032
+    ],
+    "_test_vio_rewts": [
+      0.04347682195943986
+    ],
+    "_test_error_rewts_partial": [
+      0.11019214910118277
+    ],
+    "_test_vio_rewts_partial": [
+      0.043078193854569236
+    ],
+    "_test_error_no_grid_rewts": [
+      0.12277209961715041
+    ],
+    "_test_vio_no_grid_rewts": [
+      0.04221356656270475
+    ],
+    "_test_error_combined": [
+      0.10815392775058032
+    ],
+    "_test_vio_combined": [
+      0.04347682195943986
+    ]
+  },
+  {
+    "frac": 0.1,
+    "_time_expgrad_fracs": [
+      11.175928
+    ],
+    "_time_hybrid1": [
+      52.98107699999999
+    ],
+    "_time_hybrid2": [
+      52.98107699999999
+    ],
+    "_time_hybrid3": [
+      53.746908
+    ],
+    "_time_hybrid4": [
+      53.09521099999999
+    ],
+    "_time_hybrid5": [
+      12.071206
+    ],
+    "_time_combined": [
+      55.83951399999999
+    ],
+    "_train_error_expgrad_fracs": [
+      0.11638398236313499
+    ],
+    "_train_vio_expgrad_fracs": [
+      0.04542318174117993
+    ],
+    "_train_error_hybrids": [
+      0.04645714285714286
+    ],
+    "_train_vio_hybrids": [
+      0.10574124059397444
+    ],
+    "_train_error_grid_pmf_fracs": [
+      0.03681218920875408
+    ],
+    "_train_vio_grid_pmf_fracs": [
+      0.12157642832064464
+    ],
+    "_train_error_rewts": [
+      0.1019057160892317
+    ],
+    "_train_vio_rewts": [
+      0.049999999999969125
+    ],
+    "_train_error_rewts_partial": [
+      0.045642857142857145
+    ],
+    "_train_vio_rewts_partial": [
+      0.10709914451660901
+    ],
+    "_train_error_no_grid_rewts": [
+      0.1119760954081157
+    ],
+    "_train_vio_no_grid_rewts": [
+      0.04999999999972299
+    ],
+    "_train_error_combined": [
+      0.1019057160892317
+    ],
+    "_train_vio_combined": [
+      0.049999999999969125
+    ],
+    "_test_error_expgrad_fracs": [
+      0.11774697268430824
+    ],
+    "_test_vio_expgrad_fracs": [
+      0.037086834599640184
+    ],
+    "_test_error_hybrids": [
+      0.04736666666666667
+    ],
+    "_test_vio_hybrids": [
+      0.09876872372775242
+    ],
+    "_test_error_grid_pmf_fracs": [
+      0.03824650041801027
+    ],
+    "_test_vio_grid_pmf_fracs": [
+      0.11440191663268401
+    ],
+    "_test_error_rewts": [
+      0.10225543183172385
+    ],
+    "_test_vio_rewts": [
+      0.04345083132798011
+    ],
+    "_test_error_rewts_partial": [
+      0.046766666666666665
+    ],
+    "_test_vio_rewts_partial": [
+      0.09971151954208035
+    ],
+    "_test_error_no_grid_rewts": [
+      0.1133502929628279
+    ],
+    "_test_vio_no_grid_rewts": [
+      0.04162843742561395
+    ],
+    "_test_error_combined": [
+      0.10225543183172385
+    ],
+    "_test_vio_combined": [
+      0.04345083132798011
+    ]
+  },
+  {
+    "frac": 1.0,
+    "_time_expgrad_fracs": [
+      99.046037
+    ],
+    "_time_hybrid1": [
+      135.706706
+    ],
+    "_time_hybrid2": [
+      135.706706
+    ],
+    "_time_hybrid3": [
+      136.607697
+    ],
+    "_time_hybrid4": [
+      135.821326
+    ],
+    "_time_hybrid5": [
+      99.767209
+    ],
+    "_time_combined": [
+      138.40357799999998
+    ],
+    "_train_error_expgrad_fracs": [
+      0.10550220331332377
+    ],
+    "_train_vio_expgrad_fracs": [
+      0.05000000000005722
+    ],
+    "_train_error_hybrids": [
+      0.038857142857142854
+    ],
+    "_train_vio_hybrids": [
+      0.11843408486166351
+    ],
+    "_train_error_grid_pmf_fracs": [
+      0.10948582109394797
+    ],
+    "_train_vio_grid_pmf_fracs": [
+      0.04620090289398032
+    ],
+    "_train_error_rewts": [
+      0.10577111270390781
+    ],
+    "_train_vio_rewts": [
+      0.04999999999969923
+    ],
+    "_train_error_rewts_partial": [
+      0.10577111270390774
+    ],
+    "_train_vio_rewts_partial": [
+      0.04999999999969923
+    ],
+    "_train_error_no_grid_rewts": [
+      0.10550220331332377
+    ],
+    "_train_vio_no_grid_rewts": [
+      0.05000000000005722
+    ],
+    "_train_error_combined": [
+      0.10550220331332377
+    ],
+    "_train_vio_combined": [
+      0.05000000000005722
+    ],
+    "_test_error_expgrad_fracs": [
+      0.10677553476348334
+    ],
+    "_test_vio_expgrad_fracs": [
+      0.043151883660702994
+    ],
+    "_test_error_hybrids": [
+      0.0402
+    ],
+    "_test_vio_hybrids": [
+      0.11118885609516144
+    ],
+    "_test_error_grid_pmf_fracs": [
+      0.11083329376628002
+    ],
+    "_test_vio_grid_pmf_fracs": [
+      0.03920626683859124
+    ],
+    "_test_error_rewts": [
+      0.10711834262292078
+    ],
+    "_test_vio_rewts": [
+      0.04299218404555555
+    ],
+    "_test_error_rewts_partial": [
+      0.1071183426229207
+    ],
+    "_test_vio_rewts_partial": [
+      0.04299218404555555
+    ],
+    "_test_error_no_grid_rewts": [
+      0.10677553476348334
+    ],
+    "_test_vio_no_grid_rewts": [
+      0.043151883660702994
+    ],
+    "_test_error_combined": [
+      0.10677553476348334
+    ],
+    "_test_vio_combined": [
+      0.043151883660702994
+    ]
+  }
+]

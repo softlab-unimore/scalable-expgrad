@@ -1,0 +1,17 @@
+{
+  "time_unmitigated": [
+    2.684118
+  ],
+  "train_error_unmitigated": [
+    0.011768571428571429
+  ],
+  "train_vio_unmitigated": [
+    0.14775204779824475
+  ],
+  "test_error_unmitigated": [
+    0.012086666666666667
+  ],
+  "test_vio_unmitigated": [
+    0.1466700556066728
+  ]
+}
