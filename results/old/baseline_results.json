@@ -1,0 +1,38 @@
+[
+    {
+        "eps": 0.05,
+        "time_expgrad_all": [
+            32.465989
+        ],
+        "error_expgrad_all": [
+            0.16600790398944312
+        ],
+        "violation_expgrad_all": [
+            0.05000000000000053
+        ]
+    },
+    {
+        "eps": 0.05,
+        "time_expgrad_all": [
+            38.945304
+        ],
+        "error_expgrad_all": [
+            0.16590872963574316
+        ],
+        "violation_expgrad_all": [
+            0.04999999999999989
+        ]
+    },
+    {
+        "eps": 0.05,
+        "time_expgrad_all": [
+            39.586972
+        ],
+        "error_expgrad_all": [
+            0.16590872963574316
+        ],
+        "violation_expgrad_all": [
+            0.04999999999999989
+        ]
+    }
+]
