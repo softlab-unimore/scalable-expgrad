@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import socket
@@ -5,12 +6,12 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 from baselines import run_unmitigated, run_fairlearn_full
+from hybrid_methods import run_hybrids
 from synthetic_data import get_data, data_split
 from utils import load_data
-from hybrid_methods import run_hybrids
 
 
-def main():
+def main(*args, **kwargs):
     arg_parser = ArgumentParser()
 
     arg_parser.add_argument("dataset")

@@ -1,0 +1,14 @@
+[
+    {
+        "eps": 0.05,
+        "time_expgrad_all": [
+            61.050467
+        ],
+        "error_expgrad_all": [
+            0.16600790398944396
+        ],
+        "violation_expgrad_all": [
+            0.05000000000000053
+        ]
+    }
+]

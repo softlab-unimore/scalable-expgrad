@@ -376,8 +376,8 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             #################################################################################################
             no_grid_errors = []
             no_grid_vio = pd.DataFrame()
-            # expgrad_predictors = expgrad_X_logistic_frac.predictors_  # fairlearn==0.5.0
-            expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4.6
+            expgrad_predictors = expgrad_X_logistic_frac.predictors_  # fairlearn==0.5.0
+            # expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4.6
 
             a = datetime.now()
             for x in range(len(expgrad_predictors)):
@@ -438,8 +438,8 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             # Grid Search part
             print(f"Running GridSearch (fraction={grid_fraction})...")
             # TODO: Change constraint_weight according to eps
-            # lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_  # 0.5.0
-            lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian  # 0.4.6
+            lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_  # 0.5.0
+            # lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian  # 0.4.6
             grid_search_logistic_frac = GridSearch(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
                 constraints=DemographicParity(), grid=lambda_vecs_logistic)
@@ -489,11 +489,11 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             # Keep this, remove Hybrid 1.
             #################################################################################################
             print("Running Hybrid 2...")
-            # _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.5.0
-            # _predictors = grid_search_logistic_frac.predictors_  # 0.5.0
+            _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.5.0
+            _predictors = grid_search_logistic_frac.predictors_  # 0.5.0
             # Weights from ExpGrad
-            _weights_logistic = expgrad_X_logistic_frac._weights  # 0.4.6
-            _predictors = grid_search_logistic_frac._predictors  # 0.4.6
+            # _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.4.6
+            # _predictors = grid_search_logistic_frac.predictors_  # 0.4.6
 
             # Time taken by hybrid 2 to fit a model is same as hybrid 1. The only change is while predicting
             _time_hybrid2.append(time_grid_frac + time_expgrad_frac + time_h1)
