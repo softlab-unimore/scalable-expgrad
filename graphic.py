@@ -62,6 +62,107 @@ def read_results(results_file_name, suffix: str):
     return data_dict
 
 
+def read_hybrids_results(hybrid_results_file_name, alphas=[0.5]):
+    configuration_map = {'fairlearn_on_subsample': 'expgrad_fracs',
+                         'hybrid_1': 'hybrids',
+                         'hybrid_2': 'grid_pmf_fracs',
+                         'hybrid_3': 'rewts',
+                         'hybrid_4': 'rewts_partial',
+                         'hybrid_5': 'no_grid_rewts',
+                         'hybrid_combo': 'combo'}
+    if os.path.exists(hybrid_results_file_name):
+        hybrid_results = json.load(open(hybrid_results_file_name, 'r'))
+    else:
+        hybrid_results = [{}]
+
+    fractions = np.full((1, 3), np.nan)
+    grid_fractions = np.full((1, 3), np.nan)
+    null_value = np.full((len(hybrid_results), 3), np.nan)
+    time_suffix_list = list(configuration_map.values())
+
+    data_dict = {'_'.join(['time', key, 'ci']): null_value.copy() for key in time_suffix_list}
+
+    # baselines
+    combo_null_value = {alpha: null_value.copy() for alpha in alphas}
+    feature_list = ['error', 'vio']
+    model_configuration = list(configuration_map.values())
+    for prefix in ['train', 'test']:
+        for feature in feature_list:
+            for model_conf in model_configuration:
+                if model_conf != 'combo':
+                    data_dict['_'.join([prefix, feature, model_conf, 'ci'])] = null_value.copy()
+                elif model_conf == 'combo':
+                    data_dict['_'.join([prefix, feature, model_conf, 'ci'])] = combo_null_value.copy()
+
+    for i, r in enumerate(hybrid_results):
+        if r == {}:
+            continue
+
+        f = r["frac"]
+        grid_f = r["grid_frac"]
+        combined_dict = {}
+        combined_null_value = {alpha: [None for i in range(len(r["_time_combined"]))] for alpha in alphas}
+        for prefix in ['train', 'test']:
+            for feature in feature_list:
+                combined_dict[f'_{prefix}_{feature}_combined'] = combined_null_value.copy()
+
+        # CONSTRUCT COMBINED
+        for j in range(len(r['_train_error_hybrids'])):
+            __train_error_hybrids = [r['_train_error_no_grid_rewts'][j], r['_train_error_rewts'][j]]
+            __train_vio_hybrids = [r['_train_vio_no_grid_rewts'][j], r['_train_vio_rewts'][j]]
+            __test_error_hybrids = [r['_test_error_no_grid_rewts'][j], r['_test_error_rewts'][j]]
+            __test_vio_hybrids = [r['_test_vio_no_grid_rewts'][j], r['_test_vio_rewts'][j]]
+            for alpha in alphas:
+                best_index = get_combined_hybrid(__train_error_hybrids, __train_vio_hybrids, alpha=alpha)
+                # Set combined train
+                combined_dict['_train_error_combined'][alpha][j] = __train_error_hybrids[best_index]
+                combined_dict['_train_vio_combined'][alpha][j] = __train_vio_hybrids[best_index]
+                # Set combined test
+                combined_dict['_test_error_combined'][alpha][j] = __test_error_hybrids[best_index]
+                combined_dict['_test_vio_combined'][alpha][j] = __test_vio_hybrids[best_index]
+
+        fractions[i] = f
+        grid_fractions[i] = grid_f
+
+        for key, mapped_key in configuration_map.items():
+            if mapped_key not in ['combo', 'expgrad_fracs']:
+                data_dict['_'.join(['time', mapped_key, 'ci'])][i] = mean_confidence_interval(
+                    r[f'_time_{key.replace("_", "")}'])
+        data_dict['time_expgrad_fracs_ci'][i] = mean_confidence_interval(r['_time_expgrad_fracs'])
+        data_dict['time_combo_ci'][i] = mean_confidence_interval(r['_time_combined'])
+
+        for prefix in ['train', 'test']:
+            for feature in feature_list:
+                for model_conf in model_configuration:
+                    if model_conf != 'combo':
+                        val = mean_confidence_interval(r[f'_{prefix}_{feature}_{model_conf}'])
+                        data_dict[f'{prefix}_{feature}_{model_conf}_ci'][i] = val
+                    elif model_conf == 'combo':
+                        for alpha in alphas:
+                            val = mean_confidence_interval(combined_dict['_train_error_combined'][alpha])
+                            data_dict[f'{prefix}_{feature}_{model_conf}_ci'][alpha][i] = val
+
+        # Hybrid combined
+        for prefix in ['train', 'test']:
+            for feature in feature_list:
+                for alpha in alphas:
+                    val = mean_confidence_interval(combined_dict[f'_{prefix}_{feature}_combined'][alpha])
+                    data_dict[f'{prefix}_{feature}_combo_ci'][alpha][i] = val
+    print(grid_fractions)
+
+    final_features_map = {"times": 'time',
+                          "train_errors": 'train_error',
+                          "train_violations": 'train_vio',
+                          "test_errors": 'test_error',
+                          "test_violations": 'test_vio'}
+    ret_dict = {"fractions": fractions,
+                "grid_fractions": grid_fractions}
+    for key, mapped_key in configuration_map.items():
+        tmp_dict = {}
+        for feature, mapped_feature in final_features_map.items():
+            tmp_dict[feature] = data_dict[f'{mapped_feature}_{mapped_key}_ci']
+        ret_dict[key] = tmp_dict
+    return ret_dict
 
 if __name__ == "__main__":
 
