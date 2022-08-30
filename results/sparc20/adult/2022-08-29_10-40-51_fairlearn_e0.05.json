@@ -1,0 +1,18 @@
+{
+  "eps": 0.05,
+  "time_expgrad_all": [
+    20.087536
+  ],
+  "train_error_expgrad_all": [
+    0.17704171322528703
+  ],
+  "train_vio_expgrad_all": [
+    0.010000000000000009
+  ],
+  "test_error_expgrad_all": [
+    0.17735226502327112
+  ],
+  "test_vio_expgrad_all": [
+    0.005201813351049356
+  ]
+}
