@@ -1,134 +1,64 @@
-import json
-import os
-import socket
+from copy import deepcopy
 from datetime import datetime
 
-from fairlearn.reductions import DemographicParity, ErrorRate, ExponentiatedGradient
+from fairlearn.reductions import DemographicParity, ExponentiatedGradient
 from sklearn.linear_model import LogisticRegression
 
-from utils import load_data
-from synthetic_data import get_data, data_split
+from hybrid_methods import get_metrics
 
 
-def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all):
+def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0):
+    results = []
+    data_dict = {'model_name': 'unmitigated', 'time': 0, 'phase': 'model name', 'random_seed': random_seed}
+    datasets_dict = {'train': [X_train_all, y_train_all, A_train_all],
+                     'test': [X_test_all, y_test_all, A_test_all]}
     # Unmitigated LogRes
-    logistic_learner = LogisticRegression(solver='liblinear', fit_intercept=True)
+    logistic_learner = LogisticRegression(solver='liblinear', fit_intercept=True, random_state=random_seed)
 
     a = datetime.now()
     logistic_learner.fit(X_train_all, y_train_all)
     b = datetime.now()
     time_unmitigated = (b - a).total_seconds()
 
-
-    def UnmitLogistic(X):
-        return logistic_learner.predict(X)
-
-    def getViolation(X, Y, A):
-        disparity_moment = DemographicParity()
-        disparity_moment.load_data(X, Y, sensitive_features=A)
-        return disparity_moment.gamma(UnmitLogistic).max()
-
-    def getError(X, Y, A):
-        error = ErrorRate()
-        error.load_data(X, Y, sensitive_features=A)
-        return error.gamma(UnmitLogistic)[0]
-
-    # Training Error & Violation of unmitigated estimator
-    log_train_violation_unmitigated = getViolation(X_train_all, y_train_all, A_train_all)
-    log_train_error_unmitigated = getError(X_train_all, y_train_all, A_train_all)
-    print(f'Logistic Regression : '
-          f'Training Violation: {log_train_violation_unmitigated:.6f}; '
-          f'Training Error: {log_train_error_unmitigated:.6f}; '
-          f'Time: {time_unmitigated:.2f} seconds')
-
-    # Testing error and violation of unmitigated estimator
-    log_test_violation_unmitigated = getViolation(X_test_all, y_test_all, A_test_all)
-    log_test_error_unmitigated = getError(X_test_all, y_test_all, A_test_all)
-    print(f'Logistic Regression : '
-          f' Testing Violation: {log_test_violation_unmitigated:.6f}; '
-          f' Testing Error: {log_test_error_unmitigated:.6f}')
-
-    results = {
-        "time_unmitigated": [time_unmitigated],
-        "train_error_unmitigated": [log_train_error_unmitigated],
-        "train_vio_unmitigated": [log_train_violation_unmitigated],
-        "test_error_unmitigated": [log_test_error_unmitigated],
-        "test_vio_unmitigated": [log_test_violation_unmitigated],
-    }
-
+    metrics_res = get_metrics(datasets_dict, logistic_learner.predict)
+    data_dict.update(**metrics_res)
+    time_expgrad_frac_dict = {'time': time_unmitigated, 'phase': 'train'}
+    data_dict.update(**time_expgrad_frac_dict)
+    results.append(deepcopy(data_dict))
     return results
 
 
 # Fairlearn on full dataset
-def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps):
-    _time_expgrad_all = []
-    _train_error_expgrad_all = []
-    _train_violation_expgrad_all = []
-    _test_error_expgrad_all = []
-    _test_violation_expgrad_all = []
-
+def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps, random_seed=0):
+    results = []
+    data_dict = {'eps': eps, 'model_name': 'fairlearn_full', 'time': 0, 'phase': 'fairlearn_full',
+                 'random_seed': random_seed}
+    datasets_dict = {'train': [X_train_all, y_train_all, A_train_all],
+                     'test': [X_test_all, y_test_all, A_test_all]}
     num_samples = 1
-
     for n in range(num_samples):
         expgrad_X_logistic = ExponentiatedGradient(
-            LogisticRegression(solver='liblinear', fit_intercept=True),
+            LogisticRegression(solver='liblinear', fit_intercept=True, random_state=random_seed),
             constraints=DemographicParity(), eps=eps, nu=1e-6)
-
         print("Fitting Exponentiated Gradient on full dataset...")
 
         a = datetime.now()
-        expgrad_X_logistic.fit(X_train_all, y_train_all,
-                               sensitive_features=A_train_all)
+        expgrad_X_logistic.fit(X_train_all, y_train_all, sensitive_features=A_train_all)
         b = datetime.now()
         time_expgrad_all = (b - a).total_seconds()
 
-        def Qexp_all(X):
-            return expgrad_X_logistic._pmf_predict(X)[:, 1]
+        Qexp_all = lambda X: expgrad_X_logistic._pmf_predict(X)[:, 1]
+        metrics_res = get_metrics(datasets_dict, Qexp_all)
+        data_dict.update(**metrics_res)
+        time_expgrad_frac_dict = {'time': time_expgrad_all, 'phase': 'train'}
+        data_dict.update(**time_expgrad_frac_dict)
+        results.append(deepcopy(data_dict))
 
-        def getViolation(X, Y, A):
-            disparity_moment = DemographicParity()
-            disparity_moment.load_data(X, Y, sensitive_features=A)
-            return disparity_moment.gamma(Qexp_all).max()
-
-        def getError(X, Y, A):
-            error = ErrorRate()
-            error.load_data(X, Y, sensitive_features=A)
-            return error.gamma(Qexp_all)[0]
-
-        # training violation & error of exp
-        train_violation_expgrad_all = getViolation(X_train_all, y_train_all, A_train_all)
-        train_error_expgrad_all = getError(X_train_all, y_train_all, A_train_all)
-        print(
-            f'Exponentiated Gradient on full dataset : '
-            f'Training Violation: {train_violation_expgrad_all:.6f}; '
-            f'Training Error: {train_error_expgrad_all:.6f}; '
-            f'Time: {time_expgrad_all:.2f} seconds')
-
-        # training violation & error of exp
-        test_violation_expgrad_all = getViolation(X_test_all, y_test_all, A_test_all)
-        test_error_expgrad_all = getError(X_test_all, y_test_all, A_test_all)
-        print(
-            f'Exponentiated Gradient on full dataset : '
-            f' Testing Violation: {test_violation_expgrad_all:.6f}; '
-            f' Testing Error: {test_error_expgrad_all:.6f}')
-
-        _time_expgrad_all.append(time_expgrad_all)
-        _train_error_expgrad_all.append(train_error_expgrad_all)
-        _train_violation_expgrad_all.append(train_violation_expgrad_all)
-        _test_error_expgrad_all.append(test_error_expgrad_all)
-        _test_violation_expgrad_all.append(test_violation_expgrad_all)
-
-    results = {
-        "eps": eps,
-        "time_expgrad_all": _time_expgrad_all,
-        "train_error_expgrad_all": _train_error_expgrad_all,
-        "train_vio_expgrad_all": _train_violation_expgrad_all,
-        "test_error_expgrad_all": _test_error_expgrad_all,
-        "test_vio_expgrad_all": _test_violation_expgrad_all,
-    }
-
+        print(f'Exponentiated Gradient on full dataset : ')
+        for key, value in data_dict.items():
+            if key not in ['model_name', 'phase']:
+                print(f'{key} : {value:.6f}')
     return results
-
 
 # def main():
 # 

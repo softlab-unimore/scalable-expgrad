@@ -1,4 +1,4 @@
-from graphic_adult import *
+from graphic_adult_old import *
 
 def test_load_data_adult():
     base_dir = os.path.join("../","results", "yeeha", "adult")

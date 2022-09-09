@@ -2,9 +2,10 @@
 # coding: utf-8
 
 import os
+
 import numpy as np
 import pandas as pd
-
+from scipy.stats import sem, t
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
@@ -12,7 +13,6 @@ try:
     from urllib.request import urlretrieve
 except ImportError:
     from urllib import urlretrieve
-
 
 baseline_results_file_name = 'results/baseline_results (yeeha).json'
 github_data_url = "https://github.com/slundberg/shap/raw/master/data/"
@@ -97,3 +97,28 @@ def load_data():
     return X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all
 
 
+def aggregate_phase_time(df):
+    results_df = df.groupby(df.columns.drop(['phase', 'time']).tolist(), as_index=False, dropna=False).agg(
+        {'time': 'sum'})
+    return results_df
+
+
+def mean_confidence_interval(data, confidence: float = 0.95):
+    """
+    Args:
+        data:
+        confidence:
+
+    Returns:
+        mean and confidence limit values for the given data and confidence
+    """
+    if data is None:
+        return [np.nan, np.nan, np.nan]
+
+    a = np.asarray(data).astype(float)
+    n = len(a)
+    m, se = np.nanmean(a, 0), sem(a, nan_policy="omit", ddof=1)
+    t_value = t.ppf((1.0 + confidence) / 2., n - 1)
+    h1 = m - se * t_value
+    h2 = m + se * t_value
+    return np.array([m, h1, h2])

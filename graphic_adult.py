@@ -1,229 +1,27 @@
-import json
 import os
 from copy import deepcopy
-import matplotlib.pyplot as plt
+
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import seaborn as sns;
+
+sns.set()  # for plot styling
 import numpy as np
-from graphic_synth import mean_confidence_interval, get_combined_hybrid
+import pandas as pd
+from utils import mean_confidence_interval, aggregate_phase_time
+from graphic_synth import get_combined_hybrid
+
+sns.set(rc={"figure.dpi": 400, 'savefig.dpi': 400})
+# sns.set_context('notebook')
+sns.set_style('whitegrid')
+plt.rcParams.update({'font.size': 14})
+plt.tight_layout()
 
 
-def load_data_adult_old(unmitigated_results, fairlearn_results, hybrid_results, alphas=[0.05, 0.5, 0.95]):
-    # Unmitigated results
-    time_unmitigated = unmitigated_results["time_unmitigated"]
-    train_error_unmitigated = unmitigated_results["train_error_unmitigated"]
-    train_violation_unmitigated = unmitigated_results["train_vio_unmitigated"]
-    test_error_unmitigated = unmitigated_results["test_error_unmitigated"]
-    test_violation_unmitigated = unmitigated_results["test_vio_unmitigated"]
-
-    # Fairlearn results
-    time_expgrad_all = fairlearn_results["time_expgrad_all"]
-    train_error_expgrad_all = fairlearn_results["train_error_expgrad_all"]
-    train_violation_expgrad_all = fairlearn_results["train_vio_expgrad_all"]
-    test_error_expgrad_all = fairlearn_results["test_error_expgrad_all"]
-    test_violation_expgrad_all = fairlearn_results["test_vio_expgrad_all"]
-
-    # Hybrid results
-    fractions = []
-
-    time_expgrad_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid1_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid2_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid3_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid4_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid5_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_hybrid_combo_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_unmitigated_ci = np.full((len(hybrid_results), 3), np.nan)
-    time_expgrad_alls_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # baselines
-    train_error_expgrad_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_error_expgrad_alls_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_error_unmitigated_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    train_vio_expgrad_alls_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_expgrad_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_unmitigated_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    test_error_expgrad_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_expgrad_alls_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_unmitigated_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    test_vio_expgrad_alls_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_expgrad_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_unmitigated_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid 1
-    train_error_hybrids_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_hybrids_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_hybrids_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_hybrids_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid 2
-    train_error_grid_pmf_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_grid_pmf_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_grid_pmf_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_grid_pmf_fracs_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid 3
-    train_vio_rewts_pmf_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_error_rewts_pmf_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_rewts_pmf_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_rewts_pmf_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid 4
-    train_error_rewts_partial_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_rewts_partial_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_rewts_partial_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_rewts_partial_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid 5
-    train_error_no_grid_rewts_ci = np.full((len(hybrid_results), 3), np.nan)
-    train_vio_no_grid_rewts_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_error_no_grid_rewts_ci = np.full((len(hybrid_results), 3), np.nan)
-    test_vio_no_grid_rewts_ci = np.full((len(hybrid_results), 3), np.nan)
-
-    # Hybrid Combined
-    train_err_combo_ci = {alpha: np.full((len(hybrid_results), 3), np.nan) for alpha in alphas}
-    train_vio_combo_ci = {alpha: np.full((len(hybrid_results), 3), np.nan) for alpha in alphas}
-    test_err_combo_ci = {alpha: np.full((len(hybrid_results), 3), np.nan) for alpha in alphas}
-    test_vio_combo_ci = {alpha: np.full((len(hybrid_results), 3), np.nan) for alpha in alphas}
-
-    for i, r in enumerate(hybrid_results):
-        f = r["frac"]
-        _time_expgrad_fracs = r["_time_expgrad_fracs"]
-        _time_hybrid1 = r["_time_hybrid1"]
-        _time_hybrid2 = r["_time_hybrid2"]
-        _time_hybrid3 = r["_time_hybrid3"]
-        _time_hybrid4 = r["_time_hybrid4"]
-        _time_hybrid5 = r["_time_hybrid5"]
-        _time_combo = r["_time_combined"]
-
-        _train_error_expgrad_fracs = r["_train_error_expgrad_fracs"]
-        _train_vio_expgrad_fracs = r["_train_vio_expgrad_fracs"]
-        _train_error_hybrids = r["_train_error_hybrids"]
-        _train_vio_hybrids = r["_train_vio_hybrids"]
-        _train_error_grid_pmf_fracs = r["_train_error_grid_pmf_fracs"]
-        _train_vio_grid_pmf_fracs = r["_train_vio_grid_pmf_fracs"]
-        _train_error_rewts = r["_train_error_rewts"]
-        _train_vio_rewts = r["_train_vio_rewts"]
-        _train_error_rewts_partial = r["_train_error_rewts_partial"]
-        _train_vio_rewts_partial = r["_train_vio_rewts_partial"]
-        _train_error_no_grid_rewts = r["_train_error_no_grid_rewts"]
-        _train_vio_no_grid_rewts = r["_train_vio_no_grid_rewts"]
-        #     _train_err_combined = r["_train_error_combined"]
-        #     _train_vio_combined = r["_train_vio_combined"]
-
-        _train_err_combined = {alpha: [None for i in range(len(_time_combo))] for alpha in alphas}
-        _train_vio_combined = {alpha: [None for i in range(len(_time_combo))] for alpha in alphas}
-
-        _test_error_expgrad_fracs = r["_test_error_expgrad_fracs"]
-        _test_vio_expgrad_fracs = r["_test_vio_expgrad_fracs"]
-        _test_error_hybrids = r["_test_error_hybrids"]
-        _test_vio_hybrids = r["_test_vio_hybrids"]
-        _test_error_grid_pmf_fracs = r["_test_error_grid_pmf_fracs"]
-        _test_vio_grid_pmf_fracs = r["_test_vio_grid_pmf_fracs"]
-        _test_error_rewts = r["_test_error_rewts"]
-        _test_vio_rewts = r["_test_vio_rewts"]
-        _test_error_rewts_partial = r["_test_error_rewts_partial"]
-        _test_vio_rewts_partial = r["_test_vio_rewts_partial"]
-        _test_error_no_grid_rewts = r["_test_error_no_grid_rewts"]
-        _test_vio_no_grid_rewts = r["_test_vio_no_grid_rewts"]
-        #     _test_err_combined = r["_test_error_combined"]
-        #     _test_vio_combined = r["_test_vio_combined"]
-
-        _test_err_combined = {alpha: [None for i in range(len(_time_combo))] for alpha in alphas}
-        _test_vio_combined = {alpha: [None for i in range(len(_time_combo))] for alpha in alphas}
-
-        # CONSTRUCT COMBINED
-        for j in range(len(_train_error_hybrids)):
-            __train_err_hybrids = [_train_error_no_grid_rewts[j], _train_error_rewts[j]]
-            __train_vio_hybrids = [_train_vio_no_grid_rewts[j], _train_vio_rewts[j]]
-            __test_err_hybrids = [_test_error_no_grid_rewts[j], _test_error_rewts[j]]
-            __test_vio_hybrids = [_test_vio_no_grid_rewts[j], _test_vio_rewts[j]]
-            for alpha in alphas:
-                best_index = get_combined_hybrid(__train_err_hybrids, __train_vio_hybrids, alpha=alpha)
-                # Set combined train
-                _train_err_combined[alpha][j] = __train_err_hybrids[best_index]
-                _train_vio_combined[alpha][j] = __train_vio_hybrids[best_index]
-                # Set combined test
-                _test_err_combined[alpha][j] = __test_err_hybrids[best_index]
-                _test_vio_combined[alpha][j] = __test_vio_hybrids[best_index]
-
-        fractions.append(f)
-
-        time_expgrad_alls_ci[i] = mean_confidence_interval(time_expgrad_all)
-        time_unmitigated_ci[i] = mean_confidence_interval(time_unmitigated)
-        time_expgrad_fracs_ci[i] = mean_confidence_interval(_time_expgrad_fracs)
-
-        time_hybrid1_ci[i] = mean_confidence_interval(_time_hybrid1)
-        time_hybrid2_ci[i] = mean_confidence_interval(_time_hybrid2)
-        time_hybrid3_ci[i] = mean_confidence_interval(_time_hybrid3)
-        time_hybrid4_ci[i] = mean_confidence_interval(_time_hybrid4)
-        time_hybrid5_ci[i] = mean_confidence_interval(_time_hybrid5)
-        time_hybrid_combo_ci[i] = mean_confidence_interval(_time_combo)
-
-        # baseline
-        train_error_expgrad_alls_ci[i] = mean_confidence_interval(train_error_expgrad_all)
-        train_error_unmitigated_ci[i] = mean_confidence_interval(train_error_unmitigated)
-
-        train_vio_expgrad_alls_ci[i] = mean_confidence_interval(train_violation_expgrad_all)
-        train_vio_unmitigated_ci[i] = mean_confidence_interval(train_violation_unmitigated)
-
-        test_error_expgrad_alls_ci[i] = mean_confidence_interval(test_error_expgrad_all)
-        test_error_unmitigated_ci[i] = mean_confidence_interval(test_error_unmitigated)
-
-        test_vio_expgrad_alls_ci[i] = mean_confidence_interval(test_violation_expgrad_all)
-        test_vio_unmitigated_ci[i] = mean_confidence_interval(test_violation_unmitigated)
-
-        # exp frac
-        train_error_expgrad_fracs_ci[i] = mean_confidence_interval(_train_error_expgrad_fracs)
-        train_vio_expgrad_fracs_ci[i] = mean_confidence_interval(_train_vio_expgrad_fracs)
-
-        test_error_expgrad_fracs_ci[i] = mean_confidence_interval(_test_error_expgrad_fracs)
-        test_vio_expgrad_fracs_ci[i] = mean_confidence_interval(_test_vio_expgrad_fracs)
-
-        # Hybrid 1
-        train_error_hybrids_ci[i] = mean_confidence_interval(_train_error_hybrids)
-        train_vio_hybrids_ci[i] = mean_confidence_interval(_train_vio_hybrids)
-
-        test_error_hybrids_ci[i] = mean_confidence_interval(_test_error_hybrids)
-        test_vio_hybrids_ci[i] = mean_confidence_interval(_test_vio_hybrids)
-
-        # Hybrid 2
-        train_error_grid_pmf_fracs_ci[i] = mean_confidence_interval(_train_error_grid_pmf_fracs)
-        train_vio_grid_pmf_fracs_ci[i] = mean_confidence_interval(_train_vio_grid_pmf_fracs)
-
-        test_error_grid_pmf_fracs_ci[i] = mean_confidence_interval(_test_error_grid_pmf_fracs)
-        test_vio_grid_pmf_fracs_ci[i] = mean_confidence_interval(_test_vio_grid_pmf_fracs)
-
-        # Hybrid 3: re-weight using LP
-        train_error_rewts_pmf_ci[i] = mean_confidence_interval(_train_error_rewts)
-        train_vio_rewts_pmf_ci[i] = mean_confidence_interval(_train_vio_rewts)
-
-        test_error_rewts_pmf_ci[i] = mean_confidence_interval(_test_error_rewts)
-        test_vio_rewts_pmf_ci[i] = mean_confidence_interval(_test_vio_rewts)
-
-        # Hybrid 4
-        train_error_rewts_partial_ci[i] = mean_confidence_interval(_train_error_rewts_partial)
-        train_vio_rewts_partial_ci[i] = mean_confidence_interval(_train_vio_rewts_partial)
-
-        test_error_rewts_partial_ci[i] = mean_confidence_interval(_test_error_rewts_partial)
-        test_vio_rewts_partial_ci[i] = mean_confidence_interval(_test_vio_rewts_partial)
-
-        # Hybrid 5
-        train_error_no_grid_rewts_ci[i] = mean_confidence_interval(_train_error_no_grid_rewts)
-        train_vio_no_grid_rewts_ci[i] = mean_confidence_interval(_train_vio_no_grid_rewts)
-
-        test_error_no_grid_rewts_ci[i] = mean_confidence_interval(_test_error_no_grid_rewts)
-        test_vio_no_grid_rewts_ci[i] = mean_confidence_interval(_test_vio_no_grid_rewts)
-
-        # Hybrid combined
-        for alpha in alphas:
-            train_err_combo_ci[alpha][i] = mean_confidence_interval(_train_err_combined[alpha])
-            train_vio_combo_ci[alpha][i] = mean_confidence_interval(_train_vio_combined[alpha])
-
-            test_err_combo_ci[alpha][i] = mean_confidence_interval(_test_err_combined[alpha])
-            test_vio_combo_ci[alpha][i] = mean_confidence_interval(_test_vio_combined[alpha])
+# plt.rcParams["figure.figsize"] = (10,5)
+# ax = global_df.pivot_table(index=['id', 'match_code'], columns=['dataset_code'], values=['pearson']).droplevel(0,1).groupby(['match_code']).plot(kind='box')
+# ax['match'].get_figure().savefig(os.path.join(...))
+# ax['nomatch'].get_figure().savefig(os.path.join(...), bbox_inches='tight')
 
 
 def load_data_adult(unmitigated_results, fairlearn_results, hybrid_results, alphas=[0.05, 0.5, 0.95]):
@@ -297,6 +95,7 @@ def load_data_adult(unmitigated_results, fairlearn_results, hybrid_results, alph
     data_dict['fractions'] = fractions
     return data_dict
 
+
 def plot_erro_vio_vs_fraction(data_dict, alphas=[0.05, 0.5, 0.95], phase='train'):
     cols = list(mcolors.TABLEAU_COLORS.keys())
     fr = data_dict['fractions']
@@ -325,8 +124,10 @@ def plot_erro_vio_vs_fraction(data_dict, alphas=[0.05, 0.5, 0.95], phase='train'
 
     # Add alpha combos
     for i, alpha in enumerate(alphas):
-        errors[f"combined[{alpha}]"] = (cols[i], f"hybrid combined (alpha={alpha})", data_dict[f'{phase}_error_combined_ci'][alpha], None)
-        violations[f"combined[{alpha}]"] = (cols[i], f"hybrid combined (alpha={alpha})", data_dict[f'{phase}_vio_combined_ci'][alpha], None)
+        errors[f"combined[{alpha}]"] = (
+            cols[i], f"hybrid combined (alpha={alpha})", data_dict[f'{phase}_error_combined_ci'][alpha], None)
+        violations[f"combined[{alpha}]"] = (
+            cols[i], f"hybrid combined (alpha={alpha})", data_dict[f'{phase}_vio_combined_ci'][alpha], None)
 
     # Plot errors
     for k, (c1, label, means, stds) in errors.items():
@@ -357,7 +158,7 @@ def plot_erro_vio_vs_fraction(data_dict, alphas=[0.05, 0.5, 0.95], phase='train'
     plt.show()
 
 
-def plot_time_vs_fraction(data_dict, alphas=[0.05, 0.5, 0.95]):
+def plot_time_vs_fraction_json(data_dict, alphas=[0.05, 0.5, 0.95]):
     # Print Time and plot them
     # fr = np.log10(fractions)
     fr = data_dict['fractions']
@@ -430,20 +231,97 @@ def plot_time_vs_fraction(data_dict, alphas=[0.05, 0.5, 0.95]):
     plt.show()
 
 
-if __name__ == '__main__':
-    base_dir = os.path.join("results", "yeeha", "adult")
-    unmitigated_results_file_name = f"{base_dir}/0.05_2021-01-25_09-33-57_unmitigated.json"
-    fairlearn_results_file_name = f"{base_dir}/0.05_2021-01-25_09-33-57_fairlearn.json"
-    # hybrid_results_file_name = f"{base_dir}/0.05_2021-02-23_05-29-19_hybrids.json"
-    hybrid_results_file_name = f"{base_dir}/0.05_2021-01-25_09-59-57_hybrid.json"
-    with open(unmitigated_results_file_name, 'r') as _file:
-        unmitigated_results = json.load(_file)
-    with open(fairlearn_results_file_name, 'r') as _file:
-        fairlearn_results = json.load(_file)
-    with open(hybrid_results_file_name, 'r') as _file:
-        hybrid_results = json.load(_file)
+def plot_time_vs_fraction(all_model_df, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95]):
+    # Print Time and plot them
+    x_values = all_model_df[x_axis].dropna().unique()
+    # fr = np.log10(fr)
+    time_aggregated_df = aggregate_phase_time(all_model_df)
 
-    data = load_data_adult(unmitigated_results, fairlearn_results, hybrid_results)
-    plot_time_vs_fraction(data)
-    plot_erro_vio_vs_fraction(data, phase='train')
-    plot_erro_vio_vs_fraction(data, phase='test')
+    # model_names = all_model_df[['model_name']].drop_duplicates()
+
+    columns = ['label', 'color']
+    data = {
+        'expgrad_fracs' : ['expgrad sample', 'g'],
+        'hybrid_5' : ['hybrid 5 (LP)', 'y'],
+        'hybrid_1' : ['hybrid 1 (GS only)', 'b'],
+        'hybrid_2' : ['hybrid 2 (GS + pmf_predict)', 'c'],
+        'hybrid_3' : ['hybrid 3 (GS + LP)', 'k'],
+        'hybrid_4' : ['hybrid 4 (GS + LP+)', 'm'],
+        'combined' : ['hybrid combined (alpha 0.95)', 'm'],
+        'fairlearn_full' : ['expgrad full', 'r'],
+        'unmitigated' : ['unmitigated', 'o']}
+    to_plot_models = ['expgrad_fracs',
+                      'hybrid_5',
+                      # 'hybrid_1',
+                      # 'hybrid_2',
+                      'hybrid_3',
+                      # 'hybrid_4',
+                      'combined',
+                      'fairlearn_full',
+                      # 'unmitigated'
+                      ]
+    map_df = pd.DataFrame.from_dict(data, columns=columns, orient='index')
+    for key, turn_df in time_aggregated_df.groupby('model_name'):
+        if key not in to_plot_models:
+            continue
+        turn_data = turn_df.pivot(index='random_seed', columns=x_axis,values=y_axis)
+        ci = mean_confidence_interval(turn_data)
+        label, color = map_df.loc[key, ['label','color']].values
+        plt.fill_between(x_values, ci[1], ci[2],
+                         color=color, alpha=0.3)
+        values = ci[0]
+        if len(values) < len(x_values):
+            values = [values] * len(x_values)
+        plt.plot(x_values, values, f'{color}o-', label=label)
+
+    plt.xlabel('Dataset Fraction (log scale)')
+    plt.ylabel(y_axis)
+    plt.title(f'{y_axis} v.s. {x_axis}')
+    plt.xscale("log")
+    if y_axis == 'time':
+        plt.yscale("log")
+    sns.axes_style("whitegrid")
+    plt.legend()
+    fig = plt.gcf()
+    fig.set_size_inches(10, 6)
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == '__main__':
+    base_dir = os.path.join("results", "sparc20", "adult")
+    files = pd.Series(os.listdir(base_dir))
+    name_df = files.str.extract(r'^(\d{4}-\d{2}-\d{2})_((?:\d{2}-{0,1}){3})_(.*)\.(.*)$', expand=True)
+    name_df.rename(columns={0: 'date', 1: 'time', 2: 'model', 3: 'extension'}, inplace=True)
+    name_df['full_name'] = files
+    name_df = name_df.query('extension == "csv"')
+    last_files = name_df.sort_values(['date', 'time'], ascending=False).groupby('model').head(1)
+
+    df_dict = {model_name: pd.read_csv(os.path.join(base_dir, turn_name))
+               for turn_name, model_name in (last_files[['full_name', 'model']].values)}
+    all_model_df = pd.concat(df_dict.values())
+
+    plot_time_vs_fraction(all_model_df)
+    plot_time_vs_fraction(all_model_df, y_axis='train_violation')
+    plot_time_vs_fraction(all_model_df, y_axis='train_error')
+    # plot_erro_vio_vs_fraction(data, phase='train')
+    # plot_erro_vio_vs_fraction(data, phase='test')
+
+# For old json files
+# if __name__ == '__main__':
+#     base_dir = os.path.join("results", "yeeha", "adult")
+#     unmitigated_results_file_name = f"{base_dir}/0.05_2021-01-25_09-33-57_unmitigated.json"
+#     fairlearn_results_file_name = f"{base_dir}/0.05_2021-01-25_09-33-57_fairlearn.json"
+#     # hybrid_results_file_name = f"{base_dir}/0.05_2021-02-23_05-29-19_hybrids.json"
+#     hybrid_results_file_name = f"{base_dir}/0.05_2021-01-25_09-59-57_hybrid.json"
+#     with open(unmitigated_results_file_name, 'r') as _file:
+#         unmitigated_results = json.load(_file)
+#     with open(fairlearn_results_file_name, 'r') as _file:
+#         fairlearn_results = json.load(_file)
+#     with open(hybrid_results_file_name, 'r') as _file:
+#         hybrid_results = json.load(_file)
+#
+#     data = load_data_adult(unmitigated_results, fairlearn_results, hybrid_results)
+#     plot_time_vs_fraction(data)
+#     plot_erro_vio_vs_fraction(data, phase='train')
+#     plot_erro_vio_vs_fraction(data, phase='test')

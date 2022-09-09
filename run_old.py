@@ -4,19 +4,14 @@ import os
 import socket
 from argparse import ArgumentParser
 from datetime import datetime
-from warnings import simplefilter
 
-import pandas as pd
-
-from baselines import run_unmitigated, run_fairlearn_full
+from baselines_old import run_unmitigated, run_fairlearn_full
 from hybrid_methods import run_hybrids
 from synthetic_data import get_data, data_split
 from utils import load_data
 
 
-
 def main(*args, **kwargs):
-    simplefilter(action='ignore', category=FutureWarning)
     arg_parser = ArgumentParser()
 
     arg_parser.add_argument("dataset")
@@ -110,16 +105,17 @@ def main(*args, **kwargs):
 
     else:
         raise ValueError(method)
-    results_df = pd.DataFrame(results)
+
     current_time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    results_file_name = f'results/{host_name}/{dataset_str}/{current_time_str}_{method_str}.csv'
+    results_file_name = f'results/{host_name}/{dataset_str}/{current_time_str}_{method_str}.json'
     print(f"Storing results in '{results_file_name}'")
 
     # Store results
     base_dir = os.path.dirname(results_file_name)
     if not os.path.isdir(base_dir):
         os.makedirs(base_dir, exist_ok=True)
-    results_df.to_csv(results_file_name, index=False)
+    with open(results_file_name, 'w') as _file:
+        json.dump(results, _file, indent=2)
 
 
 if __name__ == "__main__":
