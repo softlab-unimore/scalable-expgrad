@@ -72,7 +72,7 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
     for n in range(num_samples):
         expgrad_X_logistic = ExponentiatedGradient(
             LogisticRegression(solver='liblinear', fit_intercept=True),
-            constraints=DemographicParity(), eps=eps, nu=1e-6)
+            constraints=DemographicParity(difference_bound=eps), eps=eps, nu=1e-6)
 
         print("Fitting Exponentiated Gradient on full dataset...")
 

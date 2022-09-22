@@ -1,4 +1,4 @@
-from hybrid_methods import run_hybrids
+from run_hybrids import run_hybrids
 from utils import load_data
 
 

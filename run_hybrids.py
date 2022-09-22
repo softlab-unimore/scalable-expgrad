@@ -16,7 +16,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
-from hybrid_models import Hybrid5, Hybrid1, Hybrid2
+from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4
 from utils import aggregate_phase_time
 
 _PRECISION = 1e-8
@@ -260,9 +260,11 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
     data_dict = {"eps": eps, "frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name', 'random_seed': 0}
     datasets_dict = {'train': [X_train_all, y_train_all, A_train_all],
                      'test': [X_test_all, y_test_all, A_test_all]}
+    all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
     to_iter = list(itertools.product(fractions, sample_indices))
+    constraint = DemographicParity(difference_bound=eps)
     # Iterations on difference fractions
-    for i, (f, n) in tqdm(enumerate(to_iter)):
+    for i, (f, n) in tqdm(list(enumerate(to_iter))):
         turn_results = []
         data_dict['frac'] = f
         data_dict["grid_frac"] = grid_fraction
@@ -277,29 +279,30 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         # GridSearch data fraction
         grid_subsampling = train_all.sample(frac=grid_fraction, random_state=n + 60)
         grid_subsampling = grid_subsampling.reset_index(drop=True)
-        # todo check & remove
-        #  grid_subsampling = grid_subsampling.drop(columns=['index'])
         grid_A_train = grid_subsampling.iloc[:, -1]
         grid_X_train = grid_subsampling.iloc[:, :-2]
         grid_y_train = grid_subsampling.iloc[:, -2]
         # todo check split
+        grid_params = dict(X=grid_X_train, y=grid_y_train, sensitive_features=grid_A_train)
 
         # Get a sample of the training data
-        subsampling = train_all.sample(frac=f, random_state=n + 20)  # todo --> sampling with or w/out overlap
-        subsampling = subsampling.reset_index(drop=True)
+        exp_subsampling = train_all.sample(frac=f, random_state=n + 20)  # todo --> sampling with or w/out overlap
+        exp_subsampling = exp_subsampling.reset_index(drop=True)
         # todo check & remove
         # subsampling = subsampling.drop(columns=['index'])
-        X_train = subsampling.iloc[:, :-2]
-        A_train = subsampling.iloc[:, -1]
-        y_train = subsampling.iloc[:, -2]
+        X_train = exp_subsampling.iloc[:, :-2]
+        A_train = exp_subsampling.iloc[:, -1]
+        y_train = exp_subsampling.iloc[:, -2]
+        exp_params = dict(X=X_train, y=y_train, sensitive_features=A_train)
 
         # Expgrad on sample
         data_dict['model_name'] = 'expgrad_fracs'
-        expgrad_X_logistic_frac = ExponentiatedGradient(LogisticRegression(solver='liblinear', fit_intercept=True, random_state=n),
-                                                        constraints=DemographicParity(), eps=eps, nu=1e-6)
+        expgrad_X_logistic_frac = ExponentiatedGradient(
+            LogisticRegression(solver='liblinear', fit_intercept=True, random_state=n),
+            constraints=deepcopy(constraint), eps=eps, nu=1e-6)
         print("Fitting ExponentiatedGradient on subset...")
         a = datetime.now()
-        expgrad_X_logistic_frac.fit(X_train, y_train, sensitive_features=A_train)
+        expgrad_X_logistic_frac.fit(**exp_params)
         b = datetime.now()
         time_expgrad_frac = (b - a).total_seconds()
         time_expgrad_frac_dict = {'time': time_expgrad_frac, 'phase': 'expgrad_fracs'}
@@ -309,39 +312,46 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         def Qexp(X):
             return expgrad_X_logistic_frac._pmf_predict(X)[:, 1]
 
+        a = datetime.now()
         metrics_res = get_metrics(datasets_dict, Qexp)
+        b = datetime.now()
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))  # todo check results
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
         #################################################################################################
         # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
         # Get rid
         #################################################################################################
         data_dict['model_name'] = 'hybrid_5'
-        model1 = Hybrid5(expgrad_X_logistic_frac.predictors_)
+        model1 = Hybrid5(expgrad_X_logistic_frac, eps=eps, constraint=deepcopy(constraint))
         a = datetime.now()
-        model1.fit(X_train_all, y_train_all, A_train_all, eps=eps)
+        model1.fit(**all_params)
         b = datetime.now()
         time_lin_prog_h5 = (b - a).total_seconds()
 
+        a = datetime.now()
         metrics_res = get_metrics(datasets_dict, model1.predict)
+        b = datetime.now()
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_lin_prog_h5,
-                            'phase': 'lin_prog'})
-        turn_results.append(deepcopy(data_dict))
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict,
+                            {'time': time_lin_prog_h5, 'phase': 'lin_prog'}
+                            ]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
         #################################################################################################
         # Hybrid 1: Just Grid Search -> expgrad partial + grid search
         #################################################################################################
         # Grid Search part
+        data_dict['model_name'] = 'hybrid_1'
         print(f"Running GridSearch (fraction={grid_fraction})...")
+        model = Hybrid1(expgrad_X_logistic_frac, eps=eps, constraint=deepcopy(constraint))
         a = datetime.now()
-        model = Hybrid1(lambda_vecs_=expgrad_X_logistic_frac.lambda_vecs_)
-        model.fit(grid_X_train, grid_y_train, A=grid_A_train)
+        model.fit(**grid_params)
         b = datetime.now()
         time_grid_frac = (b - a).total_seconds()
         time_grid_frac_dict = {'time': time_grid_frac, 'phase': 'grid_frac'}
@@ -350,17 +360,12 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         a = datetime.now()
         metrics_res = get_metrics(datasets_dict, model.predict)
         b = datetime.now()
-        time_h1 = (b - a).total_seconds()
-
-        data_dict['model_name'] = 'hybrid_1'
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict, time_grid_frac_dict]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
-        data_dict.update(**time_grid_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_h1, 'phase': 'evaluation'})
-        turn_results.append(deepcopy(data_dict))
         grid_search_logistic_frac = model.grid_search_logistic_frac
 
         #################################################################################################
@@ -369,91 +374,63 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         #################################################################################################
 
         print("Running Hybrid 2...")
-        model = Hybrid2()
-        model.weights_ = expgrad_X_logistic_frac.weights_  # 0.5.0
-        model.predictors_ = grid_search_logistic_frac.predictors_  # 0.5.0
-        # Weights from ExpGrad
-        # _weights_logistic = expgrad_X_logistic_frac.weights_  # 0.4.6
-        # _predictors = grid_search_logistic_frac.predictors_  # 0.4.6
-        model.fit(grid_X_train, grid_y_train, grid_A_train)
+        data_dict['model_name'] = 'hybrid_2'
+        model = Hybrid2(expgrad_X_logistic_frac, grid_search_logistic_frac, eps=eps, constraint=deepcopy(constraint))
+        model.fit(**grid_params)
         a = datetime.now()
         metrics_res = get_metrics(datasets_dict, model.predict)
         b = datetime.now()
-        time_h2 = (b - a).total_seconds()
-
-        data_dict['model_name'] = 'hybrid_2'
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**time_grid_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_h2, 'phase': 'evaluation'})
-        turn_results.append(deepcopy(data_dict))
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict, time_grid_frac_dict]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
         #################################################################################################
         # Hybrid 3: re-weight using LP
         #################################################################################################
         print("Running Hybrid 3...")
-        _predictors = grid_search_logistic_frac.predictors_
+        data_dict['model_name'] = 'hybrid_3'
         # Hybrid 3 is hybrid 5 with the predictors of grid_search
-        model = Hybrid5(predictors=_predictors)
+        model = Hybrid3(grid_search_logistic_frac=grid_search_logistic_frac, eps=eps, constraint=deepcopy(constraint))
 
         a = datetime.now()
-        model.fit(X_train_all, y_train_all, A_train_all, eps=eps)
+        model.fit(**all_params)
         b = datetime.now()
         time_lin_prog_h3 = (b - a).total_seconds()
-
-        Q_rewts = model.predict
 
         a = datetime.now()
         metrics_res = get_metrics(datasets_dict, model.predict)
         b = datetime.now()
-        time_h3 = (b - a).total_seconds()
-
-        data_dict['model_name'] = 'hybrid_3'
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**time_grid_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_lin_prog_h3, 'phase': 'lin_prog'})
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_h3, 'phase': 'evaluation'})
-        turn_results.append(deepcopy(data_dict))
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict, time_grid_frac_dict,
+                            {'time': time_lin_prog_h3, 'phase': 'lin_prog'}]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
         #################################################################################################
         # Hybrid 4: re-weight only the non-zero weight predictors using LP
         #################################################################################################
-        _weights_logistic = expgrad_X_logistic_frac.weights_
-        _predictors = grid_search_logistic_frac.predictors_
         print("Running Hybrid 4...")
-        re_wts_predictors = []
-        for x in range(len(_weights_logistic)):
-            if _weights_logistic[x] != 0:
-                re_wts_predictors.append(_predictors[x])
-        model = Hybrid5(predictors=re_wts_predictors)
+        data_dict['model_name'] = 'hybrid_4'
+
+        model = Hybrid4(expgrad_X_logistic_frac, grid_search_logistic_frac, eps=eps, constraint=deepcopy(constraint))
         a = datetime.now()
-        model.fit(X_train_all, y_train_all, A_train_all, eps=eps)
+        model.fit(**all_params)
         b = datetime.now()
         time_lin_prog_h4 = (b - a).total_seconds()
 
         # Training violation & error of hybrid 4
         a = datetime.now()
         metrics_res = get_metrics(datasets_dict, model.predict)
-        # todo cronomether only train not also test evaluation
         b = datetime.now()
-        time_h4 = (b - a).total_seconds()
-
-        data_dict['model_name'] = 'hybrid_4'
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
         data_dict.update(**metrics_res)
-        data_dict.update(**time_expgrad_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**time_grid_frac_dict)
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_lin_prog_h4, 'phase': 'lin_prog'})
-        turn_results.append(deepcopy(data_dict))
-        data_dict.update(**{'time': time_h4, 'phase': 'evaluation'})
-        turn_results.append(deepcopy(data_dict))
+        for t_time_dict in [time_eval_dict, time_expgrad_frac_dict, time_grid_frac_dict,
+                            {'time': time_lin_prog_h4, 'phase': 'lin_prog'}]:
+            data_dict.update(**t_time_dict)
+            turn_results.append(deepcopy(data_dict))
 
         #################################################################################################
         # COMBINED
@@ -465,21 +442,22 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
         composed_metric = hybrid_res['train_violation'] * (1 - alpha) + hybrid_res['train_error'] * alpha
         combo_res = hybrid_res.loc[composed_metric.idxmin()]
         data_dict['model_name'] = 'combined'
+        data_dict['alpha'] = alpha
         for df_name in datasets_dict.keys():
             for metric_name in metrics_dict.keys():
                 turn_key = f'{df_name}_{metric_name}'
                 data_dict[turn_key] = combo_res[turn_key]
 
+        eval_time_dict_list = [
+            {'time': turn_res['time'], 'phase': f'evaluation_{turn_res["model_name"].split("_")[-1]}'}
+            for turn_res in turn_results if
+            turn_res['phase'] == 'evaluation' and turn_res['model_name'].startswith('hybrid_')]
         for time_dict in [time_expgrad_frac_dict,
                           time_grid_frac_dict,
-                          {'time': time_lin_prog_h3, 'phase': 'lin_prog'},
-                          {'time': time_lin_prog_h4, 'phase': 'lin_prog'},
-                          {'time': time_lin_prog_h5, 'phase': 'lin_prog'},
-                          {'time': time_h1, 'phase': 'evaluation'},
-                          {'time': time_h2, 'phase': 'evaluation'},
-                          {'time': time_h3, 'phase': 'evaluation'},
-                          {'time': time_h4, 'phase': 'evaluation'},
-                          ]:
+                          {'time': time_lin_prog_h3, 'phase': 'lin_prog_3'},
+                          {'time': time_lin_prog_h4, 'phase': 'lin_prog_4'},
+                          {'time': time_lin_prog_h5, 'phase': 'lin_prog_5'}
+                          ] + eval_time_dict_list:
             data_dict.update(**time_dict)
             turn_results.append(deepcopy(data_dict))
 

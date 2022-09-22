@@ -4,7 +4,7 @@ from datetime import datetime
 from fairlearn.reductions import DemographicParity, ExponentiatedGradient
 from sklearn.linear_model import LogisticRegression
 
-from hybrid_methods import get_metrics
+from run_hybrids import get_metrics
 
 
 def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0):
@@ -39,7 +39,7 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
     for n in range(num_samples):
         expgrad_X_logistic = ExponentiatedGradient(
             LogisticRegression(solver='liblinear', fit_intercept=True, random_state=random_seed),
-            constraints=DemographicParity(), eps=eps, nu=1e-6)
+            constraints=DemographicParity(difference_bound=eps), eps=eps, nu=1e-6)
         print("Fitting Exponentiated Gradient on full dataset...")
 
         a = datetime.now()

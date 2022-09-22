@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 from baselines_old import run_unmitigated, run_fairlearn_full
-from hybrid_methods import run_hybrids
+from run_hybrids import run_hybrids
 from synthetic_data import get_data, data_split
 from utils import load_data
 

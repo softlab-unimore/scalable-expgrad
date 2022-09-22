@@ -339,7 +339,7 @@ def run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A
             # Expgrad on sample
             expgrad_X_logistic_frac = ExponentiatedGradient(
                 LogisticRegression(solver='liblinear', fit_intercept=True),
-                constraints=DemographicParity(), eps=eps, nu=1e-6)
+                constraints=DemographicParity(difference_bound=eps), eps=eps, nu=1e-6)
 
             print("Fitting ExponentiatedGradient on subset...")
             a = datetime.now()

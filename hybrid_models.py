@@ -32,43 +32,51 @@ def _pmf_predict(X, predictors, weights):
 
 class Hybrid5(BaseEstimator):
 
-    def __init__(self, predictors=None):
-        self.predictors = predictors
+    def __init__(self, expgrad_X_logistic_frac=None, eps=None, constraint=None):
+        if constraint is None:
+            constraint = DemographicParity(difference_bound=eps)
+        self.constraint = constraint
+        self.expgrad_logistic_frac = expgrad_X_logistic_frac
+        self.eps = eps
 
-    def fit_expgrad(self, X, y, A):
+    def fit_expgrad(self, X, y, sensitive_features):
         expgrad_X_logistic_frac = ExponentiatedGradient(LogisticRegression(solver='liblinear', fit_intercept=True),
-                                                        constraints=DemographicParity(), eps=eps, nu=1e-6)
+                                                        constraints=self.constraint, eps=self.eps, nu=1e-6)
         print("Fitting ExponentiatedGradient on subset...")
-        expgrad_X_logistic_frac.fit(X, y, sensitive_features=A)
-        self.predictors = expgrad_X_logistic_frac.predictors_  # fairlearn==0.5.0
-        # self.expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4
+        expgrad_X_logistic_frac.fit(X, y, sensitive_features=sensitive_features)
+        self.expgrad_logistic_frac = expgrad_X_logistic_frac
 
-    def fit(self, X, y, A, eps):
-        if self.predictors is None:
-            self.fit_expgrad(X, y, A)
-
-        grid_errors = []
-        grid_vio = pd.DataFrame()
-        for x in range(len(self.predictors)):
-            def Q_preds(X): return self.predictors[x].predict(X)
+    def get_erro_vio(self, X, y, sensitive_features, predictors):
+        error_list = []
+        violation_df = pd.DataFrame()
+        for x, turn_predictor in enumerate(predictors):
+            def Q_preds(X): return turn_predictor.predict(X)
 
             # violation of log res
             disparity_moment = DemographicParity()
-            disparity_moment.load_data(X, y, sensitive_features=A)
-            violation_no_grid_frac = disparity_moment.gamma(Q_preds)
+            disparity_moment.load_data(X, y, sensitive_features=sensitive_features)
+            turn_violation = disparity_moment.gamma(Q_preds)
 
             # error of log res
             error = ErrorRate()
-            error.load_data(X, y, sensitive_features=A)
-            error_no_grid_frac = error.gamma(Q_preds)['all']
+            error.load_data(X, y, sensitive_features=sensitive_features)
+            turn_error = error.gamma(Q_preds)['all']
 
-            grid_vio[x] = violation_no_grid_frac
-            grid_errors.append(error_no_grid_frac)
+            violation_df[x] = turn_violation
+            error_list.append(turn_error)
 
-        grid_errors = pd.Series(grid_errors)
+        error_list = pd.Series(error_list)
+        return error_list, violation_df
+
+    def fit(self, X, y, sensitive_features):
+        if self.expgrad_logistic_frac is None:
+            self.fit_expgrad(X, y, sensitive_features)
+        self.predictors = self.expgrad_logistic_frac.predictors_  # fairlearn==0.5.0
+        # self.expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4
 
         # In hybrid 5, lin program is done on top of expgrad partial.
-        self.weights = solve_linprog(errors=grid_errors, gammas=grid_vio, eps=eps, nu=1e-6,
+        errors, violations = self.get_erro_vio(X, y, sensitive_features, self.predictors)
+        self.weights = solve_linprog(errors=errors, gammas=violations, eps=self.eps, nu=1e-6,
                                      pred=self.predictors)
         return self
 
@@ -76,63 +84,71 @@ class Hybrid5(BaseEstimator):
         return _pmf_predict(X, self.predictors, self.weights)[:, 1]
 
 
-class Hybrid1(BaseEstimator):
+class Hybrid1(Hybrid5):
 
-    def __init__(self, lambda_vecs_=None):
-        self.lambda_vecs_logistic = lambda_vecs_
+    def __init__(self, expgrad_X_logistic_frac=None, grid_search_logistic_frac=None, eps=None, **kwargs):
+        super().__init__(eps=eps, **kwargs)
+        self.expgrad_logistic_frac = expgrad_X_logistic_frac
+        self.grid_search_logistic_frac = grid_search_logistic_frac
+        self.eps=eps
 
 
-    def fit_expgrad(self, X, y, A):
-        """
-        # TODO: Change constraint_weight according to eps
-        """
-        expgrad_X_logistic_frac = ExponentiatedGradient(LogisticRegression(solver='liblinear', fit_intercept=True),
-                                                        constraints=DemographicParity(), eps=eps, nu=1e-6)
-        print("Fitting ExponentiatedGradient on subset...")
-        expgrad_X_logistic_frac.fit(X, y, sensitive_features=A)
-        self.lambda_vecs_logistic = expgrad_X_logistic_frac.lambda_vecs_  # fairlearn==0.5.0
-        # self.lambda_vecs_logistic = expgrad_X_logistic_frac._lambda_vecs_lagrangian  # fairlearn==0.4
-
-    def fit(self, X, y, A):
-        if self.lambda_vecs_logistic is None:
-            self.fit_expgrad(X, y, A)
+    def fit_grid(self, X, y, sensitive_features):
+        if self.expgrad_logistic_frac is None:
+            self.fit_expgrad(X, y, sensitive_features)
         self.grid_search_logistic_frac = GridSearch(
             LogisticRegression(solver='liblinear', fit_intercept=True),
-            constraints=DemographicParity(), grid=self.lambda_vecs_logistic)
-        self.grid_search_logistic_frac.fit(X, y, sensitive_features=A)
+            constraints=self.constraint, grid=self.expgrad_logistic_frac.lambda_vecs_) # TODO no eps
+        # _lambda_vecs_lagrangian  # fairlearn==0.4
+        self.grid_search_logistic_frac.fit(X, y, sensitive_features=sensitive_features)
+
+    def fit(self, X, y, sensitive_features):
+        if self.expgrad_logistic_frac is None:
+            self.fit_expgrad(X, y, sensitive_features)
+        if self.grid_search_logistic_frac is None:
+            self.fit_grid(X, y, sensitive_features)
         return self
 
     def predict(self, X):
-        # todo ?? Remove this part
         return self.grid_search_logistic_frac.predict(X)
 
 
-class Hybrid2(BaseEstimator):
+class Hybrid2(Hybrid1):
 
-    def __init__(self, weights=None, predictors=None):
-        self.weights_ = weights
-        self.predictors_ = predictors
+    def predict(self, X):
+        self.weights = self.expgrad_logistic_frac.weights_
+        self.predictors = self.grid_search_logistic_frac.predictors_
+        return _pmf_predict(X, self.predictors, self.weights)[:, 1]
 
-    def fit_expgrad(self, X, y, A):
-        self.expgrad_X_logistic_frac = ExponentiatedGradient(LogisticRegression(solver='liblinear', fit_intercept=True),
-                                                        constraints=DemographicParity(), eps=eps, nu=1e-6)
-        print("Fitting ExponentiatedGradient on subset...")
-        self.expgrad_X_logistic_frac.fit(X, y, sensitive_features=A)
-        self.weights_ = self.expgrad_X_logistic_frac.weights_
 
-    def fit_grid(self, X, y, A):
-        self.grid_search_logistic_frac = GridSearch(
-            LogisticRegression(solver='liblinear', fit_intercept=True),
-            constraints=DemographicParity(), grid=self.expgrad_X_logistic_frac.lambda_vecs_)
-        self.grid_search_logistic_frac.fit(X, y, sensitive_features=A)
-        self.predictors_ = self.grid_search_logistic_frac.predictors_
+class Hybrid3(Hybrid1):
 
-    def fit(self, X, y, A):
-        if self.weights_ is None:
-            self.fit_expgrad(X, y, A)
-        if self.predictors_ is None:
-            self.fit_grid(X, y, A)
+    def fit(self, X, y, sensitive_features):
+        if self.grid_search_logistic_frac is None:
+            self.fit_grid(X, y, sensitive_features)
+        self.predictors = self.grid_search_logistic_frac.predictors_  # fairlearn==0.5.0
+        # self.expgrad_predictors = expgrad_X_logistic_frac._predictors  # fairlearn==0.4
+        errors, violations = self.get_erro_vio(X, y, sensitive_features, self.predictors)
+        self.weights = solve_linprog(errors=errors, gammas=violations, eps=self.eps, nu=1e-6,
+                                     pred=self.predictors)
         return self
 
     def predict(self, X):
-        return _pmf_predict(X, self.predictors_, self.weights_)[:, 1]
+        return _pmf_predict(X, self.predictors, self.weights)[:, 1]
+
+
+
+class Hybrid4(Hybrid1):
+
+    def fit(self, X, y, sensitive_features):
+        super().fit(X, y, sensitive_features)
+        weights_logistic = self.expgrad_logistic_frac.weights_
+        predictors = self.grid_search_logistic_frac.predictors_
+        re_wts_predictors = [ predictors[idx] for idx, turn_weight in enumerate(weights_logistic) if turn_weight != 0]
+        self.predictors = re_wts_predictors
+        errors, violations = self.get_erro_vio(X, y, sensitive_features, self.predictors)
+        self.weights = solve_linprog(errors=errors, gammas=violations, eps=self.eps, nu=1e-6,
+                                     pred=self.predictors)
+
+    def predict(self, X):
+        return _pmf_predict(X, self.predictors, self.weights)[:, 1]
