@@ -7,7 +7,7 @@ from fairlearn.reductions import DemographicParity, ErrorRate, ExponentiatedGrad
 from sklearn.linear_model import LogisticRegression
 
 from utils import load_data
-from synthetic_data import get_data, data_split
+from synthetic_data import get_synthetic_data, data_split
 
 
 def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all):
@@ -72,7 +72,7 @@ def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test
     for n in range(num_samples):
         expgrad_X_logistic = ExponentiatedGradient(
             LogisticRegression(solver='liblinear', fit_intercept=True),
-            constraints=DemographicParity(), eps=eps, nu=1e-6)
+            constraints=DemographicParity(difference_bound=eps), eps=eps, nu=1e-6)
 
         print("Fitting Exponentiated Gradient on full dataset...")
 

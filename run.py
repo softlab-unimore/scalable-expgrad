@@ -9,8 +9,8 @@ from warnings import simplefilter
 import pandas as pd
 
 from baselines import run_unmitigated, run_fairlearn_full
-from hybrid_methods import run_hybrids
-from synthetic_data import get_data, data_split
+from run_hybrids import run_hybrids
+from synthetic_data import get_synthetic_data, data_split
 from utils import load_data
 
 
@@ -68,7 +68,7 @@ def main(*args, **kwargs):
         print(f"Generating synth data "
               f"(n={num_data_pts}, f={num_features}, t={type_ratio}, t0={t0_ratio}, t1={t1_ratio}, "
               f"v={random_variation})...")
-        All = get_data(
+        All = get_synthetic_data(
             num_data_pts=num_data_pts,
             num_features=num_features,
             type_ratio=type_ratio,
