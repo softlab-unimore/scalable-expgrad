@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4
 from utils import aggregate_phase_time
+from metrics import metrics_dict
 
 _PRECISION = 1e-8
 _LINE = "_" * 9
@@ -224,20 +225,6 @@ class _GapResult:
         return max(self.L - self.L_low, self.L_high - self.L)
 
 
-def getViolation(X, Y, A, predict_method):
-    disparity_moment = DemographicParity()
-    disparity_moment.load_data(X, Y, sensitive_features=A)
-    return disparity_moment.gamma(predict_method).max()
-
-
-def getError(X, Y, A, predict_method):
-    error = ErrorRate()
-    error.load_data(X, Y, sensitive_features=A)
-    return error.gamma(predict_method)[0]
-
-
-metrics_dict = {'error': getError,
-                'violation': getViolation}
 
 
 def get_metrics(dataset_dict: dict, predict_method, metrics_methods=metrics_dict):

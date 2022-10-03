@@ -7,17 +7,32 @@ from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
 
 
-def solve_linprog(errors=None, gammas=None, eps=0.05, nu=1e-6, pred=None):
+def solve_linprog_strict(errors=None, gammas=None, eps=0.05, nu=1e-6, pred=None):
     B = 1 / eps
     n_hs = len(pred)
     n_constraints = 4  # len()
 
-    c = np.concatenate((errors, [B]))
-    A_ub = np.concatenate((gammas - eps, -np.ones((n_constraints, 1))), axis=1)
-    b_ub = np.zeros(n_constraints)
-    A_eq = np.concatenate((np.ones((1, n_hs)), np.zeros((1, 1))), axis=1)
+    c = np.concatenate(errors)
+    A_ub = gammas  # gammas @ weights <= eps
+    b_ub = np.repeat(eps, n_constraints)
+    A_eq = np.ones(1, n_hs)
     b_eq = np.ones(1)
-    result = opt.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, method='simplex')
+    result = opt.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, method='highs-ds')
+    Q = pd.Series(result.x[:-1])
+    return Q
+
+
+def solve_linprog(errors=None, gammas=None, eps=0.05, nu=1e-6, pred=None, eps_plus=0):
+    B = 1 / eps
+    n_hs = len(pred)
+    n_constraints = 4  # len()
+
+    c = np.concatenate((errors, [B**2])) # min err @ weights + B^2 * x5 # for feasibility
+    A_ub = np.concatenate((gammas, -np.ones((n_constraints, 1))), axis=1) # vio @ weights <= eps + x5
+    b_ub = np.repeat(eps, n_constraints)
+    A_eq = np.array([[1] * n_hs + [0]])
+    b_eq = np.ones((1,1))
+    result = opt.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, method='highs-ds')
     Q = pd.Series(result.x[:-1])
     return Q
 
@@ -90,15 +105,14 @@ class Hybrid1(Hybrid5):
         super().__init__(eps=eps, **kwargs)
         self.expgrad_logistic_frac = expgrad_X_logistic_frac
         self.grid_search_logistic_frac = grid_search_logistic_frac
-        self.eps=eps
-
+        self.eps = eps
 
     def fit_grid(self, X, y, sensitive_features):
         if self.expgrad_logistic_frac is None:
             self.fit_expgrad(X, y, sensitive_features)
         self.grid_search_logistic_frac = GridSearch(
             LogisticRegression(solver='liblinear', fit_intercept=True),
-            constraints=self.constraint, grid=self.expgrad_logistic_frac.lambda_vecs_) # TODO no eps
+            constraints=self.constraint, grid=self.expgrad_logistic_frac.lambda_vecs_)  # TODO no eps
         # _lambda_vecs_lagrangian  # fairlearn==0.4
         self.grid_search_logistic_frac.fit(X, y, sensitive_features=sensitive_features)
 
@@ -137,14 +151,13 @@ class Hybrid3(Hybrid1):
         return _pmf_predict(X, self.predictors, self.weights)[:, 1]
 
 
-
 class Hybrid4(Hybrid1):
 
     def fit(self, X, y, sensitive_features):
         super().fit(X, y, sensitive_features)
         weights_logistic = self.expgrad_logistic_frac.weights_
         predictors = self.grid_search_logistic_frac.predictors_
-        re_wts_predictors = [ predictors[idx] for idx, turn_weight in enumerate(weights_logistic) if turn_weight != 0]
+        re_wts_predictors = [predictors[idx] for idx, turn_weight in enumerate(weights_logistic) if turn_weight != 0]
         self.predictors = re_wts_predictors
         errors, violations = self.get_erro_vio(X, y, sensitive_features, self.predictors)
         self.weights = solve_linprog(errors=errors, gammas=violations, eps=self.eps, nu=1e-6,

@@ -8,7 +8,7 @@ import pandas as pd
 # to run the experiments.
 
 
-def get_data(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_seed):
+def get_synthetic_data(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_seed):
     """
     Generate synthetic data
 
@@ -20,7 +20,41 @@ def get_data(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_
     :param random_seed: random seed number
     :return: [X,Y,T]
     """
-    random_state = int(random_seed * 99) + 1
+    random_state = int(random_seed * 99) + 1 # why?
+    np.random.seed(random_seed)
+    seed(random_state)
+    sensitive_attribute = pd.Series(np.random.default_rng(random_state).binomial(1, type_ratio, int(num_data_pts)))
+    Y = pd.Series([0] * num_data_pts)
+
+    for group, turn_y_ratio in [(0, t0_ratio), (1, t1_ratio)]:
+        mask = sensitive_attribute == group
+        num_elements = mask.value_counts()[True]
+        Y[mask] = np.random.default_rng(random_state).binomial(1, turn_y_ratio, num_elements)
+
+    random_values = np.array([random() for i in range(num_data_pts)])
+    X = Y * random_values
+    X1 = pd.DataFrame(np.random.rand(int(num_data_pts), num_features - 2))
+    X.name = num_features - 2
+    Y.name = num_features - 1
+    sensitive_attribute.name = num_features
+    X = pd.concat([X1, X], axis=1)
+    return pd.concat([X, Y, sensitive_attribute], axis=1)
+
+
+def get_synthetic_data_old(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_seed):
+    """
+    Generate synthetic data
+
+    :param num_data_pts: number of datapoints
+    :param num_features: number of features ; min=3
+    :param type_ratio: ratio of sensitive group (e.g.: male:female)
+    :param t0_ratio: ratio of positive labels in group 0 (e.g.: hired_females:unhired_females)
+    :param t1_ratio: ratio of positive labels in group 1 (e.g.: hired_males:unhired_males)
+    :param random_seed: random seed number
+    :return: [X,Y,T]
+    """
+    random_state = int(random_seed * 99) + 1 # why?
+    np.random.seed(random_seed)
     seed(random_state)
     # sensitive attribute - 0/1
     T = np.random.default_rng(random_state).binomial(1, type_ratio, int(num_data_pts))
@@ -43,7 +77,6 @@ def get_data(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_
             Y[i] = T0_Y[j]
             X[i] = Y[i] * random()
             j += 1
-
         elif T[i] == 1:
             # get from T1_Y
             Y[i] = T1_Y[k]
@@ -56,24 +89,24 @@ def get_data(num_data_pts, num_features, type_ratio, t0_ratio, t1_ratio, random_
     Y = pd.Series(Y)
     return pd.concat([X, Y, T], axis=1)
 
-
 # split data points
 def data_split(All, test_ratio):
     """
     data split for above synthetic data set
 
-    :param All: [X,Y,T]
+    :param All: [X,Y,A]
     :param test_ratio: test ratio
     :return: X_train, Y_train, A_train, X_test, Y_test, A_test
     """
     # We know that All = X, Y, T
     all_train, all_test, Y_train, Y_test = train_test_split(All, All.iloc[:, -2], test_size=test_ratio, random_state=42)
     # test dataset
-    T_test = all_test.iloc[:, -1]
+    A_test = all_test.iloc[:, -1]
     X_test = all_test.iloc[:, :-2]
 
     # train dataset
-    T_train = all_train.iloc[:, -1]
+    A_train = all_train.iloc[:, -1]
     X_train = all_train.iloc[:, :-2]
-    return pd.DataFrame(X_train), pd.Series(Y_train), pd.Series(T_train), \
-           pd.DataFrame(X_test), pd.Series(Y_test), pd.Series(T_test)
+    return pd.DataFrame(X_train), pd.Series(Y_train), pd.Series(A_train), \
+           pd.DataFrame(X_test), pd.Series(Y_test), pd.Series(A_test)
+
