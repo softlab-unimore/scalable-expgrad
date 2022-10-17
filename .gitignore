@@ -129,3 +129,4 @@ dmypy.json
 /notebook_import_utility_env.py
 
 /.idea/
+/results/

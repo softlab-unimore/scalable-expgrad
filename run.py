@@ -7,12 +7,12 @@ from datetime import datetime
 from warnings import simplefilter
 
 import pandas as pd
+from sklearn.model_selection import StratifiedKFold
 
 from baselines import run_unmitigated, run_fairlearn_full
 from run_hybrids import run_hybrids
 from synthetic_data import get_synthetic_data, data_split
 from utils import load_data
-
 
 
 def main(*args, **kwargs):
@@ -36,8 +36,8 @@ def main(*args, **kwargs):
 
     # For hybrid methods
     arg_parser.add_argument("--sample-variations")
-    arg_parser.add_argument("--sample-fractions")
-    arg_parser.add_argument("--grid-fraction", type=float)
+    arg_parser.add_argument("--exp-fractions")
+    arg_parser.add_argument("--grid-fractions")
 
     args = arg_parser.parse_args()
 
@@ -53,7 +53,7 @@ def main(*args, **kwargs):
 
     if dataset == "adult":
         dataset_str = f"adult"
-        X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+        X, y, A = load_data()
 
     elif dataset == "synth":
         num_data_pts = args.num_data_points
@@ -75,51 +75,64 @@ def main(*args, **kwargs):
             t0_ratio=t0_ratio,
             t1_ratio=t1_ratio,
             random_seed=random_variation + 40)
-
-        assert 0 < test_ratio < 1
-        print(f"Splitting train/test with test_ratio={test_ratio}")
-        X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, test_ratio)
+        X, y, A = All.iloc[:, :-2], All.iloc[:, -2], All.iloc[:, -1]
+        # assert 0 < test_ratio < 1
+        # print(f"Splitting train/test with test_ratio={test_ratio}")
+        # X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, test_ratio)
 
     else:
         raise ValueError(dataset)
 
-    if method == "hybrids":
-        # Subsampling process
-        # num_samples = 1  # 10  # 20
-        # num_fractions = 6  # 20
-        # fractions = np.logspace(-3, 0, num=num_fractions)
-        # fractions = [0.004]
-        sample_variations = [int(x) for x in args.sample_variations.split(",")]
-        sample_fractions = [float(x) for x in args.sample_fractions.split(",")]
-        grid_fraction = args.grid_fraction
-        assert 0 <= grid_fraction <= 1
-        method_str = f"hybrids_e{eps}_g{grid_fraction}"
+    results = []
+    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
+    to_stratify = A.astype(str) + y.astype(str)
+    for train_test_fold, (train_index, test_index) in enumerate(skf.split(X, to_stratify)):
+        datasets_divided = []
+        for turn_index in [train_index, test_index]:
+            for turn_df in [X, y, A]:
+                datasets_divided.append(turn_df.iloc[turn_index])
+        if method == "hybrids":
+            # Subsampling process
+            # num_samples = 1  # 10  # 20
+            # num_fractions = 6  # 20
+            # fractions = np.logspace(-3, 0, num=num_fractions)
+            # fractions = [0.004]
+            sample_variations = [int(x) for x in args.sample_variations.split(",")]
+            exp_fractions = [float(x) for x in args.exp_fractions.split(",")]
+            grid_fractions = [float(x) for x in args.grid_fractions.split(",")]
+            # assert 0 <= grid_fraction <= 1
+            method_str = f"hybrids"
+            if len(grid_fractions) > 1:
+                method_str += f'_g{grid_fractions}'
+            if len(exp_fractions) > 1:
+                method_str += f'_e{exp_fractions}'
+            method_str += f'_eps{eps}'
 
-        print(f"Running Hybrids with sample variations {sample_variations} and fractions {sample_fractions}, "
-              f"and grid-fraction={grid_fraction}...\n")
-        results = run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
-                              sample_indices=sample_variations, fractions=sample_fractions, grid_fraction=grid_fraction)
+            print(f"Running Hybrids with sample variations {sample_variations} and fractions {exp_fractions}, "
+                  f"and grid-fraction={grid_fractions}...\n")
+            turn_results = run_hybrids(*datasets_divided, eps=eps, sample_indices=sample_variations,
+                                       fractions=exp_fractions, grid_fractions=grid_fractions,
+                                       train_test_fold=train_test_fold)
 
-    elif method == "unmitigated":
-        results = run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all)
-        method_str = f"unmitigated"
+        elif method == "unmitigated":
+            turn_results = run_unmitigated(*datasets_divided, train_test_fold=train_test_fold)
+            method_str = f"unmitigated"
 
-    elif method == "fairlearn":
-        results = run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps)
-        method_str = f"fairlearn_e{eps}"
-
-    else:
-        raise ValueError(method)
+        elif method == "fairlearn":
+            turn_results = run_fairlearn_full(*datasets_divided, eps, train_test_fold=train_test_fold)
+            method_str = f"fairlearn_e{eps}"
+        else:
+            raise ValueError(method)
+        results += turn_results
     results_df = pd.DataFrame(results)
     current_time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    results_file_name = f'results/{host_name}/{dataset_str}/{current_time_str}_{method_str}.csv'
-    print(f"Storing results in '{results_file_name}'")
+    res_dir = f'results/{host_name}/{dataset_str}/'
 
-    # Store results
-    base_dir = os.path.dirname(results_file_name)
-    if not os.path.isdir(base_dir):
-        os.makedirs(base_dir, exist_ok=True)
-    results_df.to_csv(results_file_name, index=False)
+    os.makedirs(res_dir, exist_ok=True)
+    for prefix in [f'{current_time_str}', f'last']:
+        path = os.path.join(res_dir, f'{prefix}_{method_str}.csv')
+        results_df.to_csv(path, index=False)
+        print(f'Saving results in: {path}')
 
 
 if __name__ == "__main__":

@@ -5,11 +5,11 @@
 
 #### Synth
 ```
-time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=10000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test-ratio=0.3 --sample-variations=0,1,2,3,4,5,6,7,8,9 --sample-fractions=0.016 --grid-fraction=0.5
+time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=10000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test-ratio=0.3 --sample-variations=0,1,2,3,4,5,6,7,8,9 --exp-fractions=0.016 --grid-fraction=0.5
 ```
 
 ```
-time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=1000000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test-ratio=0.3 --sample-variations=0,1,2,3,4,5,6,7,8,9 --sample-fractions=0.016 --grid-fraction=0.5
+time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=1000000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test-ratio=0.3 --sample-variations=0,1,2,3,4,5,6,7,8,9 --exp-fractions=0.016 --grid-fraction=0.5
 ```
 
 ##### Unmitigated
@@ -36,7 +36,7 @@ time stdbuf -oL python run.py adult unmitigated
 time stdbuf -oL python run.py adult fairlearn --eps=0.05
 ```
 ```
-time stdbuf -oL python run.py adult hybrids --eps=0.05 --sample-variations=0,1,2,3,4,5,6,7,8,9 --sample-fractions=0.001,0.004,0.016,0.063,0.251,1 --grid-fraction=0.5
+time stdbuf -oL python run.py adult hybrids --eps=0.05 --sample-variations=0,1,2,3,4,5,6,7,8,9 --exp-fractions=0.001,0.004,0.016,0.063,0.251,1 --grid-fraction=0.5
 ```
 
 
