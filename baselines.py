@@ -7,9 +7,12 @@ from sklearn.linear_model import LogisticRegression
 from run_hybrids import get_metrics
 
 
-def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0):
+def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0,
+                    train_test_fold=None):
+    assert train_test_fold is not None
     results = []
-    data_dict = {'model_name': 'unmitigated', 'time': 0, 'phase': 'model name', 'random_seed': random_seed}
+    data_dict = {'model_name': 'unmitigated', 'time': 0, 'phase': 'model name', 'random_seed': random_seed,
+                 'train_test_fold': train_test_fold}
     datasets_dict = {'train': [X_train_all, y_train_all, A_train_all],
                      'test': [X_test_all, y_test_all, A_test_all]}
     # Unmitigated LogRes
@@ -29,10 +32,12 @@ def run_unmitigated(X_train_all, y_train_all, A_train_all, X_test_all, y_test_al
 
 
 # Fairlearn on full dataset
-def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps, random_seed=0):
+def run_fairlearn_full(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps, random_seed=0,
+                       train_test_fold=None):
+    assert train_test_fold is not None
     results = []
     data_dict = {'eps': eps, 'model_name': 'fairlearn_full', 'time': 0, 'phase': 'fairlearn_full',
-                 'random_seed': random_seed}
+                 'random_seed': random_seed, 'train_test_fold': train_test_fold}
     datasets_dict = {'train': [X_train_all, y_train_all, A_train_all],
                      'test': [X_test_all, y_test_all, A_test_all]}
     num_samples = 1

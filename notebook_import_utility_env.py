@@ -29,7 +29,11 @@ project_path = os.path.join(softlab_path, 'Projects', 'Concept level EM (exclusi
 """
 
 import os
+import socket
 
+host_name = socket.gethostname()
+# print(f'{host_name = }')
+print(f'{host_name}')
 prefix = ''
 if os.path.expanduser('~') == '/home/baraldian':  # UNI env
     prefix = '/home/baraldian'
@@ -64,6 +68,8 @@ simplefilter(action='ignore', category=FutureWarning)
 simplefilter(action='ignore')
 pd.options.display.float_format = '{:.4f}'.format
 pd.options.display.max_colwidth = 130
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all" # Display all statements
 
 from multiprocessing import Pool
 from sklearn.pipeline import Pipeline
@@ -83,5 +89,5 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-# from RoutineUtility import RoutineUtility
-from transformers import BertModel, BertTokenizer
+
+

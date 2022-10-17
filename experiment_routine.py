@@ -31,13 +31,25 @@ if __name__ == "__main__":
     args = [dataset_name, 'model_name']
     kwargs = {}
 
+    fractions = [0.001, 0.004, 0.016, 0.063, 0.251, 1] # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
+    fixed_sample_frac = 0.1
     args[1] = 'hybrids'
+    # make grid-sample vary
     kwargs.update(**{
         '--eps': 0.05,
         '--sample-variations': np.arange(10),
-        '--sample-fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
-        '--grid-fraction': 0.1})  # TODO -g 0.5???
+        '--exp-fractions': fixed_sample_frac,
+        '--grid-fractions': fractions})
     execute_experiment(args, kwargs, original_argv)
+    # vary exp sample
+    kwargs.update(**{
+        '--eps': 0.05,
+        '--sample-variations': np.arange(10),
+        '--exp-fractions': fractions,
+        '--grid-fractions': fixed_sample_frac})
+    execute_experiment(args, kwargs, original_argv)
+    # TODO try different sensitive attr
+
 
     args[1] = 'fairlearn'
     kwargs = {'--eps': 0.05}
@@ -69,7 +81,7 @@ if __name__ == "__main__":
     #         kwargs = base_kwargs.copy()
     #         kwargs.update(**{
     #             '--sample-variations': np.arange(10),
-    #             '--sample-fractions': 0.016,
+    #             '--exp-fractions': 0.016,
     #             '--grid-fraction': g})
     #         execute_experiment(args, kwargs, original_argv)
     #
