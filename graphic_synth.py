@@ -1,6 +1,8 @@
 from functools import partial
 
-from graphic_adult import *
+from graphic_utility import *
+from utils_results_data import get_last_results, add_combined_stats
+
 # sns.set_context(font_scale=.9)
 
 

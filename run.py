@@ -1,139 +1,509 @@
+import gc
+import itertools
+from copy import deepcopy
+import joblib
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from tqdm import tqdm
+import folktables
 import sys
-import json
 import os
 import socket
 from argparse import ArgumentParser
 from datetime import datetime
 from warnings import simplefilter
-
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
+from fairlearn.reductions import DemographicParity
+from synthetic_data import get_synthetic_data, data_split, get_miro_synthetic_data
+from utils_prepare_data import load_data, load_transform_ACS
+import inspect
+from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf, finetune_model, \
+    get_base_model
+from metrics import metrics_dict
+from utils_prepare_data import get_data_from_expgrad
 
-from baselines import run_unmitigated, run_fairlearn_full
-from run_hybrids import run_hybrids
-from synthetic_data import get_synthetic_data, data_split
-from utils import load_data
+
+def to_arg(list_p, dict_p, original_argv):
+    res_string = original_argv + list_p
+    for key, value in dict_p.items():
+        if isinstance(value, list) or isinstance(value, range):
+            value = ','.join([str(x) for x in value])
+        res_string += [f'{key}={value}']
+    return res_string
 
 
-def main(*args, **kwargs):
-    simplefilter(action='ignore', category=FutureWarning)
-    arg_parser = ArgumentParser()
+def execute_experiment(list_p, dict_p, original_argv):
+    sys.argv = to_arg(list_p, dict_p, original_argv)
+    exp_run = ExpreimentRun()
+    exp_run.run()
 
-    arg_parser.add_argument("dataset")
-    arg_parser.add_argument("method")
 
-    # For Fairlearn and Hybrids
-    arg_parser.add_argument("--eps", type=float)
+class ExpreimentRun:
 
-    # For synthetic data
-    arg_parser.add_argument("-n", "--num-data-points", type=int)
-    arg_parser.add_argument("-f", "--num-features", type=int)
-    arg_parser.add_argument("-t", "--type-ratio", type=float)
-    arg_parser.add_argument("-t0", "--t0-ratio", type=float)
-    arg_parser.add_argument("-t1", "--t1-ratio", type=float)
-    arg_parser.add_argument("-v", "--data-random-variation", type=int)
-    arg_parser.add_argument("--test-ratio", type=float)
+    def __init__(self):
+        host_name = socket.gethostname()
+        if "." in host_name:
+            host_name = host_name.split(".")[-1]
+        self.host_name = host_name
+        self.base_result_dir = f'results/{host_name}/'
 
-    # For hybrid methods
-    arg_parser.add_argument("--sample-variations")
-    arg_parser.add_argument("--exp-fractions")
-    arg_parser.add_argument("--grid-fractions")
+    def run(self):
+        simplefilter(action='ignore', category=FutureWarning)
+        arg_parser = ArgumentParser()
 
-    args = arg_parser.parse_args()
+        arg_parser.add_argument("dataset")
+        arg_parser.add_argument("method")
 
-    ####
+        # For Fairlearn and Hybrids
+        arg_parser.add_argument("--eps")
 
-    host_name = socket.gethostname()
-    if "." in host_name:
-        host_name = host_name.split(".")[-1]
+        # For synthetic data
+        arg_parser.add_argument("--num_data_points", type=int)
+        arg_parser.add_argument("--num_features", type=int)
+        arg_parser.add_argument("--theta", type=float, default=0.5)
+        arg_parser.add_argument('--groups')
+        arg_parser.add_argument('--group_prob')
+        arg_parser.add_argument('--y_prob')
+        arg_parser.add_argument('--switch_pos')
+        arg_parser.add_argument('--switch_neg')
+        arg_parser.add_argument("--test_ratio", type=float)
 
-    dataset = args.dataset
-    method = args.method
-    eps = args.eps
+        # For hybrid methods
+        arg_parser.add_argument("--sample_variations")
+        arg_parser.add_argument("--exp_fractions")
+        arg_parser.add_argument("--grid_fractions")
+        arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None)
+        arg_parser.add_argument("--exp_subset", action="store_true")
 
-    if dataset == "adult":
-        dataset_str = f"adult"
-        X, y, A = load_data()
+        # Others
+        arg_parser.add_argument("--save")
+        arg_parser.add_argument("-v", "--random_seed", type=int, default=0)
+        arg_parser.add_argument("--run_linprog_step", action="store_true", default=False)
+        arg_parser.add_argument("--states")
+        arg_parser.add_argument("--base_model_code")
 
-    elif dataset == "synth":
-        num_data_pts = args.num_data_points
-        num_features = args.num_features
-        type_ratio = args.type_ratio
-        t0_ratio = args.t0_ratio
-        t1_ratio = args.t1_ratio
-        random_variation = args.data_random_variation
-        test_ratio = args.test_ratio
-        dataset_str = f"synth_n{num_data_pts}_f{num_features}_t{type_ratio}_t0{t0_ratio}_t1{t1_ratio}_tr{test_ratio}_v{random_variation}"
+        args = arg_parser.parse_args()
+        self.args = args
+        if args.grid_fractions is not None:
+            assert args.exp_grid_ratio is None, '--exp_grid_ratio must not be set if using --grid_fractions'
+        ### Parse parameters
+        method_str = args.method
+        prm = {}
+        for key in ['exp_fractions', 'grid_fractions', 'eps']:
+            if hasattr(args, key) and getattr(args, key) is not None:
+                values = prm[key] = [float(x) for x in getattr(args, key).split(",")]
+                if len(values) == 1:
+                    values = values[0]
+                method_str += f'_{key[:3]}{values}'
+            else:
+                prm[key] = None
+        key = 'sample_variations'
+        if hasattr(args, key) and getattr(args, key) is not None:
+            prm[key] = [int(x) for x in getattr(args, key).split(",")]
+        states = None
+        if args.states is not None:
+            states = [x for x in args.states.split(',')]
+        if hasattr(prm, 'exp_fractions') is False:
+            prm['exp_fractions'] = [1]
 
-        print(f"Generating synth data "
-              f"(n={num_data_pts}, f={num_features}, t={type_ratio}, t0={t0_ratio}, t1={t1_ratio}, "
-              f"v={random_variation})...")
-        All = get_synthetic_data(
-            num_data_pts=num_data_pts,
-            num_features=num_features,
-            type_ratio=type_ratio,
-            t0_ratio=t0_ratio,
-            t1_ratio=t1_ratio,
-            random_seed=random_variation + 40)
-        X, y, A = All.iloc[:, :-2], All.iloc[:, -2], All.iloc[:, -1]
-        # assert 0 < test_ratio < 1
-        # print(f"Splitting train/test with test_ratio={test_ratio}")
-        # X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = data_split(All, test_ratio)
+        ### Load dataset
+        self.dataset_str = args.dataset
+        if self.dataset_str == "adult":
+            X, y, A = load_data()
+        elif self.dataset_str in ['ACSIncome', 'ACSPublicCoverage', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
+                                  'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
+            loader_method = getattr(folktables, self.dataset_str)
+            X, y, A = load_transform_ACS(loader_method=loader_method, states=states)
+        elif "synth" in self.dataset_str:
+            print(self.dataset_str)
+            ratios = {}
+            ratios['group'] = [x for x in args.groups.split(",")]
+            for key in ['group_prob', 'y_prob', 'switch_pos', 'switch_neg']:
+                ratios[key] = [float(x) for x in getattr(args, key).split(",")]
+            self.dataset_str = f"synth_n{args.num_data_points}_f{args.num_features}_v{args.random_seed}_t{args.theta}"
+            synth_info = pd.DataFrame(ratios)
+            for key in ['num_data_points', 'num_features', 'random_seed', 'theta']:
+                synth_info[key] = getattr(args, key)
 
-    else:
-        raise ValueError(dataset)
-
-    results = []
-    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
-    to_stratify = A.astype(str) + y.astype(str)
-    for train_test_fold, (train_index, test_index) in enumerate(skf.split(X, to_stratify)):
-        datasets_divided = []
-        for turn_index in [train_index, test_index]:
-            for turn_df in [X, y, A]:
-                datasets_divided.append(turn_df.iloc[turn_index])
-        if method == "hybrids":
-            # Subsampling process
-            # num_samples = 1  # 10  # 20
-            # num_fractions = 6  # 20
-            # fractions = np.logspace(-3, 0, num=num_fractions)
-            # fractions = [0.004]
-            sample_variations = [int(x) for x in args.sample_variations.split(",")]
-            exp_fractions = [float(x) for x in args.exp_fractions.split(",")]
-            grid_fractions = [float(x) for x in args.grid_fractions.split(",")]
-            # assert 0 <= grid_fraction <= 1
-            method_str = f"hybrids"
-            if len(grid_fractions) > 1:
-                method_str += f'_g{grid_fractions}'
-            if len(exp_fractions) > 1:
-                method_str += f'_e{exp_fractions}'
-            method_str += f'_eps{eps}'
-
-            print(f"Running Hybrids with sample variations {sample_variations} and fractions {exp_fractions}, "
-                  f"and grid-fraction={grid_fractions}...\n")
-            turn_results = run_hybrids(*datasets_divided, eps=eps, sample_indices=sample_variations,
-                                       fractions=exp_fractions, grid_fractions=grid_fractions,
-                                       train_test_fold=train_test_fold)
-
-        elif method == "unmitigated":
-            turn_results = run_unmitigated(*datasets_divided, train_test_fold=train_test_fold)
-            method_str = f"unmitigated"
-
-        elif method == "fairlearn":
-            turn_results = run_fairlearn_full(*datasets_divided, eps, train_test_fold=train_test_fold)
-            method_str = f"fairlearn_e{eps}"
+            self.save_result(synth_info, 'synth_info', additional_dir='dataset')
+            X, y, A = get_miro_synthetic_data(
+                num_data_points=args.num_data_points,
+                num_features=args.num_features,
+                ratios=ratios,
+                random_seed=args.random_seed,
+                theta=args.theta)
+            for df, name in zip([X, y, A], ['X', 'y', 'A']):
+                self.save_result(df, name, additional_dir='dataset')
         else:
-            raise ValueError(method)
-        results += turn_results
-    results_df = pd.DataFrame(results)
-    current_time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    res_dir = f'results/{host_name}/{dataset_str}/'
+            raise ValueError(self.dataset_str)
 
-    os.makedirs(res_dir, exist_ok=True)
-    for prefix in [f'{current_time_str}', f'last']:
-        path = os.path.join(res_dir, f'{prefix}_{method_str}.csv')
-        results_df.to_csv(path, index=False)
-        print(f'Saving results in: {path}')
+        self.tuning_step(base_model_code=args.base_model_code, X=X, y=y, fractions=prm['exp_fractions'],
+                         random_seed=args.random_seed)
+
+        path = os.path.join(self.base_result_dir, self.dataset_str, f'last_{method_str}.csv')
+        if os.path.exists(path):
+            print(f'File {path} already exist. Skipping it')
+            return 2
+
+        results = []
+        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
+        # if isinstance(A, pd.DataFrame):
+        #     A = A.iloc[:,0]
+        to_stratify = pd.Series(A.astype(str)) + '_' + y.astype(int).astype(str)
+        for train_test_fold, (train_index, test_index) in tqdm(list(enumerate(skf.split(X, to_stratify)))):
+            print('')
+            datasets_divided = []
+            for turn_index in [train_index, test_index]:
+                for turn_df in [X, y, A]:
+                    datasets_divided.append(turn_df.iloc[turn_index])
+            if "hybrids" in method_str:
+                print(
+                    f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
+                    f"and grid-fraction={prm['grid_fractions']}...\n")
+                for exp_frac, randomseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
+                    turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_indices=[randomseed],
+                                                    exp_fractions=[exp_frac], grid_fractions=prm['grid_fractions'],
+                                                    train_test_fold=train_test_fold, exp_subset=args.exp_subset,
+                                                    exp_grid_ratio=args.exp_grid_ratio,
+                                                    base_model_code=args.base_model_code)
+                    self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                                     name=f'train_test_fold{train_test_fold}_randomdseed{randomseed}_exp_frac{exp_frac}')
+
+            elif "unmitigated" in method_str:
+                turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold)
+                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                                 name=f'train_test_fold{train_test_fold}')
+            elif "fairlearn" in method_str:
+                turn_results = self.run_fairlearn_full(*datasets_divided, eps=prm['eps'],
+                                                       train_test_fold=train_test_fold,
+                                                       run_linprog_step=args.run_linprog_step)
+                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                                 name=f'train_test_fold{train_test_fold}')
+            else:
+                raise ValueError(method_str)
+            results += turn_results
+        results_df = pd.DataFrame(results)
+
+        self.save_result(df=results_df, name=method_str)
+
+    def save_result(self, df, name, additional_dir=None):
+        if self.args.save is not None and self.args.save == 'False':
+            print('Not saving...')
+            return 0
+        assert self.dataset_str is not None
+        directory = os.path.join(self.base_result_dir, self.dataset_str)
+        if additional_dir is not None:
+            directory = os.path.join(directory, additional_dir)
+        os.makedirs(directory, exist_ok=True)
+        current_time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        for prefix in [  # f'{current_time_str}',
+            f'last']:
+            path = os.path.join(directory, f'{prefix}_{name}.csv')
+            df.to_csv(path, index=False)
+            print(f'Saving results in: {path}')
+
+    def run_hybrids(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
+                    sample_indices, exp_fractions, grid_fractions, train_test_fold=None, base_model_code='lr',
+                    exp_subset=True, exp_grid_ratio=False):
+        assert train_test_fold is not None
+        simplefilter(action='ignore', category=FutureWarning)
+
+        n_data = X_test_all.shape[0]
+
+        # Combine all training data into a single data frame
+        train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
+        self.data_dict = {"eps": 0, "frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name',
+                          'random_seed': 0,
+                          'train_test_fold': train_test_fold, 'iterations': 0, 'base_model_code': base_model_code}
+        eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
+                             'test': [X_test_all, y_test_all, A_test_all]}
+        all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
+        if exp_grid_ratio is not None:
+            assert grid_fractions is None
+            grid_fractions = [exp_grid_ratio]
+        results = []
+        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions, sample_indices))
+        # Iterations on difference fractions
+        for i, (turn_eps, exp_f, grid_f, random_seed) in tqdm(list(enumerate(to_iter))):
+            print('')
+            gc.collect()
+            self.turn_results = []
+            self.data_dict['eps'] = turn_eps
+            self.data_dict['exp_frac'] = exp_f
+            self.data_dict["random_seed"] = random_seed
+            if type(grid_f) == str:
+                if grid_f == 'sqrt':
+                    grid_f = np.sqrt(exp_f)
+            self.data_dict["grid_frac"] = grid_f
+            # self.data_dict['exp_size'] = int(n_data * exp_f)
+            # self.data_dict['grid_size'] = int(n_data * grid_f)
+            self.data_dict['n_data'] = n_data
+            constraint = DemographicParity(difference_bound=turn_eps)
+            print(f"Processing: fraction {exp_f: <5.}, sample {random_seed:10} GridSearch fraction={grid_f:0<5}")
+
+            self.data_dict['model_name'] = 'unconstrained'
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+            unconstrained_model = deepcopy(base_model)
+            metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
+                unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
+            time_unconstrained_dict['phase'] = 'unconstrained'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
+
+            # 2 algorithms:
+            # - Expgrad + Grid
+            # - Expgrad + Grid + LP (on all predictors, or top -k)
+            # The actual LP is actually very expensive (can't run it). So we're using a "heuristic LP"
+
+            # GridSearch data fraction
+            grid_sample = train_all.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
+            grid_sample = grid_sample.reset_index(drop=True)
+            grid_params = dict(X=grid_sample.iloc[:, :-2],
+                               y=grid_sample.iloc[:, -2],
+                               sensitive_features=grid_sample.iloc[:, -1])
+
+            if exp_subset:
+                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=random_seed + 20, replace=False)
+            else:
+                exp_sample = train_all.sample(frac=exp_f, random_state=random_seed + 20, replace=False)
+            exp_sample = exp_sample.reset_index(drop=True)
+            exp_params = dict(X=exp_sample.iloc[:, :-2],
+                              y=exp_sample.iloc[:, -2],
+                              sensitive_features=exp_sample.iloc[:, -1])
+
+            # Expgrad on sample
+            self.data_dict['model_name'] = 'expgrad_fracs'
+            expgrad_frac = ExponentiatedGradientPmf(estimator=deepcopy(base_model),
+                                                    constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6)
+            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_frac, exp_params,
+                                                                                 eval_dataset_dict)
+            exp_data_dict = get_data_from_expgrad(expgrad_frac)
+            self.data_dict.update(**exp_data_dict)
+            time_exp_dict['phase'] = 'expgrad_fracs'
+            print(f"ExponentiatedGradient on subset done in {time_exp_dict['time']}")
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+
+            #################################################################################################
+            # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
+            # Get rid
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_5'
+            print(f"Running {self.data_dict['model_name']}")
+            model1 = Hybrid5(expgrad_frac, eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params, eval_dataset_dict)
+            time_lp_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_lp_dict])
+
+            #################################################################################################
+            # H5 + unconstrained
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_5_U'
+            print(f"Running {self.data_dict['model_name']}")
+            model1.unconstrained_model = unconstrained_model
+            metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params, eval_dataset_dict)
+            time_lp_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_unconstrained_dict, time_lp_dict,
+                                                time_unconstrained_dict])
+
+            #################################################################################################
+            # Hybrid 1: Just Grid Search -> expgrad partial + grid search
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_1'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid1(expgrad_frac, eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, time_grid_dict, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
+            time_grid_dict['phase'] = 'grid_frac'
+            time_grid_dict['grid_oracle_times'] = model.grid_search_frac.oracle_execution_times_
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+            grid_search_frac = model.grid_search_frac
+
+            #################################################################################################
+            # Hybrid 2: pmf_predict with exp grid weights in grid search
+            # Keep this, remove Hybrid 1.
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_2'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid2(expgrad_frac, grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, _, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+
+            #################################################################################################
+            # Hybrid 3: re-weight using LP
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_3'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
+            time_lp3_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
+
+            #################################################################################################
+            # Hybrid 3 +U: re-weight using LP + unconstrained
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_3_U'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint),
+                            unconstrained_model=unconstrained_model)
+            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
+            time_lp3_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
+                                                time_unconstrained_dict])
+
+            #################################################################################################
+            # Hybrid 4: re-weight only the non-zero weight predictors using LP
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_4'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid4(expgrad_frac, grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, time_lp4_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
+            time_lp4_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp4_dict])
+
+            #################################################################################################
+            # Hybrid 6: exp + grid predictors
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_6'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad_frac=expgrad_frac,
+                            eps=turn_eps, constraint=deepcopy(constraint))
+            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
+            time_lp3_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
+
+            #################################################################################################
+            # Hybrid 6 + U: exp + grid predictors + unconstrained
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_6_U'
+            print(f"Running {self.data_dict['model_name']}")
+            model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad_frac=expgrad_frac,
+                            eps=turn_eps, constraint=deepcopy(constraint), unconstrained_model=unconstrained_model)
+            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
+            time_lp3_dict['phase'] = 'lin_prog'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
+                                                time_unconstrained_dict])
+            results += self.turn_results
+            print("Fraction processing complete.\n")
+
+        return results
+
+    def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0,
+                        train_test_fold=None, base_model_code='lr', ):
+        assert train_test_fold is not None
+        self.turn_results = []
+        self.data_dict = {'model_name': 'unmitigated', 'time': 0, 'phase': 'model name', 'random_seed': random_seed,
+                          'train_test_fold': train_test_fold, 'base_model_code': base_model_code}
+        eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
+                             'test': [X_test_all, y_test_all, A_test_all]}
+        base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+        train_data = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
+        metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(base_model, train_data, eval_dataset_dict)
+        time_exp_dict['phase'] = 'unconstrained'
+        self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+        return self.turn_results
+
+    # Fairlearn on full dataset
+    def run_fairlearn_full(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
+                           random_seed=0,
+                           train_test_fold=None, base_model_code=None, run_linprog_step=True):
+        assert train_test_fold is not None
+        self.turn_results = []
+        self.data_dict = {'eps': 0, 'model_name': 'fairlearn_full', 'time': 0, 'phase': 'fairlearn_full',
+                          'random_seed': random_seed, 'train_test_fold': train_test_fold,
+                          'base_model_code': base_model_code}
+        eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
+                             'test': [X_test_all, y_test_all, A_test_all]}
+        num_samples = 1
+        to_iter = list(itertools.product(eps, [num_samples]))
+
+        for i, (turn_eps, n) in tqdm(list(enumerate(to_iter))):
+            print('')
+            self.data_dict['eps'] = turn_eps
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+            expgrad_X_logistic = ExponentiatedGradientPmf(base_model,
+                                                          constraints=DemographicParity(difference_bound=turn_eps),
+                                                          eps=turn_eps, nu=1e-6,
+                                                          run_linprog_step=run_linprog_step)
+            print("Fitting Exponentiated Gradient on full dataset...")
+            train_data = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
+            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_X_logistic,
+                                                                                 train_data,
+                                                                                 eval_dataset_dict)
+            time_exp_dict['phase'] = 'expgrad'
+            exp_data_dict = get_data_from_expgrad(expgrad_X_logistic)
+            self.data_dict.update(**exp_data_dict)
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+
+            print(f'Exponentiated Gradient on full dataset : ')
+            for key, value in self.data_dict.items():
+                if key not in ['model_name', 'phase', 'oracle_execution_times_']:
+                    print(f'{key} : {value:.6f}')
+        return self.turn_results
+
+    def add_turn_results(self, metrics_res, time_dict_list):
+        self.data_dict.update(**metrics_res)
+        for t_time_dict in time_dict_list:
+            self.data_dict.update(**t_time_dict)
+            self.turn_results.append(deepcopy(self.data_dict))
+
+    @staticmethod
+    def get_metrics(dataset_dict: dict, predict_method, metrics_methods=metrics_dict):
+        metrics_res = {}
+        for phase, dataset_list in dataset_dict.items():
+            X, Y, S = dataset_list
+            y_pred = predict_method(X)
+            for name, eval_method in metrics_methods.items():
+                params = inspect.signature(eval_method).parameters.keys()
+                if 'predict_method' in params:
+                    turn_res = eval_method(*dataset_list, predict_method=predict_method)
+                elif 'y_pred' in params:
+                    turn_res = eval_method(*dataset_list, y_pred=y_pred)
+                metrics_res[f'{phase}_{name}'] = turn_res
+        return metrics_res
+
+    @staticmethod
+    def fit_evaluate_model(model, train_dataset, evaluate_dataset_dict):
+        a = datetime.now()
+        model.fit(**train_dataset)
+        b = datetime.now()
+        time_fit_dict = {'time': (b - a).total_seconds(), 'phase': 'train'}
+
+        # Training violation & error of hybrid 4
+        a = datetime.now()
+        metrics_res = ExpreimentRun.get_metrics(evaluate_dataset_dict, model.predict)
+        b = datetime.now()
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
+        return metrics_res, time_fit_dict, time_eval_dict
+
+    def load_base_model_best_param(self, base_model_code=None, random_seed=0):
+        best_params = self.load_best_param(base_model_code, fraction=self.data_dict['exp_frac'],
+                                           random_seed=random_seed)
+        model = get_base_model(base_model_code=base_model_code, random_seed=random_seed)
+        model.set_params(**best_params)
+        return model
+
+    def tuning_step(self, base_model_code, X, y, fractions, random_seed=0, redo=False):
+        for turn_frac in fractions:
+            directory = os.path.join(self.base_result_dir, self.dataset_str)
+            os.makedirs(directory, exist_ok=True)
+            path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{turn_frac}.pkl')
+            if redo or not os.path.exists(path):
+                size = X.shape[0]
+                sample_mask = np.arange(size)
+                if turn_frac != 1:
+                    sample_mask, _ = train_test_split(sample_mask, train_size=turn_frac, stratify=y,
+                                                      random_state=random_seed, shuffle=True)
+                clf = finetune_model(base_model_code, X.iloc[sample_mask], y[sample_mask], random_seed=random_seed)
+                joblib.dump(clf, path, compress=1)
+
+    def load_best_param(self, base_model_code, fraction, random_seed=0):
+        directory = os.path.join(self.base_result_dir, self.dataset_str)
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{fraction}.pkl')
+        grid_clf = joblib.load(path)
+        return grid_clf.best_params_
 
 
 if __name__ == "__main__":
-    main()
+    exp_run = ExpreimentRun()
+    exp_run.run()

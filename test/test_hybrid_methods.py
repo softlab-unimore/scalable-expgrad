@@ -1,5 +1,5 @@
 from run_hybrids import run_hybrids
-from utils import load_data
+from utils_prepare_data import load_data
 
 
 def test_run_hybrids():
@@ -11,10 +11,10 @@ def test_run_hybrids():
     eps = 0.05
     method_str = f"hybrids_e{eps}_g{grid_fraction}"
 
-    print(f"Running Hybrids with sample variations {sample_variations} and fractions {exp_fractions}, "
+    print(f"\nRunning Hybrids with sample variations {sample_variations} and fractions {exp_fractions}, "
           f"and grid-fraction={grid_fraction}...\n")
     results = run_hybrids(X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
-                          sample_indices=sample_variations, fractions=exp_fractions, grid_fractions=grid_fraction)
+                          sample_indices=sample_variations, exp_fractions=exp_fractions, grid_fractions=grid_fraction)
 
     assert True
 

@@ -2,67 +2,81 @@ import sys
 
 import numpy as np
 
-import run as run
-
-original_argv = sys.argv.copy()
-
-
-def to_arg(list_p, dict_p, original_argv=original_argv):
-    res_string = original_argv + list_p
-    for key, value in dict_p.items():
-        flag = False
-        try:
-            flag = len(value) > 0
-        except:
-            pass
-        if flag is True:
-            value = ','.join([str(x) for x in value])
-        res_string += [f'{key}={value}']
-    return res_string
-
-
-def execute_experiment(list_p, dict_p, original_argv=original_argv):
-    sys.argv = to_arg(list_p, dict_p, original_argv)
-    run.main()
-
+from run import execute_experiment
 
 if __name__ == "__main__":
+    original_argv = sys.argv.copy()
+    fractions = [0.001, 0.004, 0.016, 0.063, 0.251, 1
+                 ]  # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
+    # np.geomspace(0.001,1,6)
+    fixed_sample_frac = 0.1
+    sample_variation = range(1)
+    eps = 0.05
+
+
+
+    for dataset_name in ['ACSPublicCoverage', 'ACSIncome', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
+                         'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
+        args = [dataset_name, 'model_name']
+        kwargs = {}
+
+        args[1] = 'hybrids'
+
+        # vary exp sample
+        kwargs.update(**{
+            '--eps': eps,
+            '--sample_variations': sample_variation,
+            '--exp_fractions': fractions,
+            '--grid_fractions': fixed_sample_frac})
+        execute_experiment(args, kwargs, original_argv)
+        # make grid-sample vary
+        kwargs.update(**{
+            '--eps': eps,
+            '--sample_variations': sample_variation,
+            '--exp_fractions': 0.001,
+            '--grid_fractions': fractions})
+        execute_experiment(args, kwargs, original_argv)
+        # TODO try different sensitive attr
+
+        args[1] = 'fairlearn'
+        kwargs = {'--eps': eps}
+        execute_experiment(args, kwargs, original_argv)
+
+        args[1] = 'unmitigated'
+        execute_experiment(args, kwargs, original_argv)
+
+    # Adult dataset
     dataset_name = 'adult'
     args = [dataset_name, 'model_name']
     kwargs = {}
 
-    fractions = [0.001, 0.004, 0.016, 0.063, 0.251, 1] # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
-    fixed_sample_frac = 0.1
     args[1] = 'hybrids'
     # make grid-sample vary
     kwargs.update(**{
-        '--eps': 0.05,
-        '--sample-variations': np.arange(10),
-        '--exp-fractions': fixed_sample_frac,
-        '--grid-fractions': fractions})
+        '--eps': eps,
+        '--sample_variations': sample_variation,
+        '--exp_fractions': fixed_sample_frac,
+        '--grid_fractions': fractions})
     execute_experiment(args, kwargs, original_argv)
     # vary exp sample
     kwargs.update(**{
-        '--eps': 0.05,
-        '--sample-variations': np.arange(10),
-        '--exp-fractions': fractions,
-        '--grid-fractions': fixed_sample_frac})
+        '--eps': eps,
+        '--sample_variations': sample_variation,
+        '--exp_fractions': fractions,
+        '--grid_fractions': fixed_sample_frac})
     execute_experiment(args, kwargs, original_argv)
     # TODO try different sensitive attr
 
-
     args[1] = 'fairlearn'
-    kwargs = {'--eps': 0.05}
+    kwargs = {'--eps': eps}
     execute_experiment(args, kwargs, original_argv)
 
     args[1] = 'unmitigated'
     execute_experiment(args, kwargs, original_argv)
 
-
-
     # dataset_name = 'synth'
-    # base_kwargs = {'--eps': 0.05, '-f': 3, '-t': 0.5, '-t0': 0.3, '-t1': 0.6, '-v': 1,
-    #                '--test-ratio': 0.3
+    # base_kwargs = {'--eps': eps, '-f': 3, '-t': 0.5, '-t0': 0.3, '-t1': 0.6, '-v': 1,
+    #                '--test_ratio': 0.3
     #                }
     # args = [dataset_name, 'model_name']
     # for n in [
@@ -80,8 +94,8 @@ if __name__ == "__main__":
     #     for g in [.5, .2, .1]:
     #         kwargs = base_kwargs.copy()
     #         kwargs.update(**{
-    #             '--sample-variations': np.arange(10),
-    #             '--exp-fractions': 0.016,
+    #             '--sample_variations': sample_variation,
+    #             '--exp_fractions': 0.016,
     #             '--grid-fraction': g})
     #         execute_experiment(args, kwargs, original_argv)
     #
