@@ -80,7 +80,7 @@ class ExpreimentRun:
         # Others
         arg_parser.add_argument("--save")
         arg_parser.add_argument("-v", "--random_seed", type=int, default=0)
-        arg_parser.add_argument("--run_linprog_step", action="store_true", default=False)
+        arg_parser.add_argument("--run_linprog_step", action="store_true", default=True)
         arg_parser.add_argument("--states")
         arg_parser.add_argument("--base_model_code")
 
@@ -162,14 +162,15 @@ class ExpreimentRun:
                 print(
                     f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
                     f"and grid-fraction={prm['grid_fractions']}...\n")
-                for exp_frac, randomseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
-                    turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_indices=[randomseed],
+                for exp_frac, sampleseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
+                    turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_seeds=[sampleseed],
                                                     exp_fractions=[exp_frac], grid_fractions=prm['grid_fractions'],
                                                     train_test_fold=train_test_fold, exp_subset=args.exp_subset,
                                                     exp_grid_ratio=args.exp_grid_ratio,
-                                                    base_model_code=args.base_model_code)
+                                                    base_model_code=args.base_model_code,
+                                                    run_linprog_step=args.run_linprog_step)
                     self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
-                                     name=f'train_test_fold{train_test_fold}_randomdseed{randomseed}_exp_frac{exp_frac}')
+                                     name=f'train_test_fold{train_test_fold}_sampleseed{sampleseed}_exp_frac{exp_frac}')
 
             elif "unmitigated" in method_str:
                 turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold)
@@ -205,8 +206,8 @@ class ExpreimentRun:
             print(f'Saving results in: {path}')
 
     def run_hybrids(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
-                    sample_indices, exp_fractions, grid_fractions, train_test_fold=None, base_model_code='lr',
-                    exp_subset=True, exp_grid_ratio=False):
+                    sample_seeds, exp_fractions, grid_fractions, train_test_fold=None, base_model_code='lr',
+                    exp_subset=True, exp_grid_ratio=False, run_linprog_step=True):
         assert train_test_fold is not None
         simplefilter(action='ignore', category=FutureWarning)
 
@@ -224,15 +225,15 @@ class ExpreimentRun:
             assert grid_fractions is None
             grid_fractions = [exp_grid_ratio]
         results = []
-        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions, sample_indices))
+        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions, sample_seeds))
         # Iterations on difference fractions
-        for i, (turn_eps, exp_f, grid_f, random_seed) in tqdm(list(enumerate(to_iter))):
+        for i, (turn_eps, exp_f, grid_f, sampleseed) in tqdm(list(enumerate(to_iter))):
             print('')
             gc.collect()
             self.turn_results = []
             self.data_dict['eps'] = turn_eps
             self.data_dict['exp_frac'] = exp_f
-            self.data_dict["random_seed"] = random_seed
+            self.data_dict["random_seed"] = sampleseed
             if type(grid_f) == str:
                 if grid_f == 'sqrt':
                     grid_f = np.sqrt(exp_f)
@@ -241,10 +242,10 @@ class ExpreimentRun:
             # self.data_dict['grid_size'] = int(n_data * grid_f)
             self.data_dict['n_data'] = n_data
             constraint = DemographicParity(difference_bound=turn_eps)
-            print(f"Processing: fraction {exp_f: <5.}, sample {random_seed:10} GridSearch fraction={grid_f:0<5}")
+            print(f"Processing: fraction {exp_f: <5}, sample {sampleseed: ^10} GridSearch fraction={grid_f:0<5}")
 
             self.data_dict['model_name'] = 'unconstrained'
-            base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code)
             unconstrained_model = deepcopy(base_model)
             metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
                 unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
@@ -257,16 +258,16 @@ class ExpreimentRun:
             # The actual LP is actually very expensive (can't run it). So we're using a "heuristic LP"
 
             # GridSearch data fraction
-            grid_sample = train_all.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
+            grid_sample = train_all.sample(frac=grid_f, random_state=sampleseed + 60, replace=False)
             grid_sample = grid_sample.reset_index(drop=True)
             grid_params = dict(X=grid_sample.iloc[:, :-2],
                                y=grid_sample.iloc[:, -2],
                                sensitive_features=grid_sample.iloc[:, -1])
 
             if exp_subset:
-                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=random_seed + 20, replace=False)
+                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=sampleseed + 20, replace=False)
             else:
-                exp_sample = train_all.sample(frac=exp_f, random_state=random_seed + 20, replace=False)
+                exp_sample = train_all.sample(frac=exp_f, random_state=sampleseed + 20, replace=False)
             exp_sample = exp_sample.reset_index(drop=True)
             exp_params = dict(X=exp_sample.iloc[:, :-2],
                               y=exp_sample.iloc[:, -2],
@@ -274,7 +275,7 @@ class ExpreimentRun:
 
             # Expgrad on sample
             self.data_dict['model_name'] = 'expgrad_fracs'
-            expgrad_frac = ExponentiatedGradientPmf(estimator=deepcopy(base_model),
+            expgrad_frac = ExponentiatedGradientPmf(estimator=deepcopy(base_model), run_linprog_step=run_linprog_step,
                                                     constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6)
             metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_frac, exp_params,
                                                                                  eval_dataset_dict)
@@ -441,24 +442,39 @@ class ExpreimentRun:
         return self.turn_results
 
     def add_turn_results(self, metrics_res, time_dict_list):
-        self.data_dict.update(**metrics_res)
+        base_dict = self.data_dict
+        base_dict.update(**metrics_res)
         for t_time_dict in time_dict_list:
-            self.data_dict.update(**t_time_dict)
-            self.turn_results.append(deepcopy(self.data_dict))
+            turn_dict = deepcopy(base_dict)
+            turn_dict.update(**t_time_dict)
+            self.turn_results.append(turn_dict)
 
     @staticmethod
-    def get_metrics(dataset_dict: dict, predict_method, metrics_methods=metrics_dict):
+    def get_metrics(dataset_dict: dict, predict_method, metrics_methods=metrics_dict, return_times=False):
         metrics_res = {}
+        time_list = []
+        time_dict = {}
         for phase, dataset_list in dataset_dict.items():
             X, Y, S = dataset_list
+            a = datetime.now()
             y_pred = predict_method(X)
+            b = datetime.now()
+            time_dict.update(metric=f'{phase}_prediction', time=(b - a).total_seconds())
+            time_list.append(deepcopy(time_dict))
             for name, eval_method in metrics_methods.items():
+                turn_name = f'{phase}_{name}'
                 params = inspect.signature(eval_method).parameters.keys()
+                a = datetime.now()
                 if 'predict_method' in params:
                     turn_res = eval_method(*dataset_list, predict_method=predict_method)
                 elif 'y_pred' in params:
                     turn_res = eval_method(*dataset_list, y_pred=y_pred)
-                metrics_res[f'{phase}_{name}'] = turn_res
+                b = datetime.now()
+                time_dict.update(metric=turn_name, time=(b - a).total_seconds())
+                time_list.append(deepcopy(time_dict))
+                metrics_res[turn_name] = turn_res
+        if return_times:
+            return metrics_res, time_list
         return metrics_res
 
     @staticmethod
@@ -470,12 +486,14 @@ class ExpreimentRun:
 
         # Training violation & error of hybrid 4
         a = datetime.now()
-        metrics_res = ExpreimentRun.get_metrics(evaluate_dataset_dict, model.predict)
+        metrics_res, metrics_time = ExpreimentRun.get_metrics(evaluate_dataset_dict, model.predict, return_times=True)
         b = datetime.now()
-        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation'}
+        time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation', 'metrics_time': metrics_time}
         return metrics_res, time_fit_dict, time_eval_dict
 
-    def load_base_model_best_param(self, base_model_code=None, random_seed=0):
+    def load_base_model_best_param(self, base_model_code=None, random_seed=None):
+        if random_seed is None:
+            random_seed = self.args.random_seed
         best_params = self.load_best_param(base_model_code, fraction=self.data_dict['exp_frac'],
                                            random_seed=random_seed)
         model = get_base_model(base_model_code=base_model_code, random_seed=random_seed)
@@ -484,7 +502,7 @@ class ExpreimentRun:
 
     def tuning_step(self, base_model_code, X, y, fractions, random_seed=0, redo=False):
         for turn_frac in fractions:
-            directory = os.path.join(self.base_result_dir, self.dataset_str)
+            directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
             os.makedirs(directory, exist_ok=True)
             path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{turn_frac}.pkl')
             if redo or not os.path.exists(path):
@@ -497,7 +515,7 @@ class ExpreimentRun:
                 joblib.dump(clf, path, compress=1)
 
     def load_best_param(self, base_model_code, fraction, random_seed=0):
-        directory = os.path.join(self.base_result_dir, self.dataset_str)
+        directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
         os.makedirs(directory, exist_ok=True)
         path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{fraction}.pkl')
         grid_clf = joblib.load(path)

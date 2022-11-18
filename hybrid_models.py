@@ -206,7 +206,9 @@ def get_model_parameter_grid(base_model_code=None):
         # Unmitigated LogRes
         return {'solver': ['newton-cg', 'lbfgs', 'liblinear'],
                 'penalty': ['l2'],
-                'C': [10, 1.0, 0.1, 0.05, 0.01]}
+                'C': [10, 1.0, 0.1, 0.05, 0.01],
+                #max-iter': 100,
+                }
     elif base_model_code == 'gbm':
         return dict(n_estimators=[10, 100, 500],
                     learning_rate=[0.001, 0.01, 0.1],

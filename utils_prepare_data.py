@@ -99,7 +99,8 @@ def load_transform_ACS(loader_method, states=None):
     # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMSDataDict00_02.pdf
     df = pd.get_dummies(df, dtype=np.uint8, columns=categorical_cols)
     numerical_cols = np.setdiff1d(loader_method.features, categorical_cols)
-    df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols])
+    # df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols]) # choice of the model todo add possibility to chose preprocessing based on the model
+    df[df.columns] = StandardScaler().fit_transform(df)
     return df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
 
 
@@ -112,7 +113,6 @@ def load_split_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
         for turn_df in [X, Y, A]:
             results.append(turn_df.iloc[turn_index])
     return results
-
 
 
 def get_data_from_expgrad(expgrad):
