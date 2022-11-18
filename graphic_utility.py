@@ -29,15 +29,15 @@ sns.set_context(rc={"legend.fontsize": 7.5})
 
 
 class PlotUtility():
-    columns = ['label', 'color']
-    model_to_params_map = {
+    map_df = pd.DataFrame.from_dict({
         'expgrad_fracs_exp': ['expgrad sample', 'red'],
         'hybrid_5_exp': ['hybrid 5 (LP)', 'gold'],
         'hybrid_5_U_exp': ['hybrid 5 (E+U+LP)', 'gold'],
         'hybrid_1_exp': ['hybrid 1 (GS only)', 'blue'],
-        'hybrid_2_exp': ['hybrid 2 (GS + pmf_predict)', 'cyan'],
-        'hybrid_3_exp': ['hybrid 3 (GS + LP)', 'brown'],
-        'hybrid_4_exp': ['hybrid 4 (GS + LP+)', 'magenta'],
+        'hybrid_2_exp': ['hybrid 2 (GS+pmf_predict)', 'cyan'],
+        'hybrid_3_exp': ['hybrid 3 (GS+LP)', 'brown'],
+        'hybrid_3_U_exp': ['hybrid 3 (GS+LP+U)', 'brown'],
+        'hybrid_4_exp': ['hybrid 4 (GS+LP+)', 'magenta'],
         'hybrid_6_exp': ['hybrid 6 (E+G+LP) E', 'DarkMagenta'],
         'hybrid_6_U_exp': ['hybrid 6 (E+G+U+LP) E', 'DarkMagenta'],
         'combined_exp': ['hybrid combined', 'lime'],
@@ -45,14 +45,15 @@ class PlotUtility():
         'hybrid_5_gri': ['hybrid 5 (LP) G', 'GoldenRod'],
         'hybrid_5_U_gri': ['hybrid 5 (LP) G', 'GoldenRod'],
         'hybrid_1_gri': ['hybrid 1 (GS only) G', 'RoyalBlue'],
-        'hybrid_2_gri': ['hybrid 2 (GS + pmf_predict) G', 'DarkTurquoise'],
-        'hybrid_3_gri': ['hybrid 3 (GS + LP) G', 'LightSkyBlue'],
-        'hybrid_4_gri': ['hybrid 4 (GS + LP+) G', 'DarkMagenta'],
+        'hybrid_2_gri': ['hybrid 2 (GS+pmf_predict) G', 'DarkTurquoise'],
+        'hybrid_3_gri': ['hybrid 3 (GS+LP) G', 'LightSkyBlue'],
+        'hybrid_3_U_gri': ['hybrid 3 (GS+LP+U) G', 'LightSkyBlue'],
+        'hybrid_4_gri': ['hybrid 4 (GS+LP+) G', 'DarkMagenta'],
         'hybrid_6_gri': ['hybrid 6 (E+G+LP) G', 'DarkMagenta'],
         'hybrid_6_U_gri': ['hybrid 6 (E+G+LP) G', 'DarkMagenta'],
         'combined_gri': ['hybrid combined G', 'LimeGreen'],
         'fairlearn_full': ['expgrad full', 'black'],
-        'unmitigated': ['unmitigated', 'orange']}
+        'unmitigated': ['unmitigated', 'orange']}, orient='index', columns=['label', 'color'])
 
     to_plot_models = [
         # 'expgrad_fracs_gri',
@@ -88,6 +89,7 @@ class PlotUtility():
         'hybrid_6_U_eps',
         'hybrid_6_eps',
         'fairlearn_full_eps',]
+
     color_list = mpl.colormaps['tab20'].colors
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
@@ -110,12 +112,12 @@ class PlotUtility():
         time_aggregated_df[self.groupby_col].fillna(1, inplace=True)
         self.x_values = time_aggregated_df[self.groupby_col].unique()
         self.n_points = len(self.x_values)
-        # map_df = pd.DataFrame.from_dict(self.model_to_params_map, columns=self.columns, orient='index')
         to_iter = time_aggregated_df[time_aggregated_df['model_name'].isin(self.to_plot_models)].groupby(['model_name'],
                                                                                                          dropna=False)
         for model_name, turn_df in to_iter:
             # label, color = map_df.loc[model_name, ['label', 'color']].values
-            label = model_name
+            label = self.map_df.loc[model_name, 'label']
+            # label = model_name
             color = self.color_list[self.to_plot_models.index(model_name) % len(self.color_list)]
             self.add_plot(ax, turn_df, x_axis, y_axis, color, label)
         ax.set_xlabel(f'{x_axis} (log scale)')
@@ -209,8 +211,8 @@ if __name__ == '__main__':
     eps_df = all_model_df[eps_mask]
     frac_df = all_model_df[~eps_mask]
     missed_conf = np.setdiff1d(all_model_df['model_name'].unique(),
-                               list(PlotUtility.model_to_params_map.keys())).tolist()
-    # assert len(missed_conf) == 0, missed_conf
+                               list(PlotUtility.map_df.index.values)).tolist()
+    assert len(missed_conf) == 0, missed_conf
     base_plot_dir = os.path.join('results', 'plots')
 
 
