@@ -78,11 +78,12 @@ class ExpreimentRun:
         arg_parser.add_argument("--exp_subset", action="store_true")
 
         # Others
-        arg_parser.add_argument("--save")
+        arg_parser.add_argument("--save", default=True)
         arg_parser.add_argument("-v", "--random_seed", type=int, default=0)
         arg_parser.add_argument("--run_linprog_step", action="store_true", default=True)
+        arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
         arg_parser.add_argument("--states")
-        arg_parser.add_argument("--base_model_code")
+        arg_parser.add_argument("--base_model_code", default='lr')
 
         args = arg_parser.parse_args()
         self.args = args
@@ -105,7 +106,7 @@ class ExpreimentRun:
         states = None
         if args.states is not None:
             states = [x for x in args.states.split(',')]
-        if hasattr(prm, 'exp_fractions') is False:
+        if 'exp_fractions' not in prm.keys() or prm['exp_fractions'] is None:
             prm['exp_fractions'] = [1]
 
         ### Load dataset
@@ -140,7 +141,7 @@ class ExpreimentRun:
             raise ValueError(self.dataset_str)
 
         self.tuning_step(base_model_code=args.base_model_code, X=X, y=y, fractions=prm['exp_fractions'],
-                         random_seed=args.random_seed)
+                         random_seed=args.random_seed, redo_tuning=args.redo_tuning)
 
         path = os.path.join(self.base_result_dir, self.dataset_str, f'last_{method_str}.csv')
         if os.path.exists(path):
@@ -168,18 +169,22 @@ class ExpreimentRun:
                                                     train_test_fold=train_test_fold, exp_subset=args.exp_subset,
                                                     exp_grid_ratio=args.exp_grid_ratio,
                                                     base_model_code=args.base_model_code,
-                                                    run_linprog_step=args.run_linprog_step)
+                                                    run_linprog_step=args.run_linprog_step,
+                                                    random_seed=args.random_seed)
                     self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
                                      name=f'train_test_fold{train_test_fold}_sampleseed{sampleseed}_exp_frac{exp_frac}')
 
             elif "unmitigated" in method_str:
-                turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold)
+                turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold,
+                                                    random_seed=args.random_seed, base_model_code=args.base_model_code)
                 self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
                                  name=f'train_test_fold{train_test_fold}')
             elif "fairlearn" in method_str:
                 turn_results = self.run_fairlearn_full(*datasets_divided, eps=prm['eps'],
                                                        train_test_fold=train_test_fold,
-                                                       run_linprog_step=args.run_linprog_step)
+                                                       run_linprog_step=args.run_linprog_step,
+                                                       random_seed=args.random_seed,
+                                                       base_model_code=args.base_model_code, )
                 self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
                                  name=f'train_test_fold{train_test_fold}')
             else:
@@ -207,7 +212,7 @@ class ExpreimentRun:
 
     def run_hybrids(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
                     sample_seeds, exp_fractions, grid_fractions, train_test_fold=None, base_model_code='lr',
-                    exp_subset=True, exp_grid_ratio=False, run_linprog_step=True):
+                    exp_subset=True, exp_grid_ratio=None, run_linprog_step=True, random_seed=0):
         assert train_test_fold is not None
         simplefilter(action='ignore', category=FutureWarning)
 
@@ -216,7 +221,7 @@ class ExpreimentRun:
         # Combine all training data into a single data frame
         train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
         self.data_dict = {"eps": 0, "frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name',
-                          'random_seed': 0,
+                          'random_seed': random_seed,
                           'train_test_fold': train_test_fold, 'iterations': 0, 'base_model_code': base_model_code}
         eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
                              'test': [X_test_all, y_test_all, A_test_all]}
@@ -227,13 +232,13 @@ class ExpreimentRun:
         results = []
         to_iter = list(itertools.product(eps, exp_fractions, grid_fractions, sample_seeds))
         # Iterations on difference fractions
-        for i, (turn_eps, exp_f, grid_f, sampleseed) in tqdm(list(enumerate(to_iter))):
+        for i, (turn_eps, exp_f, grid_f, sample_seed) in tqdm(list(enumerate(to_iter))):
             print('')
             gc.collect()
             self.turn_results = []
             self.data_dict['eps'] = turn_eps
             self.data_dict['exp_frac'] = exp_f
-            self.data_dict["random_seed"] = sampleseed
+            self.data_dict["sample_seed"] = sample_seed
             if type(grid_f) == str:
                 if grid_f == 'sqrt':
                     grid_f = np.sqrt(exp_f)
@@ -242,10 +247,11 @@ class ExpreimentRun:
             # self.data_dict['grid_size'] = int(n_data * grid_f)
             self.data_dict['n_data'] = n_data
             constraint = DemographicParity(difference_bound=turn_eps)
-            print(f"Processing: fraction {exp_f: <5}, sample {sampleseed: ^10} GridSearch fraction={grid_f:0<5}")
+            print(f"Processing: fraction {exp_f: <5}, sample {sample_seed: ^10} GridSearch fraction={grid_f:0<5}")
 
             self.data_dict['model_name'] = 'unconstrained'
-            base_model = self.load_base_model_best_param(base_model_code=base_model_code)
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=exp_f,
+                                                         random_seed=random_seed)
             unconstrained_model = deepcopy(base_model)
             metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
                 unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
@@ -258,16 +264,16 @@ class ExpreimentRun:
             # The actual LP is actually very expensive (can't run it). So we're using a "heuristic LP"
 
             # GridSearch data fraction
-            grid_sample = train_all.sample(frac=grid_f, random_state=sampleseed + 60, replace=False)
+            grid_sample = train_all.sample(frac=grid_f, random_state=sample_seed + 60, replace=False)
             grid_sample = grid_sample.reset_index(drop=True)
             grid_params = dict(X=grid_sample.iloc[:, :-2],
                                y=grid_sample.iloc[:, -2],
                                sensitive_features=grid_sample.iloc[:, -1])
 
             if exp_subset:
-                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=sampleseed + 20, replace=False)
+                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=sample_seed + 20, replace=False)
             else:
-                exp_sample = train_all.sample(frac=exp_f, random_state=sampleseed + 20, replace=False)
+                exp_sample = train_all.sample(frac=exp_f, random_state=sample_seed + 20, replace=False)
             exp_sample = exp_sample.reset_index(drop=True)
             exp_params = dict(X=exp_sample.iloc[:, :-2],
                               y=exp_sample.iloc[:, -2],
@@ -388,9 +394,10 @@ class ExpreimentRun:
 
         return results
 
-    def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, random_seed=0,
-                        train_test_fold=None, base_model_code='lr', ):
+    def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all,
+                        base_model_code, train_test_fold, random_seed=0):
         assert train_test_fold is not None
+        assert base_model_code is not None
         self.turn_results = []
         self.data_dict = {'model_name': 'unmitigated', 'time': 0, 'phase': 'model name', 'random_seed': random_seed,
                           'train_test_fold': train_test_fold, 'base_model_code': base_model_code}
@@ -405,9 +412,10 @@ class ExpreimentRun:
 
     # Fairlearn on full dataset
     def run_fairlearn_full(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
-                           random_seed=0,
-                           train_test_fold=None, base_model_code=None, run_linprog_step=True):
+                           base_model_code, train_test_fold,
+                           random_seed=0, run_linprog_step=True):
         assert train_test_fold is not None
+        assert base_model_code is not None
         self.turn_results = []
         self.data_dict = {'eps': 0, 'model_name': 'fairlearn_full', 'time': 0, 'phase': 'fairlearn_full',
                           'random_seed': random_seed, 'train_test_fold': train_test_fold,
@@ -469,6 +477,8 @@ class ExpreimentRun:
                     turn_res = eval_method(*dataset_list, predict_method=predict_method)
                 elif 'y_pred' in params:
                     turn_res = eval_method(*dataset_list, y_pred=y_pred)
+                else:
+                    raise AssertionError('Metric method has not y_pred or predict_method. This is not allowed!')
                 b = datetime.now()
                 time_dict.update(metric=turn_name, time=(b - a).total_seconds())
                 time_list.append(deepcopy(time_dict))
@@ -491,28 +501,36 @@ class ExpreimentRun:
         time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation', 'metrics_time': metrics_time}
         return metrics_res, time_fit_dict, time_eval_dict
 
-    def load_base_model_best_param(self, base_model_code=None, random_seed=None):
+    def load_base_model_best_param(self, base_model_code=None, random_seed=None, fraction=1):
         if random_seed is None:
             random_seed = self.args.random_seed
-        best_params = self.load_best_param(base_model_code, fraction=self.data_dict['exp_frac'],
+        best_params = self.load_best_param(base_model_code, fraction=fraction,
                                            random_seed=random_seed)
         model = get_base_model(base_model_code=base_model_code, random_seed=random_seed)
         model.set_params(**best_params)
         return model
 
-    def tuning_step(self, base_model_code, X, y, fractions, random_seed=0, redo=False):
-        for turn_frac in fractions:
+    def tuning_step(self, base_model_code, X, y, fractions, random_seed=0, redo_tuning=False):
+        print(f'Starting finetuning of {base_model_code}')
+        for turn_frac in (pbar:= tqdm(fractions)):
+            pbar.set_description(f'fraction: {turn_frac: <5}')
             directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
             os.makedirs(directory, exist_ok=True)
-            path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{turn_frac}.pkl')
-            if redo or not os.path.exists(path):
+            name = f'grid_search_{base_model_code}_rnd{random_seed}_frac{turn_frac}'
+            path = os.path.join(directory, name + '.pkl')
+            if redo_tuning or not os.path.exists(path):
                 size = X.shape[0]
                 sample_mask = np.arange(size)
                 if turn_frac != 1:
                     sample_mask, _ = train_test_split(sample_mask, train_size=turn_frac, stratify=y,
                                                       random_state=random_seed, shuffle=True)
+                a = datetime.now()
                 clf = finetune_model(base_model_code, X.iloc[sample_mask], y[sample_mask], random_seed=random_seed)
+                b = datetime.now()
                 joblib.dump(clf, path, compress=1)
+
+                finetuning_time_df = pd.DataFrame([{'phase': 'grid_searh_finetuning', 'time': (b - a).total_seconds()}])
+                self.save_result(finetuning_time_df, 'time_' + name, additional_dir='tuned_models')
 
     def load_best_param(self, base_model_code, fraction, random_seed=0):
         directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
