@@ -1,3 +1,4 @@
+import ast
 import itertools
 
 import numpy as np
@@ -53,7 +54,9 @@ class PlotUtility():
         'hybrid_6_U_gri': ['hybrid 6 (E+G+LP) G', 'DarkMagenta'],
         'combined_gri': ['hybrid combined G', 'LimeGreen'],
         'fairlearn_full': ['expgrad full', 'black'],
-        'unmitigated': ['unmitigated', 'orange']}, orient='index', columns=['label', 'color'])
+        'unmitigated': ['unmitigated', 'orange'],
+        'unconstrained_exp': ['unmitigated', 'orange'],
+    }, orient='index', columns=['label', 'color'])
 
     to_plot_models = [
         # 'expgrad_fracs_gri',
@@ -88,7 +91,7 @@ class PlotUtility():
         'hybrid_5_eps',
         'hybrid_6_U_eps',
         'hybrid_6_eps',
-        'fairlearn_full_eps',]
+        'fairlearn_full_eps', ]
 
     color_list = mpl.colormaps['tab20'].colors
     # sns.color_palette("hls", len(self.to_plot_models))
@@ -96,7 +99,7 @@ class PlotUtility():
     markersize = 5
 
     def plot(self, all_model_df, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95],
-                 grid_fractions=[0.1, 0.2, 0.5], groupby_col='frac'):
+             grid_fractions=[0.1, 0.2, 0.5], groupby_col='frac'):
         self.groupby_col = groupby_col
         self.fig = plt.figure()
         ax = plt.subplot()
@@ -107,18 +110,18 @@ class PlotUtility():
 
     def base_plot(self, all_model_df, x_axis, y_axis, alphas, grid_fractions, ax):
         def_alpha = .5
-        all_model_df = all_model_df[all_model_df['model_name'].isin(self.to_plot_models)]
+        all_model_df = all_model_df[all_model_df['model_code'].isin(self.to_plot_models)]
         time_aggregated_df = aggregate_phase_time(all_model_df)
         time_aggregated_df[self.groupby_col].fillna(1, inplace=True)
         self.x_values = time_aggregated_df[self.groupby_col].unique()
         self.n_points = len(self.x_values)
-        to_iter = time_aggregated_df[time_aggregated_df['model_name'].isin(self.to_plot_models)].groupby(['model_name'],
+        to_iter = time_aggregated_df[time_aggregated_df['model_code'].isin(self.to_plot_models)].groupby(['model_code'],
                                                                                                          dropna=False)
-        for model_name, turn_df in to_iter:
-            # label, color = map_df.loc[model_name, ['label', 'color']].values
-            label = self.map_df.loc[model_name, 'label']
-            # label = model_name
-            color = self.color_list[self.to_plot_models.index(model_name) % len(self.color_list)]
+        for model_code, turn_df in to_iter:
+            # label, color = map_df.loc[model_code, ['label', 'color']].values
+            label = self.map_df.loc[model_code, 'label']
+            # label = model_code
+            color = self.color_list[self.to_plot_models.index(model_code) % len(self.color_list)]
             self.add_plot(ax, turn_df, x_axis, y_axis, color, label)
         ax.set_xlabel(f'{x_axis} (log scale)')
         ax.set_ylabel(y_axis)
@@ -183,7 +186,7 @@ class PlotUtility():
 def time_stacked_by_phase(df, ax, fig: plt.figure):
     fig.set_figheight(8)
     fig.set_figwidth(20)
-    to_plot = df.groupby(['frac', 'model_name', 'phase']).agg(
+    to_plot = df.groupby(['frac', 'model_code', 'phase']).agg(
         {'time': ['mean', ('error', get_confidence_error)]}).unstack(['phase'])
     yerr = to_plot.loc[:, ('time', 'error', slice(None))]
     to_plot.plot.bar(stacked=True, y=('time', 'mean'), yerr=yerr.values.T, rot=45, ax=ax)
@@ -198,39 +201,55 @@ def phase_time_vs_frac(df, ax, fig, y_log=True):
         ax.set_ylabel('time (log)')
 
 
+def plot_metrics_time(df, ax, fig):
+    to_plot = df.query('phase == "evaluation"').copy().reset_index(drop=True)
+    convert_df = lambda x: pd.DataFrame(ast.literal_eval(x)).set_index('metric').T
+    metric_times = pd.concat(to_plot['metrics_time'].apply(convert_df).values).reset_index()
+    cols = ['frac']
+    train_cols = list(metric_times.columns[metric_times.columns.str.startswith('train')])
+    all_df = pd.concat([to_plot[cols], metric_times[train_cols]], 1)
+    # all_df.boxplot(column=train_cols, ax=ax, rot=45);
+
+    to_plot = all_df.groupby(cols).agg(['mean', ('error', get_confidence_error)])
+    yerr = to_plot.loc[:, (slice(None), 'error')]
+    to_plot.loc[:,(slice(None),'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
+
+
+
 if __name__ == '__main__':
     save = True
     # base_dir = os.path.join("results", "fairlearn-2", "adult")
     # all_model_df = get_last_results(base_dir)
-    dataset_name = "ACSIncome"
+    dataset_name = "ACSPublicCoverage"
     base_dir = os.path.join("results", "fairlearn-2", dataset_name)
     all_model_df = get_last_results_from_directories(base_dir)
     all_model_df = set_frac_values(all_model_df)
 
-    eps_mask = all_model_df['model_name'].str.endswith('_eps')
+    eps_mask = all_model_df['model_code'].str.endswith('_eps')
     eps_df = all_model_df[eps_mask]
     frac_df = all_model_df[~eps_mask]
-    missed_conf = np.setdiff1d(all_model_df['model_name'].unique(),
+    missed_conf = np.setdiff1d(all_model_df['model_code'].unique(),
                                list(PlotUtility.map_df.index.values)).tolist()
     assert len(missed_conf) == 0, missed_conf
     base_plot_dir = os.path.join('results', 'plots')
 
-
     pl_util = PlotUtility()
-    to_iter = list(itertools.product(['train', 'test'], ['violation', 'error'], [
-        # 'frac',
-        ('time', frac_df)]))
-    for phase, metric_name, (x_axis, turn_df) in to_iter:
-        pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
-        if save is True:
-            pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{phase}_{metric_name}_vs_{x_axis}')
+    # to_iter = list(itertools.product(['train', 'test'], ['violation', 'error'], [
+    #     # 'frac',
+    #     ('time', frac_df)]))
+    # for phase, metric_name, (x_axis, turn_df) in to_iter:
+    #     pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
+    #     if save is True:
+    #         pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{phase}_{metric_name}_vs_{x_axis}')
 
     df = frac_df.copy()
-    df = df[df['model_name'].isin(pl_util.to_plot_models)]
-    model_name_map = {name: '_'.join([x[0] for x in name.split("_")]) for name in df['model_name'].unique()}
-    df['model_name'] = df['model_name'].map(model_name_map)
-    for name, plot_f in [['time_stacked_by_phase', time_stacked_by_phase],
-                         ['phase_time_vs_frac', phase_time_vs_frac]
+    df = df[df['model_code'].isin(pl_util.to_plot_models)]
+    model_code_map = {name: '_'.join([x[0] for x in name.split("_")]) for name in df['model_code'].unique()}
+    df['model_code'] = df['model_code'].map(model_code_map)
+    for name, plot_f in [
+        ['metrics_time_vs_frac', plot_metrics_time],
+        ['time_stacked_by_phase', time_stacked_by_phase],
+        ['phase_time_vs_frac', phase_time_vs_frac],
                          ]:
         fig, ax = plt.subplots()
         plot_f(df, ax=ax, fig=fig)
@@ -241,7 +260,6 @@ if __name__ == '__main__':
     pl_util.plot(all_model_df, x_axis='frac', y_axis='time')
     if save is True:
         pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'frac_vs_time')
-
 
     ### train_error_vs_eps
     pl_util = PlotUtility()
