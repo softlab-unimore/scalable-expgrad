@@ -99,8 +99,9 @@ def load_transform_ACS(loader_method, states=None):
     # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMSDataDict00_02.pdf
     df = pd.get_dummies(df, dtype=np.uint8, columns=categorical_cols)
     numerical_cols = np.setdiff1d(loader_method.features, categorical_cols)
-    # df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols]) # choice of the model todo add possibility to chose preprocessing based on the model
-    df[df.columns] = StandardScaler().fit_transform(df)
+    df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols]) # choice of the model todo add possibility to chose preprocessing based on the model
+    # df[df.columns] = StandardScaler().fit_transform(df)
+    print(f'Loaded data memory used by df: {df.memory_usage().sum()/(2**(10*3)):.3f} GB')
     return df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
 
 

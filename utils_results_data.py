@@ -13,19 +13,23 @@ suffix_attr_map = {'eps': 'eps',
 
 def get_last_results_from_directories(base_dir, prefix='last'):
     dirs = pd.Series([x.name for x in os.scandir(base_dir) if x.is_dir()])
+
     # last_files = dirs[dirs.str.startswith(prefix)]
     # name_df = last_files.str.extract(r'^(last)_([^_]*)_?(.*)\.(.*)$', expand=True)
     # name_df.rename(columns={0: 'last', 1: 'model', 2: 'params', 3: 'extension'}, inplace=True)
     df_list = []
     for turn_dir in dirs:
+        if turn_dir in ['tuned_models']:
+            continue
         suffix = ''
         for key in suffix_attr_map.keys():
             if f'_{key}[' in turn_dir:
-                suffix += f'_{key}'
+                suffix += f'{key}'
         df = get_last_results(os.path.join(base_dir, turn_dir), prefix=prefix)
-        df['model_name'] += suffix
+        df['moving_param'] = suffix
         df_list.append(df)
     all_model_df = pd.concat(df_list)
+    all_model_df['model_code'] = all_model_df['model_name'] +'_'+ all_model_df['moving_param']
 
     return all_model_df
 
@@ -42,20 +46,20 @@ def get_last_results(base_dir, prefix='last'):
             if f'_{key}[' in turn_file:
                 suffix += f'_{key}'
                 df['frac'] = df[name]
-        df['model_name'] += suffix
+        df['moving_param'] = suffix
         df_list.append(df)
     all_model_df = pd.concat(df_list)
     return all_model_df
 
 def set_frac_values(df:pd.DataFrame):
-    df['exp_conf'] = df['model_name'].apply(lambda x: x[-3:])
+    # df['moving_param'] = df['model_name'].apply(lambda x: x[-3:])
     for key, col in suffix_attr_map.items():
-        mask = df['exp_conf'] == key
+        mask = df['moving_param'] == key
         df.loc[mask,'frac'] = df.loc[mask,col]
     return df
 
 def aggregate_phase_time(df):
-    results_df = df.groupby(df.columns.drop(['phase', 'time']).tolist(), as_index=False, dropna=False).agg(
+    results_df = df.groupby(df.columns.drop(['metrics_time','phase', 'time', 'grid_oracle_times']).tolist(), as_index=False, dropna=False).agg(
         {'time': 'sum'})
     return results_df
 
