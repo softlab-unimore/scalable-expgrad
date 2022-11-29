@@ -68,7 +68,7 @@ class ExpreimentRun:
         arg_parser.add_argument('--y_prob')
         arg_parser.add_argument('--switch_pos')
         arg_parser.add_argument('--switch_neg')
-        arg_parser.add_argument("--test_ratio", type=float)
+        # arg_parser.add_argument("--test_ratio", type=float, default=0.3)
 
         # For hybrid methods
         arg_parser.add_argument("--sample_variations")
@@ -82,39 +82,60 @@ class ExpreimentRun:
         arg_parser.add_argument("-v", "--random_seed", type=int, default=0)
         arg_parser.add_argument("--run_linprog_step", action="store_true", default=True)
         arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
+        arg_parser.add_argument("--redo_exp", action="store_true", default=False)
         arg_parser.add_argument("--states")
         arg_parser.add_argument("--base_model_code", default='lr')
 
         args = arg_parser.parse_args()
+        params_to_initials_map = {"".join([x[0] for x in key.split("_")]): key for key in args.__dict__.keys()}
+
         self.args = args
         if args.grid_fractions is not None:
             assert args.exp_grid_ratio is None, '--exp_grid_ratio must not be set if using --grid_fractions'
         ### Parse parameters
-        method_str = args.method
-        prm = {}
-        for key in ['exp_fractions', 'grid_fractions', 'eps']:
-            if hasattr(args, key) and getattr(args, key) is not None:
-                values = prm[key] = [float(x) for x in getattr(args, key).split(",")]
-                if len(values) == 1:
-                    values = values[0]
-                method_str += f'_{key[:3]}{values}'
-            else:
-                prm[key] = None
-        key = 'sample_variations'
-        if hasattr(args, key) and getattr(args, key) is not None:
-            prm[key] = [int(x) for x in getattr(args, key).split(",")]
         states = None
         if args.states is not None:
             states = [x for x in args.states.split(',')]
+        method_str = args.method
+        for key, value in args.__dict__.items():
+            if key in ['save', 'method', 'dataset', 'eps', 'exp_fractions', 'grid_fractions',
+                       'sample_variations', 'redo_tuning', 'redo_exp'] or value is None:
+                continue
+            method_str += f'_{"".join([x[0] for x in key.split("_")])}({value})'
+
+        prm = {}
+        for key, t_type in zip(['exp_fractions', 'grid_fractions', 'eps', 'sample_variations'],
+                               [float] * 3 + [int]):
+            if hasattr(args, key) and getattr(args, key) is not None:
+                values = prm[key] = [t_type(x) for x in getattr(args, key).split(",")]
+                if len(values) == 1:
+                    values = values[0]
+            else:
+                prm[key] = None
         if 'exp_fractions' not in prm.keys() or prm['exp_fractions'] is None:
             prm['exp_fractions'] = [1]
+        for key, value in prm.items():
+            if value is not None:
+                method_str += f'_{key[:3]}{value}'
 
         ### Load dataset
         self.dataset_str = args.dataset
+
+        def skip(dataset_str):
+            path = os.path.join(self.base_result_dir, self.dataset_str, f'last_{method_str}.csv')
+            if os.path.exists(path) and args.redo_exp is False:
+                print(f'\n\nFile {path} already exist. \nSkipping it.\n\n')
+                return True
+            print(f'Start data loading {dataset_str}')
+            return False
         if self.dataset_str == "adult":
+            if skip(dataset_str=self.dataset_str) is True:
+                return 2
             X, y, A = load_data()
         elif self.dataset_str in ['ACSIncome', 'ACSPublicCoverage', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
                                   'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
+            if skip(dataset_str=self.dataset_str) is True:
+                return 2
             loader_method = getattr(folktables, self.dataset_str)
             X, y, A = load_transform_ACS(loader_method=loader_method, states=states)
         elif "synth" in self.dataset_str:
@@ -124,6 +145,8 @@ class ExpreimentRun:
             for key in ['group_prob', 'y_prob', 'switch_pos', 'switch_neg']:
                 ratios[key] = [float(x) for x in getattr(args, key).split(",")]
             self.dataset_str = f"synth_n{args.num_data_points}_f{args.num_features}_v{args.random_seed}_t{args.theta}"
+            if skip(dataset_str=self.dataset_str) is True:
+                return 2
             synth_info = pd.DataFrame(ratios)
             for key in ['num_data_points', 'num_features', 'random_seed', 'theta']:
                 synth_info[key] = getattr(args, key)
@@ -143,10 +166,7 @@ class ExpreimentRun:
         self.tuning_step(base_model_code=args.base_model_code, X=X, y=y, fractions=prm['exp_fractions'],
                          random_seed=args.random_seed, redo_tuning=args.redo_tuning)
 
-        path = os.path.join(self.base_result_dir, self.dataset_str, f'last_{method_str}.csv')
-        if os.path.exists(path):
-            print(f'File {path} already exist. Skipping it')
-            return 2
+
 
         results = []
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
@@ -216,13 +236,12 @@ class ExpreimentRun:
         assert train_test_fold is not None
         simplefilter(action='ignore', category=FutureWarning)
 
-        n_data = X_test_all.shape[0]
-
         # Combine all training data into a single data frame
         train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
         self.data_dict = {"eps": 0, "frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name',
                           'random_seed': random_seed,
-                          'train_test_fold': train_test_fold, 'iterations': 0, 'base_model_code': base_model_code}
+                          'train_test_fold': train_test_fold, 'iterations': 0, 'base_model_code': base_model_code,
+                          'total_train_size': X_train_all.shape[0], 'total_test_size': X_test_all.shape[0]}
         eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
                              'test': [X_test_all, y_test_all, A_test_all]}
         all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
@@ -245,7 +264,6 @@ class ExpreimentRun:
             self.data_dict["grid_frac"] = grid_f
             # self.data_dict['exp_size'] = int(n_data * exp_f)
             # self.data_dict['grid_size'] = int(n_data * grid_f)
-            self.data_dict['n_data'] = n_data
             constraint = DemographicParity(difference_bound=turn_eps)
             print(f"Processing: fraction {exp_f: <5}, sample {sample_seed: ^10} GridSearch fraction={grid_f:0<5}")
 
@@ -389,6 +407,26 @@ class ExpreimentRun:
             time_lp3_dict['phase'] = 'lin_prog'
             self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
                                                 time_unconstrained_dict])
+
+            #################################################################################################
+            # 7
+            #################################################################################################
+            self.data_dict['model_name'] = 'hybrid_7'
+            print(f"Running {self.data_dict['model_name']}")
+            subsample_size = int(X_train_all.shape[0] * exp_f)
+            model = ExponentiatedGradientPmf(estimator=deepcopy(base_model), run_linprog_step=run_linprog_step,
+                                             constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6,
+                                             subsample=subsample_size, random_state=random_seed)
+            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                 eval_dataset_dict)
+            time_exp_dict['phase'] = 'expgrad_fracs'
+            exp_data_dict = get_data_from_expgrad(model)
+            self.data_dict.update(**exp_data_dict)
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+
+            #################################################################################################
+            # End models
+            #################################################################################################
             results += self.turn_results
             print("Fraction processing complete.\n")
 
@@ -404,7 +442,7 @@ class ExpreimentRun:
         eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
                              'test': [X_test_all, y_test_all, A_test_all]}
         base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
-        train_data = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
+        train_data = dict(X=X_train_all, y=y_train_all)
         metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(base_model, train_data, eval_dataset_dict)
         time_exp_dict['phase'] = 'unconstrained'
         self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
@@ -445,8 +483,8 @@ class ExpreimentRun:
 
             print(f'Exponentiated Gradient on full dataset : ')
             for key, value in self.data_dict.items():
-                if key not in ['model_name', 'phase', 'oracle_execution_times_']:
-                    print(f'{key} : {value:.6f}')
+                if key not in ['model_name', 'phase']:
+                    print(f'{key} : {value}')
         return self.turn_results
 
     def add_turn_results(self, metrics_res, time_dict_list):
@@ -512,7 +550,7 @@ class ExpreimentRun:
 
     def tuning_step(self, base_model_code, X, y, fractions, random_seed=0, redo_tuning=False):
         print(f'Starting finetuning of {base_model_code}')
-        for turn_frac in (pbar:= tqdm(fractions)):
+        for turn_frac in (pbar := tqdm(fractions)):
             pbar.set_description(f'fraction: {turn_frac: <5}')
             directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
             os.makedirs(directory, exist_ok=True)
