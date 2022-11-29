@@ -1,25 +1,24 @@
 import ast
 import itertools
-
 import numpy as np
 import os
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import seaborn as sns;
-
-sns.set()  # for plot styling
 import pandas as pd
 from utils_results_data import get_last_results, get_info, get_confidence_error, mean_confidence_interval, \
     add_combined_stats, aggregate_phase_time, get_last_results_from_directories, set_frac_values
 import matplotlib as mpl
 
+sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
 # sns.set_context('notebook')
 sns.set_style('whitegrid')
-plt.rcParams.update({'font.size': 16, "figure.dpi": 300, 'savefig.dpi': 400,
+plt.rcParams.update({'font.size': 16, "figure.dpi": 400, 'savefig.dpi': 600,
                      # 'figure.figsize': (16 * 2 / 3, 9 * 2 / 3)
                      })
 plt.rcParams['figure.constrained_layout.use'] = True
+
 sns.set_context(rc={"legend.fontsize": 7.5})
 
 
@@ -32,30 +31,32 @@ sns.set_context(rc={"legend.fontsize": 7.5})
 class PlotUtility():
     map_df = pd.DataFrame.from_dict({
         'expgrad_fracs_exp': ['expgrad sample', 'red'],
-        'hybrid_5_exp': ['hybrid 5 (LP)', 'gold'],
-        'hybrid_5_U_exp': ['hybrid 5 (E+U+LP)', 'gold'],
-        'hybrid_1_exp': ['hybrid 1 (GS only)', 'blue'],
-        'hybrid_2_exp': ['hybrid 2 (GS+pmf_predict)', 'cyan'],
-        'hybrid_3_exp': ['hybrid 3 (GS+LP)', 'brown'],
-        'hybrid_3_U_exp': ['hybrid 3 (GS+LP+U)', 'brown'],
+        'hybrid_5_exp': ['E+LP', 'gold'],
+        'hybrid_5_U_exp': ['E+LP+U', 'gold'],
+        'hybrid_1_exp': ['GS', 'blue'],
+        'hybrid_2_exp': ['GS+pmf_predict', 'cyan'],
+        'hybrid_3_exp': ['GS+LP', 'brown'],
+        'hybrid_3_U_exp': ['GS+LP+U', 'brown'],
         'hybrid_4_exp': ['hybrid 4 (GS+LP+)', 'magenta'],
-        'hybrid_6_exp': ['hybrid 6 (E+G+LP) E', 'DarkMagenta'],
-        'hybrid_6_U_exp': ['hybrid 6 (E+G+U+LP) E', 'DarkMagenta'],
-        'combined_exp': ['hybrid combined', 'lime'],
+        'hybrid_6_exp': ['E+GS+LP', 'DarkMagenta'],
+        'hybrid_7_exp': ['ExpGrad subsample', 'blue'],
+        'hybrid_6_U_exp': ['E+G+U+LP', 'DarkMagenta'],
         'expgrad_fracs_gri': ['expgrad sample G', 'IndianRed'],
-        'hybrid_5_gri': ['hybrid 5 (LP) G', 'GoldenRod'],
-        'hybrid_5_U_gri': ['hybrid 5 (LP) G', 'GoldenRod'],
+        'hybrid_5_gri': ['E+LP G', 'GoldenRod'],
+        'hybrid_5_U_gri': ['E+LP+U G', 'GoldenRod'],
         'hybrid_1_gri': ['hybrid 1 (GS only) G', 'RoyalBlue'],
         'hybrid_2_gri': ['hybrid 2 (GS+pmf_predict) G', 'DarkTurquoise'],
-        'hybrid_3_gri': ['hybrid 3 (GS+LP) G', 'LightSkyBlue'],
-        'hybrid_3_U_gri': ['hybrid 3 (GS+LP+U) G', 'LightSkyBlue'],
+        'hybrid_3_gri': ['GS+LP G', 'LightSkyBlue'],
+        'hybrid_3_U_gri': ['GS+LP+U G', 'LightSkyBlue'],
         'hybrid_4_gri': ['hybrid 4 (GS+LP+) G', 'DarkMagenta'],
-        'hybrid_6_gri': ['hybrid 6 (E+G+LP) G', 'DarkMagenta'],
-        'hybrid_6_U_gri': ['hybrid 6 (E+G+LP) G', 'DarkMagenta'],
+        'hybrid_6_gri': ['E+GS+LP G', 'DarkMagenta'],
+        'hybrid_6_U_gri': ['E+GS+LP+U G', 'DarkMagenta'],
+        'hybrid_7_gri': ['ExpGrad subsample G', 'blue'],
         'combined_gri': ['hybrid combined G', 'LimeGreen'],
         'fairlearn_full': ['expgrad full', 'black'],
         'unmitigated': ['unmitigated', 'orange'],
         'unconstrained_exp': ['unmitigated', 'orange'],
+        'unconstrained_gri': ['unmitigated', 'orange'],
     }, orient='index', columns=['label', 'color'])
 
     to_plot_models = [
@@ -78,6 +79,7 @@ class PlotUtility():
         'hybrid_3_U_exp',
         # 'hybrid_4_exp',
         'hybrid_6_exp',
+        'hybrid_7_exp',
         # 'hybrid_6_U_exp',
         'fairlearn_full',
         'unmitigated',
@@ -96,7 +98,11 @@ class PlotUtility():
     color_list = mpl.colormaps['tab20'].colors
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    markersize = 5
+    def __init__(self):
+        self.markersize = 4
+        self.linewidth = 0.5
+        # plt.rcParams['lines.markersize'] = self.markersize
+        # plt.rcParams['lines.linewidth'] = self.linewidth
 
     def plot(self, all_model_df, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95],
              grid_fractions=[0.1, 0.2, 0.5], groupby_col='frac'):
@@ -107,6 +113,7 @@ class PlotUtility():
         ax.legend()
         self.ax = ax
         self.fig.show()
+
 
     def base_plot(self, all_model_df, x_axis, y_axis, alphas, grid_fractions, ax):
         def_alpha = .5
@@ -148,13 +155,13 @@ class PlotUtility():
             if len(y_values) == 1:
                 ax.axhline(y_values, linestyle="-.", color=color, zorder=10)
             ax.errorbar(x_values, y_values, xerr=xerr, yerr=yerr, color=color, label=label, fmt='--x', zorder=zorder,
-                        markersize=self.markersize)
+                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth/2)
         else:
             x_values = turn_data.columns
             if len(y_values) == 1:
                 ax.axhline(y_values, linestyle="-.", color=color, zorder=10)
             ax.errorbar(x_values, y_values, yerr=yerr, color=color, label=label, fmt='--x', zorder=zorder,
-                        markersize=self.markersize)
+                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth/2)
             # ax.fill_between(x_values, ci[1], ci[2], color=color, alpha=0.3)
             # if len(y_values) == 1:
             #     ax.plot(self.x_values, np.repeat(y_values, self.n_points), "-.", color=color, zorder=10, label=label)
@@ -220,27 +227,28 @@ if __name__ == '__main__':
     save = True
     # base_dir = os.path.join("results", "fairlearn-2", "adult")
     # all_model_df = get_last_results(base_dir)
+    # dataset_name = "adult"
     dataset_name = "ACSPublicCoverage"
     base_dir = os.path.join("results", "fairlearn-2", dataset_name)
     all_model_df = get_last_results_from_directories(base_dir)
     all_model_df = set_frac_values(all_model_df)
 
-    eps_mask = all_model_df['model_code'].str.endswith('_eps')
+    eps_mask = all_model_df['model_code'].str.contains('eps')
     eps_df = all_model_df[eps_mask]
     frac_df = all_model_df[~eps_mask]
-    missed_conf = np.setdiff1d(all_model_df['model_code'].unique(),
+    missed_conf = np.setdiff1d(frac_df['model_code'].unique(),
                                list(PlotUtility.map_df.index.values)).tolist()
     assert len(missed_conf) == 0, missed_conf
     base_plot_dir = os.path.join('results', 'plots')
 
     pl_util = PlotUtility()
-    # to_iter = list(itertools.product(['train', 'test'], ['violation', 'error'], [
-    #     # 'frac',
-    #     ('time', frac_df)]))
-    # for phase, metric_name, (x_axis, turn_df) in to_iter:
-    #     pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
-    #     if save is True:
-    #         pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{phase}_{metric_name}_vs_{x_axis}')
+    to_iter = list(itertools.product(['train', 'test'], ['violation', 'error'], [
+        # 'frac',
+        ('time', frac_df)]))
+    for phase, metric_name, (x_axis, turn_df) in to_iter:
+        pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
+        if save is True:
+            pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{phase}_{metric_name}_vs_{x_axis}')
 
     df = frac_df.copy()
     df = df[df['model_code'].isin(pl_util.to_plot_models)]

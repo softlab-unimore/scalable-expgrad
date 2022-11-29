@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 from datetime import datetime
 from functools import partial
@@ -23,7 +24,7 @@ def get_last_results_from_directories(base_dir, prefix='last'):
             continue
         suffix = ''
         for key in suffix_attr_map.keys():
-            if f'_{key}[' in turn_dir:
+            if re.search(rf'{key}\[([0-9\.]+, )+[0-9\.]+\]', turn_dir) is not None:
                 suffix += f'{key}'
         df = get_last_results(os.path.join(base_dir, turn_dir), prefix=prefix)
         df['moving_param'] = suffix
