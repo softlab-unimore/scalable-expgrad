@@ -3,9 +3,13 @@ from fairlearn.reductions import DemographicParity, ErrorRate
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import f1_score, precision_score, recall_score
 
+def divide_non_0(a,b):
+    res = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+    return res.item() if res.shape == () else res
+
 def get_metric_function(metric_f):
     def f(X, Y, S, y_pred):
-        return metric_f(y_true=Y, y_pred=y_pred>=.5)
+        return metric_f(y_true=Y, y_pred=y_pred>=.5, zero_division=0)
     return f
 
 
@@ -27,9 +31,9 @@ def di(X, Y, S, y_pred):
     s_values.sort()
     group_0_mask = S == s_values[0]
     group_1_mask = S == s_values[1]
-    PrY1_S0 = np.sum(group_0_mask & y_pred == 1) / np.sum(group_0_mask)
-    PrY1_S1 = np.sum(group_1_mask & y_pred == 1) / np.sum(group_1_mask)
-    disparate_impact = PrY1_S0 / PrY1_S1
+    PrY1_S0 = np.sum(y_pred[group_0_mask] == 1) / np.sum(group_0_mask)
+    PrY1_S1 = np.sum(y_pred[group_1_mask] == 1) / np.sum(group_1_mask)
+    disparate_impact = divide_non_0(PrY1_S0, PrY1_S1)
     return disparate_impact
 
 

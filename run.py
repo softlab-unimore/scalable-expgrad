@@ -15,7 +15,7 @@ from datetime import datetime
 from warnings import simplefilter
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
-from fairlearn.reductions import DemographicParity
+from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from synthetic_data import get_synthetic_data, data_split, get_miro_synthetic_data
 from utils_prepare_data import load_data, load_transform_ACS
 import inspect
@@ -40,6 +40,23 @@ def execute_experiment(list_p, dict_p, original_argv):
     exp_run.run()
 
 
+params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_data_points', 'nf': 'num_features',
+                       't': 'theta', 'g': 'groups', 'gp': 'group_prob', 'yp': 'y_prob', 'sp': 'switch_pos',
+                       'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
+                       'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
+                       'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
+                       'cc': 'constraint_code'}
+
+
+def get_constraint(constraint_code='dp', eps=.05):
+    code_to_constraint = {'dp': DemographicParity,
+                          'eo': EqualizedOdds}
+    if constraint_code not in code_to_constraint.keys():
+        assert False, f'available constraint_code are: {list(code_to_constraint.keys())}'
+    constraint:UtilityParity = code_to_constraint[constraint_code]
+    return constraint(difference_bound=eps)
+
+
 class ExpreimentRun:
 
     def __init__(self):
@@ -58,6 +75,7 @@ class ExpreimentRun:
 
         # For Fairlearn and Hybrids
         arg_parser.add_argument("--eps")
+        arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
 
         # For synthetic data
         arg_parser.add_argument("--num_data_points", type=int)
@@ -108,8 +126,6 @@ class ExpreimentRun:
                                [float] * 3 + [int]):
             if hasattr(args, key) and getattr(args, key) is not None:
                 values = prm[key] = [t_type(x) for x in getattr(args, key).split(",")]
-                if len(values) == 1:
-                    values = values[0]
             else:
                 prm[key] = None
         if 'exp_fractions' not in prm.keys() or prm['exp_fractions'] is None:
@@ -128,6 +144,7 @@ class ExpreimentRun:
                 return True
             print(f'Start data loading {dataset_str}')
             return False
+
         if self.dataset_str == "adult":
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
@@ -166,8 +183,6 @@ class ExpreimentRun:
         self.tuning_step(base_model_code=args.base_model_code, X=X, y=y, fractions=prm['exp_fractions'],
                          random_seed=args.random_seed, redo_tuning=args.redo_tuning)
 
-
-
         results = []
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
         # if isinstance(A, pd.DataFrame):
@@ -190,7 +205,8 @@ class ExpreimentRun:
                                                     exp_grid_ratio=args.exp_grid_ratio,
                                                     base_model_code=args.base_model_code,
                                                     run_linprog_step=args.run_linprog_step,
-                                                    random_seed=args.random_seed)
+                                                    random_seed=args.random_seed,
+                                                    constraint_code=args.constraint_code)
                     self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
                                      name=f'train_test_fold{train_test_fold}_sampleseed{sampleseed}_exp_frac{exp_frac}')
 
@@ -205,7 +221,8 @@ class ExpreimentRun:
                                                        run_linprog_step=args.run_linprog_step,
                                                        random_seed=args.random_seed,
                                                        base_model_code=args.base_model_code, )
-                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                self.save_result(df=pd.DataFrame(turn_results),
+                                 additional_dir=method_str + '_LP_off' if args.run_linprog_step is False else '',
                                  name=f'train_test_fold{train_test_fold}')
             else:
                 raise ValueError(method_str)
@@ -232,15 +249,16 @@ class ExpreimentRun:
 
     def run_hybrids(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all, eps,
                     sample_seeds, exp_fractions, grid_fractions, train_test_fold=None, base_model_code='lr',
-                    exp_subset=True, exp_grid_ratio=None, run_linprog_step=True, random_seed=0):
+                    exp_subset=True, exp_grid_ratio=None, run_linprog_step=True, random_seed=0,
+                    constraint_code='dp'):
         assert train_test_fold is not None
         simplefilter(action='ignore', category=FutureWarning)
 
         # Combine all training data into a single data frame
         train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
         self.data_dict = {"eps": 0, "frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name',
-                          'random_seed': random_seed,
-                          'train_test_fold': train_test_fold, 'iterations': 0, 'base_model_code': base_model_code,
+                          'random_seed': random_seed, 'base_model_code': base_model_code,
+                          'train_test_fold': train_test_fold, 'iterations': 0,
                           'total_train_size': X_train_all.shape[0], 'total_test_size': X_test_all.shape[0]}
         eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
                              'test': [X_test_all, y_test_all, A_test_all]}
@@ -264,22 +282,18 @@ class ExpreimentRun:
             self.data_dict["grid_frac"] = grid_f
             # self.data_dict['exp_size'] = int(n_data * exp_f)
             # self.data_dict['grid_size'] = int(n_data * grid_f)
-            constraint = DemographicParity(difference_bound=turn_eps)
+            constraint = get_constraint(constraint_code=constraint_code, eps=turn_eps)
+
             print(f"Processing: fraction {exp_f: <5}, sample {sample_seed: ^10} GridSearch fraction={grid_f:0<5}")
 
-            self.data_dict['model_name'] = 'unconstrained'
             base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=exp_f,
                                                          random_seed=random_seed)
+            self.data_dict['model_name'] = 'unconstrained'
             unconstrained_model = deepcopy(base_model)
             metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
                 unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
             time_unconstrained_dict['phase'] = 'unconstrained'
             self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
-
-            # 2 algorithms:
-            # - Expgrad + Grid
-            # - Expgrad + Grid + LP (on all predictors, or top -k)
-            # The actual LP is actually very expensive (can't run it). So we're using a "heuristic LP"
 
             # GridSearch data fraction
             grid_sample = train_all.sample(frac=grid_f, random_state=sample_seed + 60, replace=False)
@@ -296,9 +310,16 @@ class ExpreimentRun:
             exp_params = dict(X=exp_sample.iloc[:, :-2],
                               y=exp_sample.iloc[:, -2],
                               sensitive_features=exp_sample.iloc[:, -1])
+            # Unconstrained on sample
+            self.data_dict['model_name'] = 'unconstrained_frac'
+            unconstrained_model_frac = deepcopy(base_model)
+            metrics_res, time_uncons_frac_dict, time_eval_dict = self.fit_evaluate_model(
+                unconstrained_model_frac, dict(X=exp_params['X'], y=exp_params['y']), eval_dataset_dict)
+            time_unconstrained_dict['phase'] = 'unconstrained'
+            self.add_turn_results(metrics_res, [time_eval_dict, time_uncons_frac_dict])
 
             # Expgrad on sample
-            self.data_dict['model_name'] = 'expgrad_fracs'
+            self.data_dict['model_name'] = 'expgrad_fracs' + '_LP_off' if run_linprog_step is False else ''
             expgrad_frac = ExponentiatedGradientPmf(estimator=deepcopy(base_model), run_linprog_step=run_linprog_step,
                                                     constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6)
             metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_frac, exp_params,
@@ -310,119 +331,134 @@ class ExpreimentRun:
             self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
 
             #################################################################################################
-            # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
-            # Get rid
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_5'
-            print(f"Running {self.data_dict['model_name']}")
-            model1 = Hybrid5(expgrad_frac, eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params, eval_dataset_dict)
-            time_lp_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_lp_dict])
-
-            #################################################################################################
-            # H5 + unconstrained
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_5_U'
-            print(f"Running {self.data_dict['model_name']}")
-            model1.unconstrained_model = unconstrained_model
-            metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params, eval_dataset_dict)
-            time_lp_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_unconstrained_dict, time_lp_dict,
-                                                time_unconstrained_dict])
-
-            #################################################################################################
-            # Hybrid 1: Just Grid Search -> expgrad partial + grid search
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_1'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid1(expgrad_frac, eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, time_grid_dict, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
-            time_grid_dict['phase'] = 'grid_frac'
-            time_grid_dict['grid_oracle_times'] = model.grid_search_frac.oracle_execution_times_
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
-            grid_search_frac = model.grid_search_frac
-
-            #################################################################################################
-            # Hybrid 2: pmf_predict with exp grid weights in grid search
-            # Keep this, remove Hybrid 1.
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_2'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid2(expgrad_frac, grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, _, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
-
-            #################################################################################################
-            # Hybrid 3: re-weight using LP
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_3'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
-            time_lp3_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
-
-            #################################################################################################
-            # Hybrid 3 +U: re-weight using LP + unconstrained
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_3_U'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint),
-                            unconstrained_model=unconstrained_model)
-            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
-            time_lp3_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
-                                                time_unconstrained_dict])
-
-            #################################################################################################
-            # Hybrid 4: re-weight only the non-zero weight predictors using LP
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_4'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid4(expgrad_frac, grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, time_lp4_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
-            time_lp4_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp4_dict])
-
-            #################################################################################################
-            # Hybrid 6: exp + grid predictors
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_6'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad_frac=expgrad_frac,
-                            eps=turn_eps, constraint=deepcopy(constraint))
-            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
-            time_lp3_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
-
-            #################################################################################################
-            # Hybrid 6 + U: exp + grid predictors + unconstrained
-            #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_6_U'
-            print(f"Running {self.data_dict['model_name']}")
-            model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad_frac=expgrad_frac,
-                            eps=turn_eps, constraint=deepcopy(constraint), unconstrained_model=unconstrained_model)
-            metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params, eval_dataset_dict)
-            time_lp3_dict['phase'] = 'lin_prog'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
-                                                time_unconstrained_dict])
-
-            #################################################################################################
             # 7
             #################################################################################################
-            self.data_dict['model_name'] = 'hybrid_7'
+            self.data_dict['model_name'] = 'hybrid_7' + '_LP_off' if run_linprog_step is False else ''
             print(f"Running {self.data_dict['model_name']}")
             subsample_size = int(X_train_all.shape[0] * exp_f)
-            model = ExponentiatedGradientPmf(estimator=deepcopy(base_model), run_linprog_step=run_linprog_step,
-                                             constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6,
-                                             subsample=subsample_size, random_state=random_seed)
-            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+            expgrad_subsample = ExponentiatedGradientPmf(estimator=deepcopy(base_model),
+                                                         run_linprog_step=run_linprog_step,
+                                                         constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6,
+                                                         subsample=subsample_size, random_state=random_seed)
+            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_subsample, all_params,
                                                                                  eval_dataset_dict)
             time_exp_dict['phase'] = 'expgrad_fracs'
-            exp_data_dict = get_data_from_expgrad(model)
+            exp_data_dict = get_data_from_expgrad(expgrad_subsample)
             self.data_dict.update(**exp_data_dict)
             self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+
+            for turn_expgrad, prefix in [(expgrad_frac, ''), (expgrad_subsample, 'sub_')]:
+                #################################################################################################
+                # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
+                # Get rid
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_5'
+                print(f"Running {self.data_dict['model_name']}")
+                model1 = Hybrid5(turn_expgrad, eps=turn_eps, constraint=deepcopy(constraint))
+                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params,
+                                                                                    eval_dataset_dict)
+                time_lp_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_lp_dict])
+
+                #################################################################################################
+                # H5 + unconstrained
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_5_U'
+                print(f"Running {self.data_dict['model_name']}")
+                model1.unconstrained_model = unconstrained_model
+                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params,
+                                                                                    eval_dataset_dict)
+                time_lp_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res,
+                                      [time_eval_dict, time_exp_dict, time_unconstrained_dict, time_lp_dict,
+                                       ])
+
+                #################################################################################################
+                # Hybrid 1: Just Grid Search -> expgrad partial + grid search
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_1'
+                print(f"Running {self.data_dict['model_name']}")
+                grid_subsample_size = int(X_train_all.shape[0] * grid_f)
+                model = Hybrid1(expgrad=turn_expgrad, eps=turn_eps, constraint=deepcopy(constraint),
+                                base_model=deepcopy(base_model), subsample=grid_subsample_size)
+                metrics_res, time_grid_dict, time_eval_dict = self.fit_evaluate_model(model, grid_params,
+                                                                                      eval_dataset_dict)
+                time_grid_dict['phase'] = 'grid_frac'
+                time_grid_dict['grid_oracle_times'] = model.grid_search_frac.oracle_execution_times_
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+                grid_search_frac = model.grid_search_frac
+
+                #################################################################################################
+                # Hybrid 2: pmf_predict with exp grid weights in grid search
+                # Keep this, remove Hybrid 1.
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_2'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid2(expgrad=turn_expgrad, grid_search_frac=grid_search_frac, eps=turn_eps,
+                                constraint=deepcopy(constraint))
+                metrics_res, _, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+
+                #################################################################################################
+                # Hybrid 3: re-weight using LP
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_3'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint))
+                metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                     eval_dataset_dict)
+                time_lp3_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
+
+                #################################################################################################
+                # Hybrid 3 +U: re-weight using LP + unconstrained
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_3_U'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid3(grid_search_frac=grid_search_frac, eps=turn_eps, constraint=deepcopy(constraint),
+                                unconstrained_model=unconstrained_model)
+                metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                     eval_dataset_dict)
+                time_lp3_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
+                                                    time_unconstrained_dict])
+
+                #################################################################################################
+                # Hybrid 4: re-weight only the non-zero weight predictors using LP
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_4'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid4(expgrad=turn_expgrad, grid_search_frac=grid_search_frac, eps=turn_eps,
+                                constraint=deepcopy(constraint))
+                metrics_res, time_lp4_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                     eval_dataset_dict)
+                time_lp4_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp4_dict])
+
+                #################################################################################################
+                # Hybrid 6: exp + grid predictors
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_6'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad=turn_expgrad,
+                                eps=turn_eps, constraint=deepcopy(constraint))
+                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                    eval_dataset_dict)
+                time_lp_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp_dict])
+
+                #################################################################################################
+                # Hybrid 6 + U: exp + grid predictors + unconstrained
+                #################################################################################################
+                self.data_dict['model_name'] = f'{prefix}hybrid_6_U'
+                print(f"Running {self.data_dict['model_name']}")
+                model = Hybrid3(add_exp_predictors=True, grid_search_frac=grid_search_frac, expgrad=turn_expgrad,
+                                eps=turn_eps, constraint=deepcopy(constraint), unconstrained_model=unconstrained_model)
+                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
+                                                                                    eval_dataset_dict)
+                time_lp_dict['phase'] = 'lin_prog'
+                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp_dict,
+                                                    time_unconstrained_dict])
 
             #################################################################################################
             # End models
