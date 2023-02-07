@@ -130,9 +130,16 @@ class ExpreimentRun:
                 prm[key] = None
         if 'exp_fractions' not in prm.keys() or prm['exp_fractions'] is None:
             prm['exp_fractions'] = [1]
+
+        varying_values = ''
         for key, value in prm.items():
             if value is not None:
-                method_str += f'_{key[:3]}{value}'
+                if key in ['exp_fractions', 'grid_fractions', 'eps']:
+                    if type(value) is list and len(value) > 1:
+                        method_str += f'_{key[:3]}VARY'
+                else:
+                    method_str += f'_{key[:3]}{value}'
+
 
         ### Load dataset
         self.dataset_str = args.dataset
