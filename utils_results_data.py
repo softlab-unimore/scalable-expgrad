@@ -7,60 +7,109 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
+from run import params_initials_map
 
-suffix_attr_map = {'eps': 'eps',
-         'gri': 'grid_frac',
-         'exp': 'exp_frac'}
+suffix_attr_map = {
+    'exp': 'exp_frac',
+    'eps': 'eps',
+    'gri': 'grid_frac',
+}
 
-def get_last_results_from_directories(base_dir, prefix='last'):
+
+def load_filter_results(base_dir, prefix='last', conf: dict = {}):
+    dirs_df = scan_dataset_directories(base_dir, prefix).fillna({'constraint_code': 'dp'}).fillna('')
+
+    if dirs_df.empty:
+        return dirs_df
+    for key, value in conf.items():
+        if not isinstance(value, list):
+            value = [value]
+        if key in dirs_df.columns:
+            dirs_df = dirs_df[dirs_df[key].isin(value)]
+        else:
+            if key == 'states':
+                pass
+            else:
+                assert False, f'\'{key}\' is not a valid key for filter. values available are: {dirs_df.columns.values}'
+    if dirs_df.empty:
+        return dirs_df
+    return pd.concat(dirs_df['df'].values)
+
+
+def read_experiment_configuration(path):
+    config = dict(dir=path)
+    model = re.findall(r'(?P<model>^[a-zA-Z]+)_', path)[0]
+    config['model_name'] = model
+    g = re.findall(r'(?P<name>[a-zA-Z]+)\((?P<value>[a-zA-Z0-9\.]+)\)\_?', path)
+    config = {params_initials_map[x[0]]: x[1] for x in g}
+    return config
+
+
+def scan_dataset_directories(base_dir, prefix='last'):
     dirs = pd.Series([x.name for x in os.scandir(base_dir) if x.is_dir()])
+    dirs = dirs[dirs != 'tuned_models']
+    config_list = []
+    for t_dir in dirs:
+        config = read_experiment_configuration(t_dir)
+        config_list.append(config)
+    dirs_df = pd.DataFrame(config_list)
 
-    # last_files = dirs[dirs.str.startswith(prefix)]
-    # name_df = last_files.str.extract(r'^(last)_([^_]*)_?(.*)\.(.*)$', expand=True)
-    # name_df.rename(columns={0: 'last', 1: 'model', 2: 'params', 3: 'extension'}, inplace=True)
     df_list = []
     for turn_dir in dirs:
         if turn_dir in ['tuned_models']:
             continue
-        suffix = ''
-        for key in suffix_attr_map.keys():
-            if re.search(rf'{key}\[([0-9\.]+, )+[0-9\.]+\]', turn_dir) is not None:
-                suffix += f'{key}'
-        df = get_last_results(os.path.join(base_dir, turn_dir), prefix=prefix)
-        df['moving_param'] = suffix
+        df = load_results_single_directory(os.path.join(base_dir, turn_dir), prefix=prefix)
         df_list.append(df)
-    all_model_df = pd.concat(df_list)
-    all_model_df['model_code'] = all_model_df['model_name'] +'_'+ all_model_df['moving_param']
+    dirs_df['df'] = df_list
+    return dirs_df
 
-    return all_model_df
 
-def get_last_results(base_dir, prefix='last'):
+def load_results_single_directory(base_dir, prefix='last'):
     files = pd.Series([x.name for x in os.scandir(base_dir) if x.is_file()])
     last_files = files[files.str.startswith(prefix)]
     # name_df = last_files.str.extract(r'^(last)_([^_]*)_?(.*)\.(.*)$', expand=True)
     # name_df.rename(columns={0: 'last', 1: 'model', 2: 'params', 3: 'extension'}, inplace=True)
     df_list = []
     for turn_file in last_files:
-        df = pd.read_csv(os.path.join(base_dir, turn_file))
-        suffix = ''
-        for key, name in suffix_attr_map.items():
-            if f'_{key}[' in turn_file:
-                suffix += f'_{key}'
-                df['frac'] = df[name]
-        df['moving_param'] = suffix
-        df_list.append(df)
-    all_model_df = pd.concat(df_list)
-    return all_model_df
+        full_path = os.path.join(base_dir, turn_file)
+        df_list.append(pd.read_csv(full_path))
+    all_df = pd.concat(df_list)
+    all_df = calculate_movign_param(base_dir, all_df)
 
-def set_frac_values(df:pd.DataFrame):
+    if 'rls(False)' in base_dir:
+        to_drop = all_df[all_df['model_name'].isin(['unconstrained', 'unconstrained_frac'])].index
+        all_df.drop(index=to_drop, inplace=True)
+
+    return all_df
+
+
+def calculate_movign_param(path, df: pd.DataFrame):
+    suffix = ''
+    for key, name in suffix_attr_map.items():
+        if f'_{key}[' in path:
+            suffix += f'{key}'
+            df['frac'] = df[name]
+    if suffix == '':
+        for key, name in suffix_attr_map.items():
+            if df[name].nunique() > 1:
+                suffix = f'{key}'
+                break
+    df['moving_param'] = suffix
+    df['model_code'] = df['model_name'] + '_' + df['moving_param']
+    return df
+
+
+def set_frac_values(df: pd.DataFrame):
     # df['moving_param'] = df['model_name'].apply(lambda x: x[-3:])
     for key, col in suffix_attr_map.items():
         mask = df['moving_param'] == key
-        df.loc[mask,'frac'] = df.loc[mask,col]
+        df.loc[mask, 'frac'] = df.loc[mask, col]
     return df
 
+
 def aggregate_phase_time(df):
-    results_df = df.groupby(df.columns.drop(['metrics_time','phase', 'time', 'grid_oracle_times']).tolist(), as_index=False, dropna=False).agg(
+    results_df = df.groupby(df.columns.drop(['metrics_time', 'phase', 'time', 'grid_oracle_times']).tolist(),
+                            as_index=False, dropna=False).agg(
         {'time': 'sum'})
     return results_df
 
