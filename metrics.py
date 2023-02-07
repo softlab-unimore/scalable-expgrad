@@ -59,7 +59,7 @@ def TNRB(X, Y, S, y_pred):
     return np.abs(rates_dict['TNR_1'] - rates_dict['TNR_0'])  # TNRB
 
 
-metrics_dict = {'error': getError,
+default_metrics_dict = {'error': getError,
                 'violation': getViolation,
                 'di': di,
                 'TPRB': TPRB,
@@ -67,4 +67,4 @@ metrics_dict = {'error': getError,
                 'f1': get_metric_function(f1_score),
                 'precision': get_metric_function(precision_score),
                 'recall': get_metric_function(recall_score)
-                }
+                        }
