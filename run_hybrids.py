@@ -17,8 +17,6 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
-
-
 _PRECISION = 1e-8
 _LINE = "_" * 9
 _INDENTATION = " " * 9
@@ -222,8 +220,6 @@ class _GapResult:
 
     def gap(self):
         return max(self.L - self.L_low, self.L_high - self.L)
-
-
 
 
 if __name__ == "__main__":

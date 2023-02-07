@@ -1,38 +1,27 @@
 import sys
-import numpy as np
 from run import execute_experiment
-from utils_values import *
+from utils_values import fractions, sample_variation, eps, dataset_names
+
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
 
     for dataset_name in dataset_names:
         args = [dataset_name, 'model_name',
-                '--exp_subset', #'--redo_exp',
-                #'--redo_tuning'
+                '--exp_subset','--redo_exp',
                 ]
         kwargs = {}
 
         args[1] = 'hybrids'
 
-        # vary exp sample
+        # make grid-sample vary
         kwargs.update(**{
             '--eps': eps,
             '--sample_variations': sample_variation,
-            '--exp_fractions': fractions,
-            '--exp_grid_ratio': 'sqrt',
-            # '--grid_fractions': fixed_sample_frac
-            '--base_model_code': 'lgbm', # 'lr',
-        })
+            '--exp_fractions': 0.001,
+            '--grid_fractions': fractions})
+        kwargs.pop('--exp_grid_ratio')
         execute_experiment(args, kwargs, original_argv)
-        # # make grid-sample vary
-        # kwargs.update(**{
-        #     '--eps': eps,
-        #     '--sample_variations': sample_variation,
-        #     '--exp_fractions': 0.001,
-        #     '--grid_fractions': fractions})
-        # kwargs.pop('--exp_grid_ratio')
-        # execute_experiment(args, kwargs, original_argv)
         # TODO try different sensitive attr
 
     # dataset_name = 'synth'
