@@ -1,7 +1,7 @@
 from functools import partial
 
 from graphic_utility import *
-from utils_results_data import get_last_results, add_combined_stats
+from utils_results_data import load_results_single_directory, add_combined_stats
 
 # sns.set_context(font_scale=.9)
 
@@ -14,7 +14,7 @@ if __name__ == "__main__":
                          'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
         results_path = os.path.join("results", "fairlearn-2", dataset_name)
         try:
-            all_model_df = get_last_results(results_path)
+            all_model_df = load_results_single_directory(results_path)
         except Exception as e:
             print(e)
             continue

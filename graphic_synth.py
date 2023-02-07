@@ -1,7 +1,7 @@
 from functools import partial
 
 from graphic_utility import *
-from utils_results_data import get_last_results, add_combined_stats
+from utils_results_data import load_results_single_directory, add_combined_stats
 
 # sns.set_context(font_scale=.9)
 
@@ -12,7 +12,7 @@ if __name__ == "__main__":
     df_list = []
     for n in data_sizes:
         base_dir = os.path.join("results", "sparc20", f'synth_n{n}_f3_t0.5_t00.3_t10.6_tr0.3_v1')
-        turn_df = get_last_results(base_dir)
+        turn_df = load_results_single_directory(base_dir)
         turn_df['n'] = n
         df_list.append(turn_df.copy())
     all_model_df = pd.concat(df_list)

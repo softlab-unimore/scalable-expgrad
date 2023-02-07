@@ -1,14 +1,17 @@
 import ast
 import itertools
+from copy import deepcopy
+
 import numpy as np
 import os
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
-from utils_results_data import get_last_results, get_info, get_confidence_error, mean_confidence_interval, \
-    add_combined_stats, aggregate_phase_time, get_last_results_from_directories, set_frac_values
+from utils_results_data import load_results_single_directory, get_info, get_confidence_error, mean_confidence_interval, \
+    add_combined_stats, aggregate_phase_time, scan_dataset_directories, set_frac_values, load_filter_results
 import matplotlib as mpl
+from run import params_initials_map
 
 sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
@@ -19,28 +22,81 @@ plt.rcParams.update({'font.size': 16, "figure.dpi": 400, 'savefig.dpi': 600,
                      })
 plt.rcParams['figure.constrained_layout.use'] = True
 
-sns.set_context(rc={"legend.fontsize": 7.5})
+sns.set_context(rc={"legend.fontsize": 7})
+
+restricted_list = [
+    'expgrad_fracs_exp',
+    'expgrad_fracs_LP_off_exp',
+    'hybrid_5_exp',
+    # 'hybrid_5_U_exp',
+    # # 'hybrid_1_exp',
+    # # 'hybrid_2_exp',
+    'hybrid_3_exp',
+    # 'hybrid_3_U_exp',
+    # # 'hybrid_4_exp',
+    # 'hybrid_6_U_exp',
+    # 'hybrid_6_exp',
+
+    'hybrid_7_exp',  # ExpGradSub
+    'hybrid_7_LP_off_exp',
+    'sub_hybrid_3_exp',
+    # 'sub_hybrid_4_exp',
+    # 'sub_hybrid_5_U_exp',
+    # 'sub_hybrid_5_exp',
+    # 'sub_hybrid_6_U_exp',
+    # 'sub_hybrid_6_exp',
+    'unconstrained_frac_exp',
+]
 
 
-# plt.rcParams["figure.figsize"] = (10,5)
-# ax = global_df.pivot_table(index=['id', 'match_code'], columns=['dataset_code'], values=['pearson']).droplevel(0,1).groupby(['match_code']).plot(kind='box')
-# ax['match'].get_figure().savefig(os.path.join(...))
-# ax['nomatch'].get_figure().savefig(os.path.join(...), bbox_inches='tight')
+def generate_map_df():
+    values_dict = {}
+    model_names = ['hybrid_1', 'hybrid_2', 'hybrid_3', 'hybrid_4', 'hybrid_5', 'hybrid_6']
+    unconstrained = [True, False]
+    active_sampling = [True, False]
+    run_linprog = [True, False]
+    to_iter = itertools.product(model_names, unconstrained, active_sampling)
+
+    for t_varing in ['exp', 'gri', 'eps']:
+        for t_run_lp in run_linprog:
+            for t_model_name, t_unconstrained, t_active_sampling in deepcopy(to_iter):
+                name = 'sub_' if t_active_sampling else ''
+                name += t_model_name + ('_U' if t_unconstrained else '')
+                name += '_LP_off' if t_run_lp else ''
+                name += f'_{t_varing}'
+
+                label = f'EXPGRAD=' + ('adaptive' if t_active_sampling else 'static')
+                label += ' GS=' + ('on' if any(x in t_model_name for x in ['1', '2', '3', '4', '6']) else 'off')
+                label += ' LP=on'
+                label += ' +U' if t_unconstrained else ''
+                if 'hybrid_6' in t_model_name:
+                    label += ' *'
+                label += ' run_linprog F' if t_run_lp else ''
+                values_dict[name] = label
+
+            rlp_name = "_LP_off" if t_run_lp else ""
+            rlp_label = ' run_linprog F' if t_run_lp else ''
+            values_dict[f'hybrid_7{rlp_name}_{t_varing}'] = 'EXPGRAD=adaptive GS=off (LP=on)' + rlp_label
+            values_dict[f'expgrad_fracs{rlp_name}_{t_varing}'] = 'EXPGRAD=static GS=off LP=off' + rlp_label
+        values_dict[f'unconstrained_{t_varing}'] = 'UNMITIGATED full'
+        values_dict[f'unconstrained_frac_{t_varing}'] = 'UNMITIGATED=static'
+
+    return pd.DataFrame.from_dict(values_dict, orient='index', columns=['label'])
 
 
 class PlotUtility():
     map_df = pd.DataFrame.from_dict({
-        'expgrad_fracs_exp': ['expgrad sample', 'red'],
-        'hybrid_5_exp': ['E+LP', 'gold'],
-        'hybrid_5_U_exp': ['E+LP+U', 'gold'],
+        'expgrad_fracs_exp': ['EXPGRAD=static GS=off LP=off', 'red'],
         'hybrid_1_exp': ['GS', 'blue'],
         'hybrid_2_exp': ['GS+pmf_predict', 'cyan'],
-        'hybrid_3_exp': ['GS+LP', 'brown'],
         'hybrid_3_U_exp': ['GS+LP+U', 'brown'],
+        'hybrid_3_exp': ['GS+LP', 'brown'],
         'hybrid_4_exp': ['hybrid 4 (GS+LP+)', 'magenta'],
-        'hybrid_6_exp': ['E+GS+LP', 'DarkMagenta'],
-        'hybrid_7_exp': ['ExpGrad subsample', 'blue'],
-        'hybrid_6_U_exp': ['E+G+U+LP', 'DarkMagenta'],
+        'hybrid_5_U_exp': ['E+LP+U', 'gold'],
+        'hybrid_5_exp': ['EXPGRAD=static, GS=off, LP=on', 'gold'],
+        'hybrid_6_U_exp': ['E+GS+LP+U', 'DarkMagenta'],
+        'hybrid_6_exp': ['EXPGRAD=static, GS=on, LP=on', 'DarkMagenta'],
+        'hybrid_7_exp': ['EXPGRAD=adaptive, GS=off, (LP=on)', 'blue'],
         'expgrad_fracs_gri': ['expgrad sample G', 'IndianRed'],
         'hybrid_5_gri': ['E+LP G', 'GoldenRod'],
         'hybrid_5_U_gri': ['E+LP+U G', 'GoldenRod'],
@@ -51,13 +107,26 @@ class PlotUtility():
         'hybrid_4_gri': ['hybrid 4 (GS+LP+) G', 'DarkMagenta'],
         'hybrid_6_gri': ['E+GS+LP G', 'DarkMagenta'],
         'hybrid_6_U_gri': ['E+GS+LP+U G', 'DarkMagenta'],
-        'hybrid_7_gri': ['ExpGrad subsample G', 'blue'],
-        'combined_gri': ['hybrid combined G', 'LimeGreen'],
+        'hybrid_7_gri': ['ExpGradAda G', 'blue'],
+        # 'combined_gri': ['hybrid combined G', 'LimeGreen'],
         'fairlearn_full': ['expgrad full', 'black'],
         'unmitigated': ['unmitigated', 'orange'],
         'unconstrained_exp': ['unmitigated', 'orange'],
         'unconstrained_gri': ['unmitigated', 'orange'],
+        'sub_hybrid_1_exp': ['ExpGradAda GS', 'grey'],
+        'sub_hybrid_2_exp': ['ExpGradAda GS+pmf_predict', 'grey'],
+        'sub_hybrid_3_U_exp': ['ExpGradAda GS+LP+U', 'grey'],
+        'sub_hybrid_3_exp': ['ExpGradAda GS+LP', 'grey'],
+        'sub_hybrid_4_exp': ['ExpGradAda hybrid 4 (GS+LP+)', 'grey'],
+        'sub_hybrid_5_U_exp': ['ExpGradAda+LP+U', 'grey'],
+        'sub_hybrid_5_exp': ['ExpGradAda+LP', 'grey'],
+        'sub_hybrid_6_U_exp': ['EXPGRAD=adaptive, GS=on, LP=on +U', 'grey'],
+        'sub_hybrid_6_exp': ['EXPGRAD=adaptive, GS=on, LP=on', 'grey'],
+        'unconstrained_frac_exp': ['UNMITIGATED=static', 'grey'],
+        # linprog false == LP_off
+
     }, orient='index', columns=['label', 'color'])
+    map_df = generate_map_df()
 
     to_plot_models = [
         # 'expgrad_fracs_gri',
@@ -65,12 +134,13 @@ class PlotUtility():
         # 'hybrid_5_U_gri',
         # 'hybrid_1_gri',
         # 'hybrid_2_gri',
-        'hybrid_3_gri',
-        'hybrid_3_U_gri',
+        # 'hybrid_3_gri',
+        # 'hybrid_3_U_gri',
         # 'hybrid_4_gri',
         # 'hybrid_6_gri',
-        'hybrid_6_U_gri',
+        # 'hybrid_6_U_gri',
         'expgrad_fracs_exp',
+        'expgrad_fracs_LP_off_exp',
         'hybrid_5_exp',
         'hybrid_5_U_exp',
         # 'hybrid_1_exp',
@@ -78,29 +148,49 @@ class PlotUtility():
         'hybrid_3_exp',
         'hybrid_3_U_exp',
         # 'hybrid_4_exp',
+        'hybrid_6_U_exp',
         'hybrid_6_exp',
         'hybrid_7_exp',
-        # 'hybrid_6_U_exp',
-        'fairlearn_full',
-        'unmitigated',
-        'expgrad_fracs_eps',
-        'hybrid_1_eps',
-        'hybrid_2_eps',
-        'hybrid_3_U_eps',
-        'hybrid_3_eps',
-        'hybrid_4_eps',
-        'hybrid_5_U_eps',
-        'hybrid_5_eps',
-        'hybrid_6_U_eps',
-        'hybrid_6_eps',
-        'fairlearn_full_eps', ]
+        'hybrid_7_LP_off_exp',
+        'unconstrained_exp',
+        # 'fairlearn_full',
+        # 'unmitigated',
+
+        ## exp subsample models
+        # 'sub_hybrid_1_exp',
+        # 'sub_hybrid_2_exp',
+        # 'sub_hybrid_3_U_exp',
+        'sub_hybrid_3_exp',
+        # 'sub_hybrid_4_exp',
+        # 'sub_hybrid_5_U_exp',
+        # 'sub_hybrid_5_exp',
+        # 'sub_hybrid_6_U_exp',
+        'sub_hybrid_6_exp',
+        'unconstrained_frac_exp',
+
+        ## eps models
+        # 'expgrad_fracs_eps',
+        # 'hybrid_1_eps',
+        # 'hybrid_2_eps',
+        # 'hybrid_3_U_eps',
+        # 'hybrid_3_eps',
+        # 'hybrid_4_eps',
+        # 'hybrid_5_U_eps',
+        # 'hybrid_5_eps',
+        # 'hybrid_6_U_eps',
+        # 'hybrid_6_eps',
+        # 'fairlearn_full_eps',
+    ]
 
     color_list = mpl.colormaps['tab20'].colors
+    suffix = ''
+
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    def __init__(self):
+    def __init__(self, show=True):
         self.markersize = 4
         self.linewidth = 0.5
+        self.show = show
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
 
@@ -112,8 +202,8 @@ class PlotUtility():
         self.base_plot(all_model_df, x_axis, y_axis, alphas, grid_fractions, ax)
         ax.legend()
         self.ax = ax
-        self.fig.show()
-
+        if self.show:
+            self.fig.show()
 
     def base_plot(self, all_model_df, x_axis, y_axis, alphas, grid_fractions, ax):
         def_alpha = .5
@@ -130,6 +220,7 @@ class PlotUtility():
             # label = model_code
             color = self.color_list[self.to_plot_models.index(model_code) % len(self.color_list)]
             self.add_plot(ax, turn_df, x_axis, y_axis, color, label)
+
         ax.set_xlabel(f'{x_axis} (log scale)')
         ax.set_ylabel(y_axis)
         ax.set_title(f'{y_axis} v.s. {x_axis}')
@@ -141,7 +232,7 @@ class PlotUtility():
 
     def add_plot(self, ax, turn_df, x_axis, y_axis, color, label):
         agg_x_axis = self.groupby_col if x_axis == 'time' else x_axis
-        index_cols = ['random_seed', 'train_test_fold']
+        index_cols = ['random_seed', 'train_test_fold', 'sample_seed']
         turn_data = turn_df.pivot(index=index_cols, columns=agg_x_axis, values=y_axis)
         ci = mean_confidence_interval(turn_data)
         yerr = (ci[2] - ci[1]) / 2
@@ -152,42 +243,43 @@ class PlotUtility():
             ci_x = mean_confidence_interval(time_data)
             xerr = (ci_x[2] - ci_x[1]) / 2
             x_values = ci_x[0]
-            if len(y_values) == 1:
-                ax.axhline(y_values, linestyle="-.", color=color, zorder=10)
-            ax.errorbar(x_values, y_values, xerr=xerr, yerr=yerr, color=color, label=label, fmt='--x', zorder=zorder,
-                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth/2)
         else:
+            xerr = None
             x_values = turn_data.columns
-            if len(y_values) == 1:
-                ax.axhline(y_values, linestyle="-.", color=color, zorder=10)
-            ax.errorbar(x_values, y_values, yerr=yerr, color=color, label=label, fmt='--x', zorder=zorder,
-                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth/2)
-            # ax.fill_between(x_values, ci[1], ci[2], color=color, alpha=0.3)
-            # if len(y_values) == 1:
-            #     ax.plot(self.x_values, np.repeat(y_values, self.n_points), "-.", color=color, zorder=10, label=label)
-            # else:
-            #     ax.plot(x_values, y_values, color=color, label=label, marker="x", linestyle='--', markersize=self.markersize)
+        if label not in ['UNMITIGATED full']:
+            ax.errorbar(x_values, y_values, xerr=xerr, yerr=yerr, color=color, label=label, fmt='--x', zorder=zorder,
+                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth / 2)
+
+        if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static']:
+            if label == 'UNMITIGATED full':
+                y_values = [y_values.mean()]
+            ax.axhline(y_values[-1], linestyle="-.", color=color, zorder=10, linewidth=self.linewidth)
+
+        # ax.fill_between(x_values, ci[1], ci[2], color=color, alpha=0.3)
+        # if len(y_values) == 1:
+        #     ax.plot(self.x_values, np.repeat(y_values, self.n_points), "-.", color=color, zorder=10, label=label)
+        # else:
+        #     ax.plot(x_values, y_values, color=color, label=label, marker="x", linestyle='--', markersize=self.markersize)
 
     def save(self, base_dir, dataset_name, name, fig=None):
         if fig is None:
             fig = self.fig
-        self.save_figure(base_dir, dataset_name, name, fig)
+        self.save_figure(base_dir, dataset_name, name, fig, suffix=self.suffix)
 
     @staticmethod
-    def save_figure(base_dir, dataset_name, name, fig=None):
+    def save_figure(base_dir, dataset_name, name, fig, suffix=''):
         host_name, current_time_str = get_info()
-        base_dir = os.path.join(base_dir, dataset_name, host_name)
-        path = os.path.join(base_dir, f'{current_time_str}_{name}')
-        last_path = os.path.join(base_dir, f'last_{name}')
-        try:
-            os.makedirs(base_dir)
-        except:
-            pass
-        for full_path in [
-            # path,
-            last_path]:
-            fig.savefig(full_path + '.svg', format='svg')
-            fig.savefig(full_path + '.png')
+        dir_path = os.path.join(base_dir, dataset_name, host_name + suffix)
+        for t_dir in [dir_path]:
+            for t_name in [
+                # f'{current_time_str}_{name}',
+                f'last_{name}']:
+                t_full_path = os.path.join(t_dir, t_name)
+                os.makedirs(t_full_path, exist_ok=True)
+                fig.savefig(t_full_path + '.png')
+                t_full_path_svg = os.path.join(t_dir + '_svg', t_name)
+                os.makedirs(t_full_path_svg, exist_ok=True)
+                fig.savefig(t_full_path_svg + '.svg', format='svg')
 
 
 def time_stacked_by_phase(df, ax, fig: plt.figure):
@@ -197,6 +289,9 @@ def time_stacked_by_phase(df, ax, fig: plt.figure):
         {'time': ['mean', ('error', get_confidence_error)]}).unstack(['phase'])
     yerr = to_plot.loc[:, ('time', 'error', slice(None))]
     to_plot.plot.bar(stacked=True, y=('time', 'mean'), yerr=yerr.values.T, rot=45, ax=ax)
+    xticklabels = ax.xaxis.get_ticklabels()
+    for label in xticklabels:
+        label.set_ha('right')
 
 
 def phase_time_vs_frac(df, ax, fig, y_log=True):
@@ -219,18 +314,10 @@ def plot_metrics_time(df, ax, fig):
 
     to_plot = all_df.groupby(cols).agg(['mean', ('error', get_confidence_error)])
     yerr = to_plot.loc[:, (slice(None), 'error')]
-    to_plot.loc[:,(slice(None),'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
+    to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
 
 
-
-if __name__ == '__main__':
-    save = True
-    # base_dir = os.path.join("results", "fairlearn-2", "adult")
-    # all_model_df = get_last_results(base_dir)
-    # dataset_name = "adult"
-    dataset_name = "ACSPublicCoverage"
-    base_dir = os.path.join("results", "fairlearn-2", dataset_name)
-    all_model_df = get_last_results_from_directories(base_dir)
+def plot_routine(all_model_df, save=True, show=True, suffix=''):
     all_model_df = set_frac_values(all_model_df)
 
     eps_mask = all_model_df['model_code'].str.contains('eps')
@@ -241,15 +328,30 @@ if __name__ == '__main__':
     assert len(missed_conf) == 0, missed_conf
     base_plot_dir = os.path.join('results', 'plots')
 
-    pl_util = PlotUtility()
-    to_iter = list(itertools.product(['train', 'test'], ['violation', 'error'], [
-        # 'frac',
-        ('time', frac_df)]))
-    for phase, metric_name, (x_axis, turn_df) in to_iter:
+    pl_util = PlotUtility(show=show)
+    pl_util.suffix = suffix
+    original_list = deepcopy(pl_util.to_plot_models)
+    # restricted_list = [x for x in original_list if not 'U' in x]
+
+    model_set_list = [(original_list, ''),
+                      (restricted_list, '_restricted'),
+                      (['unconstrained_frac_exp'], '_unconstrained'),
+                      ]
+    to_iter = list(itertools.product(['train', 'test'], ['error', 'violation'],
+                                     [('time', frac_df), ('frac', frac_df)],
+                                     model_set_list
+                                     ))
+    for phase, metric_name, (x_axis, turn_df), (to_plot_models, model_set_name) in to_iter:
+        plt.close('all')
+        if model_set_name != '' and x_axis == 'frac':
+            continue
+        pl_util.to_plot_models = to_plot_models
         pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
         if save is True:
-            pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{phase}_{metric_name}_vs_{x_axis}')
+            pl_util.save(base_plot_dir, dataset_name=dataset_name,
+                         name=f'{phase}_{metric_name}_vs_{x_axis}{model_set_name}')
 
+    pl_util.to_plot_models = original_list
     df = frac_df.copy()
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
     model_code_map = {name: '_'.join([x[0] for x in name.split("_")]) for name in df['model_code'].unique()}
@@ -258,19 +360,27 @@ if __name__ == '__main__':
         ['metrics_time_vs_frac', plot_metrics_time],
         ['time_stacked_by_phase', time_stacked_by_phase],
         ['phase_time_vs_frac', phase_time_vs_frac],
-                         ]:
+    ]:
+        plt.close('all')
         fig, ax = plt.subplots()
         plot_f(df, ax=ax, fig=fig)
-        plt.show()
+        if show:
+            plt.show()
         if save is True:
-            PlotUtility.save_figure(base_plot_dir, dataset_name=dataset_name, name=name, fig=fig)
+            if name == 'time_stacked_by_phase':
+                old = plt.rcParams.get('savefig.dpi')
+                plt.rcParams.update({'savefig.dpi': 400})
+
+            pl_util.save(base_plot_dir, dataset_name=dataset_name, name=name, fig=fig)
+            if name == 'time_stacked_by_phase':
+                plt.rcParams.update({'savefig.dpi': old})
 
     pl_util.plot(all_model_df, x_axis='frac', y_axis='time')
     if save is True:
         pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'frac_vs_time')
 
     ### train_error_vs_eps
-    pl_util = PlotUtility()
+    pl_util = PlotUtility(show=show)
     phase, metric_name, x_axis = 'train', 'error', 'eps'
     y_axis = f'{phase}_{metric_name}'
     y_axis = 'time'
@@ -278,3 +388,30 @@ if __name__ == '__main__':
     pl_util.plot(eps_df, y_axis=y_axis, x_axis='eps')
     if save is True:
         pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{y_axis}_vs_{x_axis}')
+
+
+if __name__ == '__main__':
+    save = True
+    df_list = []
+    for base_model_code in ['lr', 'lgbm']:
+        for dataset_name in [
+            "ACSEmployment",
+            "adult",
+            "ACSPublicCoverage",
+        ]:
+            base_dir = os.path.join("results", "fairlearn-2", dataset_name)
+            all_model_df = load_filter_results(base_dir, conf=dict(exp_grid_ratio='sqrt', states='',
+                                                                   exp_subset='True', base_model_code=base_model_code,
+                                                                   # run_linprog_step='True'
+                                                                   ))
+            if not all_model_df.empty:
+                suffix = f'_bmc({base_model_code})' if base_model_code != 'lr' else ''
+                # if base_model_code == 'lr': # take always max grid oracle times
+                grid_mask = all_model_df['phase'] == 'grid_frac'
+                grid_time_series = all_model_df[grid_mask]['grid_oracle_times'].apply(
+                    lambda x: np.array(ast.literal_eval(x)).max())
+                all_model_df.loc[grid_mask, 'time'] = grid_time_series
+                plot_routine(all_model_df, save=save, show=False, suffix=suffix)
+                df_list.append(all_model_df)
+            else:
+                print(f'{dataset_name} - {base_model_code} MISSING')
