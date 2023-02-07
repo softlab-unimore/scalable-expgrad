@@ -86,13 +86,14 @@ def load_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
     return X_transformed, Y, A
 
 
-def load_transform_ACS(loader_method, states=None):
+def load_transform_ACS(loader_method, states=None, fillna_mode='mean'):
     data_source = ACSDataSource(survey_year=2018, horizon='1-Year', survey='person', root_dir='cached_data')
     definition_df = data_source.get_definitions(download=True)
     categories = generate_categories(features=loader_method.features, definition_df=definition_df)
     acs_data = data_source.get_data(
         download=True, states=states)  # TODO # with density 1  random_seed=0 do nothing | join_household=False ???
     df, label, group = loader_method.df_to_pandas(acs_data, categories=categories)
+    df, label, group = fix_nan(df, label, group, mode=fillna_mode)
     del acs_data
     categorical_cols = list(categories.keys())
     # See here for data documentation of cols https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/
@@ -103,6 +104,15 @@ def load_transform_ACS(loader_method, states=None):
     # df[df.columns] = StandardScaler().fit_transform(df)
     print(f'Loaded data memory used by df: {df.memory_usage().sum()/(2**(10*3)):.3f} GB')
     return df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
+
+def fix_nan(X:pd.DataFrame, y, A, mode='mean'):
+    if mode=='mean':
+        X.fillna(X.mean())
+    if mode=='remove':
+        notna_mask = X.notna().all(1)
+        X, y, A = X[notna_mask], y[notna_mask], A[notna_mask]
+
+    return X, y, A
 
 
 def load_split_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
