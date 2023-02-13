@@ -391,7 +391,7 @@ class ExpreimentRun:
                 print(f"Running {self.data_dict['model_name']}")
                 grid_subsample_size = int(X_train_all.shape[0] * grid_f)
                 model = Hybrid1(expgrad=turn_expgrad, eps=turn_eps, constraint=deepcopy(constraint),
-                                base_model=deepcopy(base_model), subsample=grid_subsample_size)
+                                base_model=deepcopy(base_model), grid_subsample=grid_subsample_size)
                 metrics_res, time_grid_dict, time_eval_dict = self.fit_evaluate_model(model, grid_params,
                                                                                       eval_dataset_dict)
                 time_grid_dict['phase'] = 'grid_frac'

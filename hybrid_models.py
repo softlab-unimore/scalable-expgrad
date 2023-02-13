@@ -124,12 +124,12 @@ class Hybrid5(BaseEstimator):
 class Hybrid1(Hybrid5):
 
     def __init__(self, base_model=None, expgrad=None, grid_search_frac=None, eps=None, constraint=None,
-                 unconstrained_model=None, subsample=None, random_state=None):
+                 unconstrained_model=None, grid_subsample=None, random_state=None):
         super().__init__(eps=eps, constraint=constraint, unconstrained_model=unconstrained_model)
         self.expgrad_logistic_frac = expgrad
         self.grid_search_frac = grid_search_frac
         self.base_model = base_model
-        self.subsample = subsample
+        self.subsample = grid_subsample
         self.random_state = random_state
 
     def fit_grid(self, X, y, sensitive_features, ):
