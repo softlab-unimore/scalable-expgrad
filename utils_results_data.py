@@ -33,7 +33,8 @@ def load_filter_results(base_dir, prefix='last', conf: dict = {}):
                 assert False, f'\'{key}\' is not a valid key for filter. values available are: {dirs_df.columns.values}'
     if dirs_df.empty:
         return dirs_df
-    return pd.concat(dirs_df['df'].values)
+    df = set_frac_values(pd.concat(dirs_df['df'].values))
+    return df
 
 
 def read_experiment_configuration(path):
@@ -88,7 +89,6 @@ def calculate_movign_param(path, df: pd.DataFrame):
     for key, name in suffix_attr_map.items():
         if f'_{key}[' in path:
             suffix += f'{key}'
-            df['frac'] = df[name]
     if suffix == '':
         for key, name in suffix_attr_map.items():
             if df[name].nunique() > 1:

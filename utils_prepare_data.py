@@ -93,7 +93,7 @@ def load_transform_ACS(loader_method, states=None, fillna_mode='mean'):
     acs_data = data_source.get_data(
         download=True, states=states)  # TODO # with density 1  random_seed=0 do nothing | join_household=False ???
     df, label, group = loader_method.df_to_pandas(acs_data, categories=categories)
-    df, label, group = fix_nan(df, label, group, mode=fillna_mode)
+    # df, label, group = fix_nan(df, label, group, mode=fillna_mode)
     del acs_data
     categorical_cols = list(categories.keys())
     # See here for data documentation of cols https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/
