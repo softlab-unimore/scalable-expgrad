@@ -1,3 +1,4 @@
+import itertools
 import os
 import re
 import socket
@@ -8,6 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 from run import params_initials_map
+from utils_values import index_cols
 
 suffix_attr_map = {
     'exp': 'exp_frac',
@@ -16,11 +18,31 @@ suffix_attr_map = {
 }
 
 
-def load_filter_results(base_dir, prefix='last', conf: dict = {}):
-    dirs_df = scan_dataset_directories(base_dir, prefix).fillna({'constraint_code': 'dp'}).fillna('')
+def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
+    expgrad_phase_mask = df['phase'] == "expgrad_fracs"
+    expgrad_df = df[expgrad_phase_mask]
+    expgrad_df = expgrad_df.groupby(index_cols + ['frac']).apply(select_set_expgrad_time)
+    df[expgrad_phase_mask] = expgrad_df
+    return df
 
-    if dirs_df.empty:
-        return dirs_df
+
+def select_set_expgrad_time(df: pd.DataFrame) -> pd.DataFrame:
+    sub_mask = df['model_name'].str.contains('sub')
+    lp_off_mask = df['model_name'].str.contains('LP_off')
+    no_h7_mask = ~(df['model_name'].str.contains('hybrid_7'))
+    for lp_mask in [lp_off_mask, ~lp_off_mask]:
+        if lp_mask.any():
+            turn_mask = ~sub_mask & lp_mask & no_h7_mask  # not sub is static sampling
+            expgrad_time = df[turn_mask & (df['model_name'].str.contains('expgrad_frac'))]['time'].values[0]
+            df.loc[turn_mask, 'time'] = expgrad_time
+
+            turn_mask = sub_mask & lp_mask  # sub is adaptive sampling --> take h7 that is expgrad adaptive
+            expgrad_time = df[lp_mask & (df['model_name'].str.contains('hybrid_7'))]['time'].values[0]
+            df.loc[turn_mask, 'time'] = expgrad_time
+    return df
+
+
+def filter_results(dirs_df, conf: dict = {}):
     for key, value in conf.items():
         if not isinstance(value, list):
             value = [value]
@@ -33,8 +55,8 @@ def load_filter_results(base_dir, prefix='last', conf: dict = {}):
                 assert False, f'\'{key}\' is not a valid key for filter. values available are: {dirs_df.columns.values}'
     if dirs_df.empty:
         return dirs_df
-    df = set_frac_values(pd.concat(dirs_df['df'].values))
-    return df
+    df = pd.concat(dirs_df['df'].values)
+    return df.reset_index(drop=True)
 
 
 def read_experiment_configuration(path):
@@ -46,27 +68,33 @@ def read_experiment_configuration(path):
     return config
 
 
-def scan_dataset_directories(base_dir, prefix='last'):
-    dirs = pd.Series([x.name for x in os.scandir(base_dir) if x.is_dir()])
-    dirs = dirs[dirs != 'tuned_models']
-    config_list = []
-    for t_dir in dirs:
-        config = read_experiment_configuration(t_dir)
-        config_list.append(config)
-    dirs_df = pd.DataFrame(config_list)
+def load_datasets_from_directory(dataset_path, dataset_name, prefix='last'):
+    base_dir = os.path.join(dataset_path, dataset_name)
+    dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
 
-    df_list = []
+    config_list = []
     for turn_dir in dirs:
-        if turn_dir in ['tuned_models']:
-            continue
-        df = load_results_single_directory(os.path.join(base_dir, turn_dir), prefix=prefix)
-        df_list.append(df)
-    dirs_df['df'] = df_list
-    return dirs_df
+        config = read_experiment_configuration(turn_dir.name)
+        config['dataset_name'] = dataset_name
+        df = load_results_single_directory(turn_dir.path, prefix=prefix)
+        df = set_frac_values(df)
+        df = fix_expgrad_times(df)
+        if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
+            mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
+            df = df[mask]
+            df['model_code'] += '_gf_1'
+        for key, value in config.items():
+            if key not in df.columns:
+                df[key] = value
+        config['df'] = df
+        config_list.append(config)
+    return pd.DataFrame(config_list).fillna({'constraint_code': 'dp'}).fillna('')
 
 
 def load_results_single_directory(base_dir, prefix='last'):
     files = pd.Series([x.name for x in os.scandir(base_dir) if x.is_file()])
+    if files.shape[0] == 0:
+        print(f'empty directory {base_dir}')
     last_files = files[files.str.startswith(prefix)]
     # name_df = last_files.str.extract(r'^(last)_([^_]*)_?(.*)\.(.*)$', expand=True)
     # name_df.rename(columns={0: 'last', 1: 'model', 2: 'params', 3: 'extension'}, inplace=True)
@@ -109,8 +137,7 @@ def set_frac_values(df: pd.DataFrame):
 
 def aggregate_phase_time(df):
     results_df = df.groupby(df.columns.drop(['metrics_time', 'phase', 'time', 'grid_oracle_times']).tolist(),
-                            as_index=False, dropna=False).agg(
-        {'time': 'sum'})
+                            as_index=False, dropna=False).agg({'time': 'sum'})
     return results_df
 
 

@@ -17,3 +17,5 @@ sample_variation = range(2)
 fixed_sample_frac = 0.1
 
 eps = 0.05
+
+index_cols = ['random_seed', 'train_test_fold', 'sample_seed']
