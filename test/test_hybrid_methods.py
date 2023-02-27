@@ -1,10 +1,10 @@
 from run_hybrids import run_hybrids
-from utils_prepare_data import load_data
+from utils_prepare_data import load_transform_Adult
 
 
 def test_run_hybrids():
     dataset_str = f"adult"
-    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_data()
+    X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all = load_transform_Adult()
     sample_variations = [int(x) for x in [1,2]]
     exp_fractions = [float(x) for x in [.2,.5]]
     grid_fraction = 0.1

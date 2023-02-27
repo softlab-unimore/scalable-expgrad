@@ -6,10 +6,11 @@ from utils_values import *
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
 
-    for dataset_name in dataset_names:
+    for dataset_name in dataset_names[1:]:
         args = [dataset_name, 'model_name',
-                '--exp_subset', #'--redo_exp',
-                #'--redo_tuning'
+                '--exp_subset',
+                '--redo_exp',
+                # '--redo_tuning'
                 ]
         kwargs = {}
 
@@ -20,8 +21,9 @@ if __name__ == "__main__":
             '--eps': eps,
             '--sample_variations': sample_variation,
             '--exp_fractions': fractions,
-            '--exp_grid_ratio': 'sqrt',
-            # '--grid_fractions': fixed_sample_frac
+            # '--exp_grid_ratio': 'sqrt',
+            # '--grid_fractions': fixed_sample_frac,
+            '--grid_fractions': 1,
             '--base_model_code': 'lgbm', # 'lr',
         })
         execute_experiment(args, kwargs, original_argv)

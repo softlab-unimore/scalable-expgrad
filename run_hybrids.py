@@ -52,7 +52,7 @@ class _Lagrangian:
         self.constraints = constraints
         self.constraints.load_data(X, y, sensitive_features=sensitive_features)
         self.obj = self.constraints.default_objective()
-        self.obj.load_data(X, y, sensitive_features=sensitive_features)
+        self.obj.load_transform_Adult(X, y, sensitive_features=sensitive_features)
         self.pickled_estimator = pickle.dumps(estimator)
         self.eps = eps
         self.B = B
