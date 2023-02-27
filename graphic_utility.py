@@ -3,15 +3,16 @@ import itertools
 from copy import deepcopy
 
 import numpy as np
-import os
+import os, re
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
 from utils_results_data import load_results_single_directory, get_info, get_confidence_error, mean_confidence_interval, \
-    add_combined_stats, aggregate_phase_time, scan_dataset_directories, set_frac_values, load_filter_results
+    add_combined_stats, aggregate_phase_time, load_datasets_from_directory, set_frac_values, filter_results
 import matplotlib as mpl
 from run import params_initials_map
+from utils_values import index_cols
 
 sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
@@ -55,28 +56,32 @@ def generate_map_df():
     unconstrained = [True, False]
     active_sampling = [True, False]
     run_linprog = [True, False]
-    to_iter = itertools.product(model_names, unconstrained, active_sampling)
+    grid_mode = ['sqrt', 'gf_1']
+    to_iter = itertools.product(model_names, unconstrained, active_sampling, grid_mode)
 
     for t_varing in ['exp', 'gri', 'eps']:
         for t_run_lp in run_linprog:
-            for t_model_name, t_unconstrained, t_active_sampling in deepcopy(to_iter):
+            for t_model_name, t_unconstrained, t_active_sampling, t_grid_mode in deepcopy(to_iter):
                 name = 'sub_' if t_active_sampling else ''
                 name += t_model_name + ('_U' if t_unconstrained else '')
                 name += '_LP_off' if t_run_lp else ''
                 name += f'_{t_varing}'
+                if t_grid_mode == 'gf_1':
+                    name += f'_gf_1'
 
                 label = f'EXPGRAD=' + ('adaptive' if t_active_sampling else 'static')
-                label += ' GS=' + ('Yes' if any(x in t_model_name for x in ['1', '2', '3', '4', '6']) else 'No')
+                label += ' GS=' + (
+                    t_grid_mode if any('_' + x in t_model_name for x in ['1', '2', '3', '4', '6']) else 'No  ')
                 label += ' LP=Yes'
                 label += ' +U' if t_unconstrained else ''
                 if 'hybrid_6' in t_model_name:
                     label += ' *e&g'
-                label += ' run_linprog F' if t_run_lp else ''
+                label += ' run_linprog=F' if t_run_lp else ''
                 values_dict[name] = label
 
             rlp_name = "_LP_off" if t_run_lp else ""
-            rlp_label = ' run_linprog F' if t_run_lp else ''
-            values_dict[f'hybrid_7{rlp_name}_{t_varing}'] = 'EXPGRAD=adaptive GS=No (LP=Yes)' + rlp_label
+            rlp_label = ' run_linprog=F' if t_run_lp else ''
+            values_dict[f'hybrid_7{rlp_name}_{t_varing}'] = 'EXPGRAD=adaptive GS=No LP=Yes' + rlp_label
             values_dict[f'expgrad_fracs{rlp_name}_{t_varing}'] = 'EXPGRAD=static GS=No LP=No' + rlp_label
         values_dict[f'unconstrained_{t_varing}'] = 'UNMITIGATED full'
         values_dict[f'unconstrained_frac_{t_varing}'] = 'UNMITIGATED=static'
@@ -109,6 +114,7 @@ class PlotUtility():
         # 'hybrid_4_exp',
         # 'hybrid_6_U_exp',
         'hybrid_6_exp',
+        'hybrid_6_exp_gf_1',
         'hybrid_7_exp',
         'hybrid_7_LP_off_exp',
         'unconstrained_exp',
@@ -126,6 +132,8 @@ class PlotUtility():
         # 'sub_hybrid_6_U_exp',
         'sub_hybrid_6_exp',
         'unconstrained_frac_exp',
+
+        'sub_hybrid_6_exp_gf_1',
 
         ## eps models
         # 'expgrad_fracs_eps',
@@ -160,13 +168,7 @@ class PlotUtility():
         self.groupby_col = groupby_col
         self.fig = plt.figure()
         ax = plt.subplot()
-        self.base_plot(all_model_df, x_axis, y_axis, alphas, grid_fractions, ax)
-        ax.legend()
-        self.ax = ax
-        if self.show:
-            self.fig.show()
 
-    def base_plot(self, all_model_df, x_axis, y_axis, alphas, grid_fractions, ax):
         def_alpha = .5
         all_model_df = all_model_df[all_model_df['model_code'].isin(self.to_plot_models)]
         time_aggregated_df = aggregate_phase_time(all_model_df)
@@ -198,9 +200,13 @@ class PlotUtility():
             ylabel = ax.get_ylabel()
             ax.set_ylabel(f'{ylabel} (log)')
 
+        ax.legend()
+        self.ax = ax
+        if self.show:
+            self.fig.show()
+
     def add_plot(self, ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=1, ):
         agg_x_axis = self.groupby_col if x_axis == 'time' else x_axis
-        index_cols = ['random_seed', 'train_test_fold', 'sample_seed']
         turn_data = turn_df.pivot(index=index_cols, columns=agg_x_axis, values=y_axis)
         ci = mean_confidence_interval(turn_data)
         yerr = (ci[2] - ci[1]) / 2
@@ -323,14 +329,18 @@ def plot_routine_performance_violation(all_model_df, save=True, show=True, suffi
         pl_util.to_plot_models = to_plot_models
         pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
         pl_util.save(base_plot_dir, dataset_name=dataset_name,
-                          name=f'{phase}_{metric_name}_vs_{x_axis}{model_set_name}')
+                     name=f'{phase}_{metric_name}_vs_{x_axis}{model_set_name}')
 
 
 def plot_routine_other(all_model_df, save=True, show=True, suffix='', base_plot_dir=base_plot_dir):
     pl_util = PlotUtility(show=show, save=save, suffix=suffix)
     df = all_model_df
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
-    model_code_map = {name: '_'.join([x[0] for x in name.split("_")]) for name in df['model_code'].unique()}
+    df.loc[:, 'model_code'] = PlotUtility.map_df.loc[df['model_code'], 'label'].values
+    split_name_value = re.compile("(?P<name>[a-zA-Z\_]+)\=(?P<value>[a-zA-Z]+)")
+    model_code_map = {}
+    for name in df['model_code'].unique():
+        model_code_map[name] = ' '.join([f'{x[0][0]}={x[1][0]}' for x in split_name_value.findall(name)])
     df['model_code'] = df['model_code'].map(model_code_map)
     for name, plot_f in [
         ['metrics_time_vs_frac', plot_metrics_time],
@@ -365,19 +375,36 @@ if __name__ == '__main__':
     save = True
     show = False
     df_list = []
-    for base_model_code in ['lr', 'lgbm']:
-        for dataset_name in [
-            "ACSPublicCoverage",
-            "ACSEmployment",
-            "adult",
 
-        ]:
-            base_dir = os.path.join("results", "fairlearn-2", dataset_name)
-            all_model_df = load_filter_results(base_dir, conf=dict(exp_grid_ratio='sqrt', states='',
-                                                                   exp_subset='True', base_model_code=base_model_code,
-                                                                   # run_linprog_step='True'
-                                                                   ))
+    datasets = [
+        "ACSPublicCoverage",
+        "ACSEmployment",
+        "adult",
+    ]
 
+    dataset_results_path = os.path.join("results", "fairlearn-2")
+    for dataset_name in datasets:
+        dirs_df = load_datasets_from_directory(dataset_results_path, dataset_name)
+        df_list.append(dirs_df)
+    all_dirs_df = pd.concat(df_list)
+    all_results_df = pd.concat(all_dirs_df['df'].values)
+
+    df = all_results_df.copy()
+    df['delta_error'] = df['train_error'] - df['test_error']
+    curr_path = os.path.join(dataset_results_path, 'all_dataset_stats')
+    os.makedirs(curr_path, exist_ok=True)
+    df.groupby(df['dataset_name','base_model_code']).agg({'delta_error': 'describe'}).to_csv(os.path.join(curr_path, 'delta_error.csv'))
+    del df
+
+    for dataset_name in datasets:
+        for base_model_code in ['lgbm', 'lr', ]:
+            all_model_df = filter_results(all_dirs_df, conf=dict(
+                # exp_grid_ratio='sqrt',
+                states='',
+                exp_subset='True', base_model_code=base_model_code,
+                dataset_name=dataset_name,
+                # run_linprog_step='True'
+            ))
             if not all_model_df.empty:
                 all_model_df = all_model_df[~all_model_df['model_code'].str.contains('eps')]
                 suffix = f'_bmc({base_model_code})' if base_model_code != 'lr' else ''
@@ -387,8 +414,20 @@ if __name__ == '__main__':
                 grid_time_series = all_model_df[grid_mask]['grid_oracle_times'].apply(
                     lambda x: np.array(ast.literal_eval(x)).max())
                 all_model_df.loc[grid_mask, 'time'] = grid_time_series
-                plot_routine(all_model_df, save=save, show=False, suffix=suffix)
-                df_list.append(all_model_df)
+
+                df_cut = all_model_df[all_model_df['phase'].isin(['expgrad_fracs', 'grid_frac'])]
+                exp_mask = all_model_df['phase'] == 'expgrad_fracs'
+                exp_time_df = all_model_df[exp_mask]['oracle_execution_times_'].agg(
+                    lambda x: pd.DataFrame(ast.literal_eval(x)).sum())
+                exp_time_df.columns += '_sum'
+                df_cut.loc[exp_mask, 'time'] = exp_time_df['fit_sum']
+                plot_routine_performance_violation(df_cut, save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
+                # df_cut = df_cut.join(exp_time_df)
+
+                plot_routine_performance_violation(all_model_df, save=save, show=show, suffix=suffix)
+                plot_routine_other(all_model_df, save=save, show=show, suffix=suffix)
+                all_model_df['dataset_name'] = dataset_name
+
 
             else:
                 print(f'{dataset_name} - {base_model_code} MISSING')

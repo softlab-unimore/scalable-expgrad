@@ -1,7 +1,7 @@
 import gc
 import itertools
 from copy import deepcopy
-import joblib
+import joblib, re
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from synthetic_data import get_synthetic_data, data_split, get_miro_synthetic_data
-from utils_prepare_data import load_data, load_transform_ACS, fix_nan
+from utils_prepare_data import load_transform_Adult, load_transform_ACS, fix_nan
 import inspect
 from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf, finetune_model, \
     get_base_model
@@ -45,7 +45,12 @@ params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_da
                        'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
                        'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
-                       'cc': 'constraint_code'}
+                       'cc': 'constraint_code', 'gri': 'grid_fractions',
+                       'eps':'eps'}
+
+
+def get_initials(s: str, split_char='_'):
+    return "".join([x[0] for x in re.split(split_char, s)])
 
 
 def get_constraint(constraint_code='dp', eps=.05):
@@ -105,7 +110,7 @@ class ExpreimentRun:
         arg_parser.add_argument("--base_model_code", default='lr')
 
         args = arg_parser.parse_args()
-        params_to_initials_map = {"".join([x[0] for x in key.split("_")]): key for key in args.__dict__.keys()}
+        params_to_initials_map = {get_initials(key): key for key in args.__dict__.keys()}
 
         self.args = args
         if args.grid_fractions is not None:
@@ -119,7 +124,7 @@ class ExpreimentRun:
             if key in ['save', 'method', 'dataset', 'eps', 'exp_fractions', 'grid_fractions',
                        'sample_variations', 'redo_tuning', 'redo_exp'] or value is None:
                 continue
-            method_str += f'_{"".join([x[0] for x in key.split("_")])}({value})'
+            method_str += f'_{get_initials(key)}({value})'
 
         prm = {}
         for key, t_type in zip(['exp_fractions', 'grid_fractions', 'eps', 'sample_variations'],
@@ -137,9 +142,10 @@ class ExpreimentRun:
                 if key in ['exp_fractions', 'grid_fractions', 'eps']:
                     if type(value) is list and len(value) > 1:
                         method_str += f'_{key[:3]}VARY'
+                    elif type(value) is list and len(value) == 1:
+                        method_str += f'_{key[:3]}({value[0]})'
                 else:
                     method_str += f'_{key[:3]}{value}'
-
 
         ### Load dataset
         self.dataset_str = args.dataset
@@ -203,8 +209,7 @@ class ExpreimentRun:
                 for turn_df in [X, y, A]:
                     datasets_divided.append(turn_df.iloc[turn_index])
             if "hybrids" in method_str:
-                print(
-                    f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
+                print(f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
                     f"and grid-fraction={prm['grid_fractions']}...\n")
                 for exp_frac, sampleseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
                     turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_seeds=[sampleseed],
@@ -351,14 +356,16 @@ class ExpreimentRun:
                                                          run_linprog_step=run_linprog_step,
                                                          constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6,
                                                          subsample=subsample_size, random_state=random_seed)
-            metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_subsample, all_params,
-                                                                                 eval_dataset_dict)
-            time_exp_dict['phase'] = 'expgrad_fracs'
+            metrics_res, time_exp_adaptive_dict, time_eval_dict = self.fit_evaluate_model(expgrad_subsample, all_params,
+                                                                                          eval_dataset_dict)
+            time_exp_adaptive_dict['phase'] = 'expgrad_fracs'
             exp_data_dict = get_data_from_expgrad(expgrad_subsample)
             self.data_dict.update(**exp_data_dict)
-            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict])
+            self.add_turn_results(metrics_res, [time_eval_dict, time_exp_adaptive_dict])
 
             for turn_expgrad, prefix in [(expgrad_frac, ''), (expgrad_subsample, 'sub_')]:
+                turn_time_exp_dict = time_exp_adaptive_dict if prefix == 'sub' else time_exp_dict
+
                 #################################################################################################
                 # Hybrid 5: Run LP with full dataset on predictors trained on partial dataset only
                 # Get rid
@@ -369,7 +376,7 @@ class ExpreimentRun:
                 metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params,
                                                                                     eval_dataset_dict)
                 time_lp_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_lp_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_lp_dict])
 
                 #################################################################################################
                 # H5 + unconstrained
@@ -381,7 +388,7 @@ class ExpreimentRun:
                                                                                     eval_dataset_dict)
                 time_lp_dict['phase'] = 'lin_prog'
                 self.add_turn_results(metrics_res,
-                                      [time_eval_dict, time_exp_dict, time_unconstrained_dict, time_lp_dict,
+                                      [time_eval_dict, turn_time_exp_dict, time_unconstrained_dict, time_lp_dict,
                                        ])
 
                 #################################################################################################
@@ -396,7 +403,7 @@ class ExpreimentRun:
                                                                                       eval_dataset_dict)
                 time_grid_dict['phase'] = 'grid_frac'
                 time_grid_dict['grid_oracle_times'] = model.grid_search_frac.oracle_execution_times_
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict])
                 grid_search_frac = model.grid_search_frac
 
                 #################################################################################################
@@ -408,7 +415,7 @@ class ExpreimentRun:
                 model = Hybrid2(expgrad=turn_expgrad, grid_search_frac=grid_search_frac, eps=turn_eps,
                                 constraint=deepcopy(constraint))
                 metrics_res, _, time_eval_dict = self.fit_evaluate_model(model, grid_params, eval_dataset_dict)
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict])
 
                 #################################################################################################
                 # Hybrid 3: re-weight using LP
@@ -419,7 +426,7 @@ class ExpreimentRun:
                 metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
                                                                                      eval_dataset_dict)
                 time_lp3_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict, time_lp3_dict])
 
                 #################################################################################################
                 # Hybrid 3 +U: re-weight using LP + unconstrained
@@ -431,7 +438,7 @@ class ExpreimentRun:
                 metrics_res, time_lp3_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
                                                                                      eval_dataset_dict)
                 time_lp3_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp3_dict,
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict, time_lp3_dict,
                                                     time_unconstrained_dict])
 
                 #################################################################################################
@@ -444,7 +451,7 @@ class ExpreimentRun:
                 metrics_res, time_lp4_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
                                                                                      eval_dataset_dict)
                 time_lp4_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp4_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict, time_lp4_dict])
 
                 #################################################################################################
                 # Hybrid 6: exp + grid predictors
@@ -456,7 +463,7 @@ class ExpreimentRun:
                 metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
                                                                                     eval_dataset_dict)
                 time_lp_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp_dict])
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict, time_lp_dict])
 
                 #################################################################################################
                 # Hybrid 6 + U: exp + grid predictors + unconstrained
@@ -468,7 +475,7 @@ class ExpreimentRun:
                 metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model, all_params,
                                                                                     eval_dataset_dict)
                 time_lp_dict['phase'] = 'lin_prog'
-                self.add_turn_results(metrics_res, [time_eval_dict, time_exp_dict, time_grid_dict, time_lp_dict,
+                self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_grid_dict, time_lp_dict,
                                                     time_unconstrained_dict])
 
             #################################################################################################
