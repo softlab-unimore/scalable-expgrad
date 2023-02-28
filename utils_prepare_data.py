@@ -1,3 +1,5 @@
+from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions import load_preproc_data_adult, \
+    load_preproc_data_compas, load_preproc_data_german
 import gc
 
 from folktables import ACSDataSource, generate_categories
@@ -13,7 +15,29 @@ except ImportError:
     from urllib import urlretrieve
 
 baseline_results_file_name = 'results/baseline_results (yeeha).json'
-github_data_url = "https://github.com/slundberg/shap/raw/master/data/"
+adult_github_data_url = "https://github.com/slundberg/shap/raw/master/data/"
+german_credit_kaggle_url = 'https://www.kaggle.com/datasets/uciml/german-credit/download?datasetVersionNumber=1'
+compas_credit_github_maliha_url = 'https://github.com/maliha93/Fairness-Analysis-Code/raw/master/dataset/compas.csv'
+compas_raw_data_github_url = 'https://raw.githubusercontent.com/propublica/compas-analysis/master/compas-scores-two-years.csv'
+
+
+def cache(url, file_name=None):
+    if file_name is None:
+        file_name = os.path.basename(url)
+    data_dir = os.path.join(os.path.dirname("."), "cached_data")
+    if not os.path.isdir(data_dir):
+        os.mkdir(data_dir)
+    file_path = os.path.join(data_dir, file_name)
+    if not os.path.isfile(file_path):
+        urlretrieve(url, file_path)
+
+    return file_path
+
+
+def split_label_sensitive_attr(df: pd.DataFrame, label_name, sensitive_name):
+    Y = df[label_name].copy()
+    A = df[sensitive_name].copy()
+    return df, Y, A
 
 
 def adult(display=False):
@@ -26,7 +50,7 @@ def adult(display=False):
         ("Hours per week", "float32"), ("Country", "category"), ("Target", "category")
     ]
     raw_data = pd.read_csv(
-        cache(github_data_url + "adult.data"),
+        cache(adult_github_data_url + "adult.data"),
         names=[d[0] for d in dtypes],
         na_values="?",
         dtype=dict(dtypes)
@@ -55,21 +79,38 @@ def adult(display=False):
         return data.drop(["Target", "fnlwgt"], axis=1), data["Target"].values
 
 
-def cache(url, file_name=None):
-    if file_name is None:
-        file_name = os.path.basename(url)
-    data_dir = os.path.join(os.path.dirname("."), "cached_data")
-    if not os.path.isdir(data_dir):
-        os.mkdir(data_dir)
-
-    file_path = os.path.join(data_dir, file_name)
-    if not os.path.isfile(file_path):
-        urlretrieve(url, file_path)
-
-    return file_path
+def check_download_Compas():
+    compas_path = '/home/fairlearn/anaconda3/lib/python3.9/site-packages/aif360/data/raw/compas'
+    compas_raw_path = compas_path + '/compas-scores-two-years.csv'
+    if not os.path.exists(compas_raw_path):
+        df = pd.read_csv(compas_raw_data_github_url)
+        os.makedirs(compas_path)
+        df.to_csv(compas_raw_path, index=False)
 
 
-def load_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
+def compas_convert_to_df(dataset):
+    X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+    y = pd.Series(dataset.labels.flatten(), name=dataset.label_names[0])
+    A = pd.Series(dataset.protected_attributes.flatten(), name=dataset.protected_attribute_names[0])
+    return X, y, A
+
+
+def load_transform_Compas(protected='race'):
+    check_download_Compas()
+    dataset_orig = load_preproc_data_compas(protected_attributes=[protected])
+    return compas_convert_to_df(dataset_orig)
+
+
+def load_train_test_Compas(protected='race'):
+    check_download_Compas()
+    dataset_orig = load_preproc_data_compas(protected_attributes=[protected])
+    dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=False)
+    train = compas_convert_to_df(dataset_orig_train)
+    test = compas_convert_to_df(dataset_orig_test)
+    return train + test
+
+
+def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=42):
     # https://archive.ics.uci.edu/ml/datasets/adult
     features = ['Age', 'Workclass', 'Education-Num', 'Marital Status',
                 'Occupation', 'Relationship', 'Race', 'Sex',
@@ -86,29 +127,38 @@ def load_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
     return X_transformed, Y, A
 
 
-def load_transform_ACS(loader_method, states=None, fillna_mode='mean'):
+def load_transform_ACS(loader_method, states=None, fillna_mode='mean', return_acs_data=False):
     data_source = ACSDataSource(survey_year=2018, horizon='1-Year', survey='person', root_dir='cached_data')
     definition_df = data_source.get_definitions(download=True)
     categories = generate_categories(features=loader_method.features, definition_df=definition_df)
-    acs_data = data_source.get_data(
-        download=True, states=states)  # TODO # with density 1  random_seed=0 do nothing | join_household=False ???
+    acs_data = data_source.get_data(download=True,
+                                    states=states)  # TODO # with density 1  random_seed=0 do nothing | join_household=False ???
+
     df, label, group = loader_method.df_to_pandas(acs_data, categories=categories)
     # df, label, group = fix_nan(df, label, group, mode=fillna_mode)
-    del acs_data
+
     categorical_cols = list(categories.keys())
     # See here for data documentation of cols https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/
     # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMSDataDict00_02.pdf
     df = pd.get_dummies(df, dtype=np.uint8, columns=categorical_cols)
     numerical_cols = np.setdiff1d(loader_method.features, categorical_cols)
-    df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols]) # choice of the model todo add possibility to chose preprocessing based on the model
+    df[numerical_cols] = StandardScaler().fit_transform(df[numerical_cols])
+    # choice of the model todo add possibility to chose preprocessing based on the model
     # df[df.columns] = StandardScaler().fit_transform(df)
-    print(f'Loaded data memory used by df: {df.memory_usage().sum()/(2**(10*3)):.3f} GB')
-    return df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
+    print(f'Loaded data memory used by df: {df.memory_usage().sum() / (2 ** (10 * 3)):.3f} GB')
+    ret_value = df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
+    if return_acs_data:
+        ret_value += tuple([acs_data])
+    else:
+        del acs_data
 
-def fix_nan(X:pd.DataFrame, y, A, mode='mean'):
-    if mode=='mean':
+    return ret_value
+
+
+def fix_nan(X: pd.DataFrame, y, A, mode='mean'):
+    if mode == 'mean':
         X.fillna(X.mean())
-    if mode=='remove':
+    if mode == 'remove':
         notna_mask = X.notna().all(1)
         X, y, A = X[notna_mask], y[notna_mask], A[notna_mask]
 
@@ -116,7 +166,7 @@ def fix_nan(X:pd.DataFrame, y, A, mode='mean'):
 
 
 def load_split_data(sensitive_attribute='Sex', test_size=0.3, random_state=42):
-    X, Y, A = load_data(sensitive_attribute, test_size, random_state)
+    X, Y, A = load_transform_Adult(sensitive_attribute, test_size, random_state)
 
     train_index, test_index = train_test_split(np.arange(X.shape[0]), test_size=test_size, random_state=random_state)
     results = []

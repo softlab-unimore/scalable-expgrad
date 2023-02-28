@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from synthetic_data import get_synthetic_data, data_split, get_miro_synthetic_data
-from utils_prepare_data import load_transform_Adult, load_transform_ACS, fix_nan
+from utils_prepare_data import load_transform_Adult, load_transform_ACS, load_train_test_Compas, load_transform_Compas
 import inspect
 from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf, finetune_model, \
     get_base_model
@@ -46,7 +46,7 @@ params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_da
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
                        'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
                        'cc': 'constraint_code', 'gri': 'grid_fractions',
-                       'eps':'eps'}
+                       'eps': 'eps'}
 
 
 def get_initials(s: str, split_char='_'):
@@ -161,7 +161,12 @@ class ExpreimentRun:
         if self.dataset_str == "adult":
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
-            X, y, A = load_data()
+            X, y, A = load_transform_Adult()
+        if self.dataset_str == "compas":
+            if skip(dataset_str=self.dataset_str) is True:
+                return 2
+            datasets_divided = load_train_test_Compas()
+            X, y, A = load_transform_Compas()
         elif self.dataset_str in ['ACSIncome', 'ACSPublicCoverage', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
                                   'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
             if skip(dataset_str=self.dataset_str) is True:
@@ -199,47 +204,75 @@ class ExpreimentRun:
 
         results = []
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
-        # if isinstance(A, pd.DataFrame):
-        #     A = A.iloc[:,0]
-        to_stratify = pd.Series(A.astype(str)) + '_' + y.astype(int).astype(str)
-        for train_test_fold, (train_index, test_index) in tqdm(list(enumerate(skf.split(X, to_stratify)))):
-            print('')
-            datasets_divided = []
-            for turn_index in [train_index, test_index]:
-                for turn_df in [X, y, A]:
-                    datasets_divided.append(turn_df.iloc[turn_index])
+        if self.dataset_str in ['compas', 'german']:
             if "hybrids" in method_str:
-                print(f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
-                    f"and grid-fraction={prm['grid_fractions']}...\n")
-                for exp_frac, sampleseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
-                    turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_seeds=[sampleseed],
-                                                    exp_fractions=[exp_frac], grid_fractions=prm['grid_fractions'],
-                                                    train_test_fold=train_test_fold, exp_subset=args.exp_subset,
-                                                    exp_grid_ratio=args.exp_grid_ratio,
-                                                    base_model_code=args.base_model_code,
-                                                    run_linprog_step=args.run_linprog_step,
-                                                    random_seed=args.random_seed,
-                                                    constraint_code=args.constraint_code)
-                    self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
-                                     name=f'train_test_fold{train_test_fold}_sampleseed{sampleseed}_exp_frac{exp_frac}')
+                turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'],
+                                                sample_seeds=prm['sample_variations'],
+                                                exp_fractions=prm['exp_fractions'],
+                                                grid_fractions=prm['grid_fractions'],
+                                                train_test_fold=0, exp_subset=args.exp_subset,
+                                                exp_grid_ratio=args.exp_grid_ratio,
+                                                base_model_code=args.base_model_code,
+                                                run_linprog_step=args.run_linprog_step,
+                                                random_seed=args.random_seed,
+                                                constraint_code=args.constraint_code)
+                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str)
 
             elif "unmitigated" in method_str:
-                turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold,
-                                                    random_seed=args.random_seed, base_model_code=args.base_model_code)
-                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
-                                 name=f'train_test_fold{train_test_fold}')
+                turn_results = self.run_unmitigated(*datasets_divided, random_seed=args.random_seed,
+                                                    base_model_code=args.base_model_code)
+                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str)
             elif "fairlearn" in method_str:
                 turn_results = self.run_fairlearn_full(*datasets_divided, eps=prm['eps'],
-                                                       train_test_fold=train_test_fold,
                                                        run_linprog_step=args.run_linprog_step,
                                                        random_seed=args.random_seed,
                                                        base_model_code=args.base_model_code, )
                 self.save_result(df=pd.DataFrame(turn_results),
-                                 additional_dir=method_str + '_LP_off' if args.run_linprog_step is False else '',
-                                 name=f'train_test_fold{train_test_fold}')
+                                 additional_dir=method_str + '_LP_off' if args.run_linprog_step is False else '', )
             else:
                 raise ValueError(method_str)
-            results += turn_results
+        else:
+            to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
+            for train_test_fold, (train_index, test_index) in tqdm(list(enumerate(skf.split(X, to_stratify)))):
+                print('')
+                datasets_divided = []
+                for turn_index in [train_index, test_index]:
+                    for turn_df in [X, y, A]:
+                        datasets_divided.append(turn_df.iloc[turn_index])
+                if "hybrids" in method_str:
+                    print(
+                        f"\nRunning Hybrids with sample variations {prm['sample_variations']} and fractions {prm['exp_fractions']}, "
+                        f"and grid-fraction={prm['grid_fractions']}...\n")
+                    for exp_frac, sampleseed in itertools.product(prm['exp_fractions'], prm['sample_variations']):
+                        turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'], sample_seeds=[sampleseed],
+                                                        exp_fractions=[exp_frac], grid_fractions=prm['grid_fractions'],
+                                                        train_test_fold=train_test_fold, exp_subset=args.exp_subset,
+                                                        exp_grid_ratio=args.exp_grid_ratio,
+                                                        base_model_code=args.base_model_code,
+                                                        run_linprog_step=args.run_linprog_step,
+                                                        random_seed=args.random_seed,
+                                                        constraint_code=args.constraint_code)
+                        self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                                         name=f'train_test_fold{train_test_fold}_sampleseed{sampleseed}_exp_frac{exp_frac}')
+
+                elif "unmitigated" in method_str:
+                    turn_results = self.run_unmitigated(*datasets_divided, train_test_fold=train_test_fold,
+                                                        random_seed=args.random_seed,
+                                                        base_model_code=args.base_model_code)
+                    self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str,
+                                     name=f'train_test_fold{train_test_fold}')
+                elif "fairlearn" in method_str:
+                    turn_results = self.run_fairlearn_full(*datasets_divided, eps=prm['eps'],
+                                                           train_test_fold=train_test_fold,
+                                                           run_linprog_step=args.run_linprog_step,
+                                                           random_seed=args.random_seed,
+                                                           base_model_code=args.base_model_code, )
+                    self.save_result(df=pd.DataFrame(turn_results),
+                                     additional_dir=method_str + '_LP_off' if args.run_linprog_step is False else '',
+                                     name=f'train_test_fold{train_test_fold}')
+                else:
+                    raise ValueError(method_str)
+                results += turn_results
         results_df = pd.DataFrame(results)
 
         self.save_result(df=results_df, name=method_str)
@@ -268,7 +301,7 @@ class ExpreimentRun:
         simplefilter(action='ignore', category=FutureWarning)
 
         # Combine all training data into a single data frame
-        train_all = pd.concat([X_train_all, y_train_all, A_train_all], axis=1)
+        train_all_X_y_A = pd.concat([pd.DataFrame(x) for x in [X_train_all, y_train_all, A_train_all]], axis=1)
         self.data_dict = {"frac": 0, 'model_name': 'model', 'time': 0, 'phase': 'model name',
                           'random_seed': random_seed, 'base_model_code': base_model_code,
                           'constraint_code': constraint_code,
@@ -312,7 +345,7 @@ class ExpreimentRun:
             self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
 
             # GridSearch data fraction
-            grid_sample = train_all.sample(frac=grid_f, random_state=sample_seed + 60, replace=False)
+            grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=sample_seed + 60, replace=False)
             grid_sample = grid_sample.reset_index(drop=True)
             grid_params = dict(X=grid_sample.iloc[:, :-2],
                                y=grid_sample.iloc[:, -2],
@@ -321,7 +354,7 @@ class ExpreimentRun:
             if exp_subset:
                 exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=sample_seed + 20, replace=False)
             else:
-                exp_sample = train_all.sample(frac=exp_f, random_state=sample_seed + 20, replace=False)
+                exp_sample = train_all_X_y_A.sample(frac=exp_f, random_state=sample_seed + 20, replace=False)
             exp_sample = exp_sample.reset_index(drop=True)
             exp_params = dict(X=exp_sample.iloc[:, :-2],
                               y=exp_sample.iloc[:, -2],
@@ -617,7 +650,7 @@ class ExpreimentRun:
                     sample_mask, _ = train_test_split(sample_mask, train_size=turn_frac, stratify=y,
                                                       random_state=random_seed, shuffle=True)
                 a = datetime.now()
-                clf = finetune_model(base_model_code, X.iloc[sample_mask], y[sample_mask], random_seed=random_seed)
+                clf = finetune_model(base_model_code, X.iloc[sample_mask], y.iloc[sample_mask], random_seed=random_seed)
                 b = datetime.now()
                 joblib.dump(clf, path, compress=1)
 
