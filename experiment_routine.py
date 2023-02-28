@@ -7,7 +7,7 @@ if __name__ == "__main__":
     original_argv = sys.argv.copy()
 
     for dataset_name in dataset_names[1:]:
-        args = [dataset_name, 'model_name',
+        args = [dataset_name, 'hybrids',
                 '--exp_subset',
                 '--redo_exp',
                 # '--redo_tuning'
