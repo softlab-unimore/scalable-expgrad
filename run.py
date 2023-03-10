@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from synthetic_data import get_synthetic_data, data_split, get_miro_synthetic_data
-from utils_prepare_data import load_transform_Adult, load_transform_ACS, load_train_test_Compas, load_transform_Compas
+from utils_prepare_data import load_transform_Adult, load_transform_ACS, load_dataset_aif360
 import inspect
 from hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf, finetune_model, \
     get_base_model
@@ -45,8 +45,8 @@ params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_da
                        'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
                        'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
-                       'cc': 'constraint_code', 'gri': 'grid_fractions',
-                       'eps': 'eps'}
+                       'cc': 'constraint_code', 'gri': 'grid_fractions', 'tts':'train_test_split',
+                       'eps': 'eps', 'exp': 'exp_fraction'}
 
 
 def get_initials(s: str, split_char='_'):
@@ -102,7 +102,9 @@ class ExpreimentRun:
 
         # Others
         arg_parser.add_argument("--save", default=True)
-        arg_parser.add_argument("-v", "--random_seed", type=int, default=0)
+        arg_parser.add_argument("-v", "--random_seed", type=int, default=0,
+                                help='random_seed for base learner. (aka random_state)')
+        arg_parser.add_argument("--train_test_seed", type=int, default=0, help='seed for train test split')
         arg_parser.add_argument("--no_run_linprog_step", default=True, dest='run_linprog_step', action='store_false')
         arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
         arg_parser.add_argument("--redo_exp", action="store_true", default=False)
@@ -141,11 +143,12 @@ class ExpreimentRun:
             if value is not None:
                 if key in ['exp_fractions', 'grid_fractions', 'eps']:
                     if type(value) is list and len(value) > 1:
-                        method_str += f'_{key[:3]}VARY'
+                        method_str += f'_{key[:3]}(VARY)'
                     elif type(value) is list and len(value) == 1:
                         method_str += f'_{key[:3]}({value[0]})'
                 else:
                     method_str += f'_{key[:3]}{value}'
+        method_str += '_LP_off' if args.run_linprog_step is False else ''
 
         ### Load dataset
         self.dataset_str = args.dataset
@@ -162,11 +165,11 @@ class ExpreimentRun:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
             X, y, A = load_transform_Adult()
-        if self.dataset_str == "compas":
+        if self.dataset_str in ["compas", 'german']:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
-            datasets_divided = load_train_test_Compas()
-            X, y, A = load_transform_Compas()
+            datasets_divided = load_dataset_aif360(self.dataset_str, train_test_seed=args.train_test_seed)
+            X, y, A = load_dataset_aif360(self.dataset_str, split=False)
         elif self.dataset_str in ['ACSIncome', 'ACSPublicCoverage', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
                                   'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
             if skip(dataset_str=self.dataset_str) is True:
@@ -203,7 +206,7 @@ class ExpreimentRun:
                          random_seed=args.random_seed, redo_tuning=args.redo_tuning)
 
         results = []
-        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
+
         if self.dataset_str in ['compas', 'german']:
             if "hybrids" in method_str:
                 turn_results = self.run_hybrids(*datasets_divided, eps=prm['eps'],
@@ -216,22 +219,19 @@ class ExpreimentRun:
                                                 run_linprog_step=args.run_linprog_step,
                                                 random_seed=args.random_seed,
                                                 constraint_code=args.constraint_code)
-                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str)
-
             elif "unmitigated" in method_str:
                 turn_results = self.run_unmitigated(*datasets_divided, random_seed=args.random_seed,
                                                     base_model_code=args.base_model_code)
-                self.save_result(df=pd.DataFrame(turn_results), additional_dir=method_str)
             elif "fairlearn" in method_str:
                 turn_results = self.run_fairlearn_full(*datasets_divided, eps=prm['eps'],
                                                        run_linprog_step=args.run_linprog_step,
                                                        random_seed=args.random_seed,
                                                        base_model_code=args.base_model_code, )
-                self.save_result(df=pd.DataFrame(turn_results),
-                                 additional_dir=method_str + '_LP_off' if args.run_linprog_step is False else '', )
             else:
                 raise ValueError(method_str)
+            results += turn_results
         else:
+            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=args.train_test_seed)
             to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
             for train_test_fold, (train_index, test_index) in tqdm(list(enumerate(skf.split(X, to_stratify)))):
                 print('')
