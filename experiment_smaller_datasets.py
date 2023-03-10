@@ -9,15 +9,17 @@ if __name__ == "__main__":
         args = [dataset_name, 'hybrids',
                 '--exp_subset',
                 '--redo_exp',
-                # '--redo_tuning'
+                '--redo_tuning'
                 ]
         kwargs = {}
 
         kwargs.update(**{
             '--eps': utils_values.eps_values,
             '--sample_variations': utils_values.sample_variation,
-            '--exp_fractions': 1,
+            '--exp_fractions': utils_values.fractions[-2:],
             '--grid_fractions': 1,
             '--base_model_code': 'lr',
+            '--random_seed': 2,
+            '--train_test_seed': 1,
         })
         execute_experiment(args, kwargs, original_argv)

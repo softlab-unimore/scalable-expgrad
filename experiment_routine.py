@@ -1,12 +1,12 @@
 import sys
 import numpy as np
 from run import execute_experiment
-from utils_values import *
+import utils_values
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
 
-    for dataset_name in dataset_names[1:]:
+    for dataset_name in utils_values.dataset_names:
         args = [dataset_name, 'hybrids',
                 '--exp_subset',
                 '--redo_exp',
@@ -18,9 +18,9 @@ if __name__ == "__main__":
 
         # vary exp sample
         kwargs.update(**{
-            '--eps': eps,
-            '--sample_variations': sample_variation,
-            '--exp_fractions': fractions,
+            '--eps': utils_values.eps,
+            '--sample_variations': utils_values.sample_variation,
+            '--exp_fractions': utils_values.fractions,
             # '--exp_grid_ratio': 'sqrt',
             # '--grid_fractions': fixed_sample_frac,
             '--grid_fractions': 1,
