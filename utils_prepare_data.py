@@ -1,7 +1,7 @@
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions import load_preproc_data_adult, \
     load_preproc_data_compas, load_preproc_data_german
 import gc
-
+import requests
 from folktables import ACSDataSource, generate_categories
 import os
 import numpy as np
@@ -79,35 +79,56 @@ def adult(display=False):
         return data.drop(["Target", "fnlwgt"], axis=1), data["Target"].values
 
 
-def check_download_Compas():
-    compas_path = '/home/fairlearn/anaconda3/lib/python3.9/site-packages/aif360/data/raw/compas'
-    compas_raw_path = compas_path + '/compas-scores-two-years.csv'
-    if not os.path.exists(compas_raw_path):
-        df = pd.read_csv(compas_raw_data_github_url)
-        os.makedirs(compas_path)
-        df.to_csv(compas_raw_path, index=False)
+def check_download_dataset(dataset_name='compas'):
+    if dataset_name == 'compas':
+        compas_path = '/home/fairlearn/anaconda3/lib/python3.9/site-packages/aif360/data/raw/compas'
+        compas_raw_path = compas_path + '/compas-scores-two-years.csv'
+        if not os.path.exists(compas_raw_path):
+            df = pd.read_csv(compas_raw_data_github_url)
+            os.makedirs(compas_path)
+            df.to_csv(compas_raw_path, index=False)
+    if dataset_name == 'german':
+        base_path = '/home/fairlearn/anaconda3/lib/python3.9/site-packages/aif360/data/raw/german/'
+        base_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/'
+        file_names = ['german.data','german.doc']
+        for file_name in file_names:
+            turn_path = os.path.join(base_path, file_name)
+            if not os.path.exists(turn_path):
+                response = requests.get(base_url + file_name)
+                open(turn_path, "wb").write(response.content)
 
 
-def compas_convert_to_df(dataset):
+def convert_to_df_aif360(dataset, dataset_name):
     X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
     y = pd.Series(dataset.labels.flatten(), name=dataset.label_names[0])
     A = pd.Series(dataset.protected_attributes.flatten(), name=dataset.protected_attribute_names[0])
+    if dataset_name == 'german':
+        y[y==2] = 0
     return X, y, A
 
 
-def load_transform_Compas(protected='race'):
-    check_download_Compas()
-    dataset_orig = load_preproc_data_compas(protected_attributes=[protected])
-    return compas_convert_to_df(dataset_orig)
+def load_dataset_aif360(dataset_name='compas', split=True, train_test_seed=0):
+    if dataset_name == 'compas':
+        protected = 'race'
+        load_function = load_preproc_data_compas
+    elif dataset_name == 'german':
+        protected = 'sex'
+        load_function = load_preproc_data_german
+    else:
+        raise(Exception(f'dataset_name {dataset_name} not allowed.'))
+    check_download_dataset(dataset_name)
+    dataset_orig = load_function(protected_attributes=[protected])
+    if split:
+        if train_test_seed is 0:
+            dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=False)
+        else:
+            dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=True, seed=train_test_seed)
+        ret_value = convert_to_df_aif360(dataset_orig_train, dataset_name)
+        ret_value += convert_to_df_aif360(dataset_orig_test, dataset_name)
+    else:
+        ret_value = convert_to_df_aif360(dataset_orig, dataset_name)
+    return ret_value
 
-
-def load_train_test_Compas(protected='race'):
-    check_download_Compas()
-    dataset_orig = load_preproc_data_compas(protected_attributes=[protected])
-    dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=False)
-    train = compas_convert_to_df(dataset_orig_train)
-    test = compas_convert_to_df(dataset_orig_test)
-    return train + test
 
 
 def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=42):
@@ -127,7 +148,7 @@ def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=
     return X_transformed, Y, A
 
 
-def load_transform_ACS(loader_method, states=None, fillna_mode='mean', return_acs_data=False):
+def load_transform_ACS(loader_method, states=None, return_acs_data=False):
     data_source = ACSDataSource(survey_year=2018, horizon='1-Year', survey='person', root_dir='cached_data')
     definition_df = data_source.get_definitions(download=True)
     categories = generate_categories(features=loader_method.features, definition_df=definition_df)
