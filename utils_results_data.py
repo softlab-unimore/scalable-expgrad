@@ -63,32 +63,41 @@ def read_experiment_configuration(path):
     config = dict(dir=path)
     model = re.findall(r'(?P<model>^[a-zA-Z]+)_', path)[0]
     config['model_name'] = model
-    g = re.findall(r'(?P<name>[a-zA-Z]+)\((?P<value>[a-zA-Z0-9\.]+)\)\_?', path)
+    g = re.findall(r'(?P<name>[a-z]+)\((?P<value>[a-zA-Z0-9\.]+)\)\_?', path)
     config = {params_initials_map[x[0]]: x[1] for x in g}
     return config
 
 
-def load_datasets_from_directory(dataset_path, dataset_name, prefix='last'):
+
+def load_results_from_directory(dataset_path, dataset_name, prefix='last', read_files=False):
     base_dir = os.path.join(dataset_path, dataset_name)
     dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
+    if read_files:
+        dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_file()])
 
     config_list = []
     for turn_dir in dirs:
         config = read_experiment_configuration(turn_dir.name)
         config['dataset_name'] = dataset_name
-        df = load_results_single_directory(turn_dir.path, prefix=prefix)
+        if read_files:
+            df = pd.read_csv(turn_dir)
+            calculate_movign_param(base_dir, df)
+        else:
+            df = load_results_single_directory(turn_dir.path, prefix=prefix)
+
         df = set_frac_values(df)
         df = fix_expgrad_times(df)
         if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
-            mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
-            df = df[mask]
-            df['model_code'] += '_gf_1'
+            # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
+            models_with_gridsearch  = df.query('phase == "grid_frac"')['model_code'].unique()
+            mask = df['model_code'].isin(models_with_gridsearch)
+            df.loc[mask, 'model_code'] += '_gf_1'
         for key, value in config.items():
             if key not in df.columns:
                 df[key] = value
         config['df'] = df
         config_list.append(config)
-    return pd.DataFrame(config_list).fillna({'constraint_code': 'dp'}).fillna('')
+    return pd.DataFrame(config_list).fillna({'constraint_code': 'dp', 'train_test_split':'0'}).fillna('')
 
 
 def load_results_single_directory(base_dir, prefix='last'):
