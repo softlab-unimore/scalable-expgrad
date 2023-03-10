@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
 from utils_results_data import load_results_single_directory, get_info, get_confidence_error, mean_confidence_interval, \
-    add_combined_stats, aggregate_phase_time, load_datasets_from_directory, set_frac_values, filter_results
+    add_combined_stats, aggregate_phase_time, load_results_from_directory, set_frac_values, filter_results
 import matplotlib as mpl
 from run import params_initials_map
 from utils_values import index_cols
@@ -384,12 +384,14 @@ if __name__ == '__main__':
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
     for dataset_name in datasets:
-        dirs_df = load_datasets_from_directory(dataset_results_path, dataset_name)
+        dirs_df = load_results_from_directory(dataset_results_path, dataset_name)
         df_list.append(dirs_df)
     all_dirs_df = pd.concat(df_list)
     all_results_df = pd.concat(all_dirs_df['df'].values)
 
     df = all_results_df.copy()
+
+    # Evaluate delta error
     df['delta_error'] = df['train_error'] - df['test_error']
     curr_path = os.path.join(dataset_results_path, 'all_dataset_stats')
     os.makedirs(curr_path, exist_ok=True)

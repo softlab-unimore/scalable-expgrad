@@ -12,13 +12,14 @@ ACS_dataset_names = ['ACSPublicCoverage', # 1138289
 
 dataset_names = ['adult'] + ACS_dataset_names
 
-other_small_dataset_names = ['compas', 'german']
+other_small_dataset_names = [ 'compas', 'german', ]
 
 sample_variation = range(2)
 
 fixed_sample_frac = 0.1
 
-eps = 0.05
-eps_values = [0.0001, 0.001, 0.01, 0.05]
+eps = 0.01 #, 0.001] # 0.05 old value
+eps_values = [.005, 0.01, 0.02, 0.05, 0.10, 0.2]
+# eps_values = [0.0001, 0.001, 0.01, 0.05]
 
 index_cols = ['random_seed', 'train_test_fold', 'sample_seed']
