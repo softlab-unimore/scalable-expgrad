@@ -45,7 +45,7 @@ params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_da
                        'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
                        'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
-                       'cc': 'constraint_code', 'gri': 'grid_fractions', 'tts':'train_test_split',
+                       'cc': 'constraint_code', 'gri': 'grid_fractions', 'tts': 'train_test_split',
                        'eps': 'eps', 'exp': 'exp_fraction'}
 
 
@@ -165,7 +165,7 @@ class ExpreimentRun:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
             X, y, A = load_transform_Adult()
-        if self.dataset_str in ["compas", 'german']:
+        elif self.dataset_str in ["compas", 'german']:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
             datasets_divided = load_dataset_aif360(self.dataset_str, train_test_seed=args.train_test_seed)
@@ -237,7 +237,7 @@ class ExpreimentRun:
                 print('')
                 datasets_divided = []
                 for turn_index in [train_index, test_index]:
-                    for turn_df in [X, y, A]:
+                    for turn_df in [X, y, A]:  # train test split of datasets
                         datasets_divided.append(turn_df.iloc[turn_index])
                 if "hybrids" in method_str:
                     print(
