@@ -1,20 +1,20 @@
 import numpy as np
 
 from run import execute_experiment
-from test.test_synthetic_data import test_get_miro_synthetic_data
 import sys
 
 original_argv = sys.argv.copy()
 
 if __name__ == "__main__": # TODO ⚠ ✍ ⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍⚍ ╠╬╬╬╬╬╬╬╬╬╬╬╬╬╬╬╬╬╬╣ ◝◟⌒⌒⌒⌒⌒◞◜
     states = ['MA']  # CA AL, MA, MI
-    dataset_name = 'ACSHealthInsurance'
+    # dataset_name = 'ACSHealthInsurance'
+    dataset_name = 'adult'
     args = [dataset_name, 'model_name',
-            '--redo_tuning',
+            # '--redo_tuning',
             '--redo_exp',
             '--exp_subset'
             ]
-    kwargs = {'--save': 'False', '--base_model_code': 'lr',
+    kwargs = {'--save': 'True', '--base_model_code': 'lr',
               # '--states': states,
               }
 
