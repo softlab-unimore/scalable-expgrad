@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
 from utils_results_data import load_results_single_directory, get_info, get_confidence_error, mean_confidence_interval, \
-    add_combined_stats, aggregate_phase_time, load_results_from_directory, set_frac_values, filter_results
+    add_combined_stats, aggregate_phase_time, load_results, filter_results
 import matplotlib as mpl
 from run import params_initials_map
 from utils_values import index_cols
@@ -91,6 +91,11 @@ def generate_map_df():
 
 class PlotUtility():
     map_df = generate_map_df()
+    other_models = ['ThresholdOptimizer']
+    map_df = pd.concat([map_df,
+                        pd.DataFrame.from_dict({x:x for x in other_models},
+                                               orient='index', columns=['label'])
+                        ])
 
     to_plot_models = [
         # 'expgrad_fracs_gri',
@@ -147,6 +152,8 @@ class PlotUtility():
         # 'hybrid_6_U_eps',
         # 'hybrid_6_eps',
         # 'fairlearn_full_eps',
+
+        'ThresholdOptimizer',
     ]
 
     color_list = mpl.colormaps['tab20'].colors
@@ -226,7 +233,7 @@ class PlotUtility():
                         zorder=zorder,
                         markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth / 2)
 
-        if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static']:
+        if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static'] + ['ThresholdOptimizer']:
             if label in ['UNMITIGATED full']:
                 y_values = [y_values.mean()]
             elif label in ['UNMITIGATED=static']:
@@ -318,7 +325,7 @@ def plot_routine_performance_violation(all_model_df, save=True, show=True, suffi
                       (restricted_list, '_restricted'),
                       (['unconstrained_frac_exp'], '_unconstrained'),
                       ]
-    to_iter = list(itertools.product(['train', 'test'], ['error', 'violation'],
+    to_iter = list(itertools.product(['train', 'test'], ['error', 'violation', 'di'],
                                      [('time', all_model_df), ('frac', all_model_df)],
                                      model_set_list
                                      ))
@@ -373,7 +380,7 @@ def plot_routine_other(all_model_df, save=True, show=True, suffix='', base_plot_
 
 if __name__ == '__main__':
     save = True
-    show = False
+    show = True
     df_list = []
 
     datasets = [
@@ -384,7 +391,7 @@ if __name__ == '__main__':
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
     for dataset_name in datasets:
-        dirs_df = load_results_from_directory(dataset_results_path, dataset_name)
+        dirs_df = load_results(dataset_results_path, dataset_name)
         df_list.append(dirs_df)
     all_dirs_df = pd.concat(df_list)
     all_results_df = pd.concat(all_dirs_df['df'].values)
@@ -395,40 +402,54 @@ if __name__ == '__main__':
     df['delta_error'] = df['train_error'] - df['test_error']
     curr_path = os.path.join(dataset_results_path, 'all_dataset_stats')
     os.makedirs(curr_path, exist_ok=True)
-    df.groupby(df['dataset_name','base_model_code']).agg({'delta_error': 'describe'}).to_csv(os.path.join(curr_path, 'delta_error.csv'))
+    df.groupby(['dataset_name','base_model_code']).agg({'delta_error': 'describe'}).to_csv(os.path.join(curr_path, 'delta_error.csv'))
     del df
 
     for dataset_name in datasets:
-        for base_model_code in ['lgbm', 'lr', ]:
-            all_model_df = filter_results(all_dirs_df, conf=dict(
+        for base_model_code in ['lr', 'lgbm']:
+            turn_results_all = all_dirs_df.query(f'dataset_name == "{dataset_name}" and '
+                                            f'base_model_code == "{base_model_code}"')
+            hybrids_results = filter_results(turn_results_all, conf=dict(
                 # exp_grid_ratio='sqrt',
                 states='',
-                exp_subset='True', base_model_code=base_model_code,
-                dataset_name=dataset_name,
+                exp_subset='True',
+                eps='0.01',
                 # run_linprog_step='True'
             ))
-            if not all_model_df.empty:
-                all_model_df = all_model_df[~all_model_df['model_code'].str.contains('eps')]
+            other_results = filter_results(turn_results_all.query('model != "hybrids"'))
+
+            # all_model_df.query('frac > 0.04').pivot_table(index=['frac'], columns=['model_name', 'eps'],
+            #                          values=['train_violation', 'train_di', 'test_violation', 'test_di']).plot(
+            #     kind='scatter')
+
+            # plt.show()
+            if not hybrids_results.empty:
+                hybrids_results = hybrids_results[~hybrids_results['model_code'].str.contains('eps')]
                 suffix = f'_bmc({base_model_code})' if base_model_code != 'lr' else ''
 
-                # if base_model_code == 'lr': # take always max grid oracle times
-                grid_mask = all_model_df['phase'] == 'grid_frac'
-                grid_time_series = all_model_df[grid_mask]['grid_oracle_times'].apply(
-                    lambda x: np.array(ast.literal_eval(x)).max())
-                all_model_df.loc[grid_mask, 'time'] = grid_time_series
+                plot_routine_performance_violation(pd.concat([hybrids_results, other_results]), save=save, show=show,
+                                                   suffix='ALL MODELS'+suffix)
 
-                df_cut = all_model_df[all_model_df['phase'].isin(['expgrad_fracs', 'grid_frac'])]
-                exp_mask = all_model_df['phase'] == 'expgrad_fracs'
-                exp_time_df = all_model_df[exp_mask]['oracle_execution_times_'].agg(
+                # if base_model_code == 'lr': # take always max grid oracle times
+                # Take max of oracle calls time for grid search
+                grid_mask = hybrids_results['phase'] == 'grid_frac'
+                grid_time_series = hybrids_results[grid_mask]['grid_oracle_times'].apply(
+                    lambda x: np.array(ast.literal_eval(x)).max())
+                hybrids_results.loc[grid_mask, 'time'] = grid_time_series
+
+                # ONLY ORACLE CALLLS
+                df_only_oracle_calls = hybrids_results[hybrids_results['phase'].isin(['expgrad_fracs', 'grid_frac'])]
+                exp_mask = hybrids_results['phase'] == 'expgrad_fracs'
+                exp_time_df = hybrids_results[exp_mask]['oracle_execution_times_'].agg(
                     lambda x: pd.DataFrame(ast.literal_eval(x)).sum())
                 exp_time_df.columns += '_sum'
-                df_cut.loc[exp_mask, 'time'] = exp_time_df['fit_sum']
-                plot_routine_performance_violation(df_cut, save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
+                df_only_oracle_calls.loc[exp_mask, 'time'] = exp_time_df['fit_sum']
+                plot_routine_performance_violation(df_only_oracle_calls, save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
                 # df_cut = df_cut.join(exp_time_df)
 
-                plot_routine_performance_violation(all_model_df, save=save, show=show, suffix=suffix)
-                plot_routine_other(all_model_df, save=save, show=show, suffix=suffix)
-                all_model_df['dataset_name'] = dataset_name
+                plot_routine_performance_violation(hybrids_results, save=save, show=show, suffix=suffix)
+                plot_routine_other(hybrids_results, save=save, show=show, suffix=suffix)
+                hybrids_results['dataset_name'] = dataset_name
 
 
             else:

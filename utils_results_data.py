@@ -18,12 +18,6 @@ suffix_attr_map = {
 }
 
 
-def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
-    expgrad_phase_mask = df['phase'] == "expgrad_fracs"
-    expgrad_df = df[expgrad_phase_mask]
-    expgrad_df = expgrad_df.groupby(index_cols + ['frac']).apply(select_set_expgrad_time)
-    df[expgrad_phase_mask] = expgrad_df
-    return df
 
 
 def select_set_expgrad_time(df: pd.DataFrame) -> pd.DataFrame:
@@ -67,14 +61,14 @@ def filter_results(dirs_df, conf: dict = {}):
 def read_experiment_configuration(path):
     config = dict(dir=path)
     model = re.findall(r'(?P<model>^[a-zA-Z]+)_', path)[0]
-    config['model_name'] = model
     g = re.findall(r'(?P<name>[a-z]+)\((?P<value>[a-zA-Z0-9\.]+)\)\_?', path)
     config = {params_initials_map[x[0]]: x[1] for x in g}
+    config['model'] = model
     return config
 
 
 
-def load_results_from_directory(dataset_path, dataset_name, prefix='last', read_files=False):
+def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
     base_dir = os.path.join(dataset_path, dataset_name)
     dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
     if read_files:
@@ -86,12 +80,11 @@ def load_results_from_directory(dataset_path, dataset_name, prefix='last', read_
         config['dataset_name'] = dataset_name
         if read_files:
             df = pd.read_csv(turn_dir)
-            calculate_movign_param(base_dir, df)
         else:
             df = load_results_single_directory(turn_dir.path, prefix=prefix)
 
-        df = set_frac_values(df)
-        df = fix_expgrad_times(df)
+        df = calculate_movign_param(turn_dir.path, df)
+
         if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
             # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
             models_with_gridsearch  = df.query('phase == "grid_frac"')['model_code'].unique()
@@ -109,11 +102,11 @@ def load_results_single_directory(base_dir, prefix='last'):
     files = pd.Series([x.name for x in os.scandir(base_dir) if x.is_file()])
     if files.shape[0] == 0:
         print(f'empty directory {base_dir}')
-    last_files = files[files.str.startswith(prefix)]
+    filesToScan = files[files.str.startswith(prefix)]
     # name_df = last_files.str.extract(r'^(last)_([^_]*)_?(.*)\.(.*)$', expand=True)
     # name_df.rename(columns={0: 'last', 1: 'model', 2: 'params', 3: 'extension'}, inplace=True)
     df_list = []
-    for turn_file in last_files:
+    for turn_file in filesToScan:
         full_path = os.path.join(base_dir, turn_file)
         df_list.append(pd.read_csv(full_path))
     all_df = pd.concat(df_list)
@@ -127,10 +120,16 @@ def load_results_single_directory(base_dir, prefix='last'):
 
 
 def calculate_movign_param(path, df: pd.DataFrame):
+    cols_to_check = suffix_attr_map.values()
+    if np.intersect1d(list(cols_to_check), df.columns).shape[0] < len(cols_to_check):
+        df['frac'] = 1
+        df['model_code'] = df['model_name']
+        return df
     suffix = ''
     for key, name in suffix_attr_map.items():
         if f'_{key}[' in path:
             suffix += f'{key}'
+
     if suffix == '':
         for key, name in suffix_attr_map.items():
             if df[name].nunique() > 1:
@@ -138,16 +137,20 @@ def calculate_movign_param(path, df: pd.DataFrame):
                 break
     df['moving_param'] = suffix
     df['model_code'] = df['model_name'] + '_' + df['moving_param']
-    return df
 
-
-def set_frac_values(df: pd.DataFrame):
-    # df['moving_param'] = df['model_name'].apply(lambda x: x[-3:])
     for key, col in suffix_attr_map.items():
         mask = df['moving_param'] == key
         df.loc[mask, 'frac'] = df.loc[mask, col]
+    fix_expgrad_times(df)
     return df
 
+
+
+def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
+    expgrad_phase_mask = df['phase'] == "expgrad_fracs"
+    expgrad_df = df[expgrad_phase_mask]
+    expgrad_df = expgrad_df.groupby(index_cols + ['frac']).apply(select_set_expgrad_time)
+    df[expgrad_phase_mask] = expgrad_df
 
 def aggregate_phase_time(df):
     results_df = df.groupby(df.columns.drop(['metrics_time', 'phase', 'time', 'grid_oracle_times']).tolist(),
