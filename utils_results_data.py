@@ -56,6 +56,11 @@ def filter_results(dirs_df, conf: dict = {}):
     if dirs_df.empty:
         return dirs_df
     df = pd.concat(dirs_df['df'].values)
+    for split in ['train', 'test']:
+        df[split + '_di'] = pd.concat([df[split + '_di'], 1 / df[split + '_di']], axis=1).min(axis=1)
+        df[split + '_accuracy'] = 1 - df[split + '_error']
+        df[split + '_TPRB'] = 1 - df[split + '_TPRB']
+        df[split + '_TNRB'] = 1 - df[split + '_TNRB']
     return df.reset_index(drop=True)
 
 
