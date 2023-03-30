@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 from graphic_utility import PlotUtility, base_plot_dir
-from utils_results_data import load_results_from_directory, filter_results, get_info
+from utils_results_data import load_results, filter_results, get_info
 
 if __name__ == '__main__':
     save = True
@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
     for dataset_name in datasets:
-        dirs_df = load_results_from_directory(dataset_results_path, dataset_name, read_files=True)
+        dirs_df = load_results(dataset_results_path, dataset_name, read_files=True)
         df_list.append(dirs_df)
     all_dirs_df = pd.concat(df_list)
 
@@ -35,11 +35,6 @@ if __name__ == '__main__':
     df = df[df['frac'].isin([0.251, 1])]
     df = df[df['model_code'].isin(PlotUtility.to_plot_models)]
 
-    for split in ['train', 'test']:
-        df[split + '_di'] = pd.concat([df[split + '_di'], 1 / df[split + '_di']], axis=1).min(axis=1)
-        df[split + '_accuracy'] = 1 - df[split + '_error']
-        df[split + '_TPRB'] = 1 - df[split + '_TPRB']
-        df[split + '_TNRB'] = 1 - df[split + '_TNRB']
 
     host_name, current_time_str = get_info()
 
