@@ -134,3 +134,5 @@ dmypy.json
 /cached_data/
 /sample_data/
 /folktables/
+/datasets/datasets/ACSPublicCoverage/groups.csv
+/datasets/datasets/ACSPublicCoverage/

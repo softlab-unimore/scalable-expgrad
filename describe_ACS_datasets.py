@@ -12,11 +12,10 @@ if __name__ == '__main__':
     os.makedirs(descriptions_dir, exist_ok=True)
     dict_list = []
     t_dict = {}
-    for dataset_str in ['ACSEmploymentFiltered', 'ACSIncomePovertyRatio',
-                        'ACSMobility',
-                        'ACSPublicCoverage', 'ACSEmployment', 'ACSTravelTime',
-                        'ACSHealthInsurance',
-                        'ACSIncome',
+    for dataset_str in [ 'ACSHealthInsurance', 'ACSEmployment',
+                'ACSEmploymentFiltered', 'ACSIncomePovertyRatio',
+                        'ACSMobility', 'ACSPublicCoverage',
+                        'ACSTravelTime', 'ACSIncome',
                         ]:
         loader_method = getattr(folktables, dataset_str)
         X, y, A, acs_data = load_transform_ACS(loader_method=loader_method, return_acs_data=True)
@@ -26,6 +25,12 @@ if __name__ == '__main__':
         t_dict.update(dataset_name=dataset_str, size=X.shape[0], columns=X.shape[1], sensitive_attr=A.name,
                       sensitive_attr_nunique=A.nunique(), target_col=y.name, sensitive_attr_unique_values=A.unique(),
                       mem_usage=mem_usage)
+        function_list = ['mean', 'std', 'size', ('perc', lambda x : x.size / y.shape[0])]
+        target_stats = y.groupby(A).agg(function_list)
+        target_stats.loc['mean'] = target_stats.mean()
+        target_stats.loc['std'] = target_stats.std()
+        target_stats.loc['all'] = target_stats.loc['all'] = y.agg(['mean', 'std', 'size', (lambda x : x.size / y.shape[0])]).rename({'<lambda>': 'perc'})
+        target_stats.to_csv(os.path.join(descriptions_dir, dataset_str + '_target_stats.csv'))
         desc = X.describe().join([y.describe(), A.describe()])
         desc.to_csv(os.path.join(descriptions_dir, dataset_str + 'describe.csv'))
         dict_list.append(t_dict.copy())
