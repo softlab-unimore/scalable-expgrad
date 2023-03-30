@@ -2,6 +2,8 @@ from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_function
     load_preproc_data_compas, load_preproc_data_german
 import gc
 import requests
+
+import folktables
 from folktables import ACSDataSource, generate_categories
 import os
 import numpy as np
@@ -148,7 +150,10 @@ def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=
     return X_transformed, Y, A
 
 
-def load_transform_ACS(loader_method, states=None, return_acs_data=False):
+def load_transform_ACS(dataset_str, states=None, return_acs_data=False):
+    loader_method: folktables.BasicProblem = getattr(folktables, dataset_str)
+    if loader_method.group in loader_method.features: # remove sensitive feature from data
+        loader_method.features.remove(loader_method.group)
     data_source = ACSDataSource(survey_year=2018, horizon='1-Year', survey='person', root_dir='cached_data')
     definition_df = data_source.get_definitions(download=True)
     categories = generate_categories(features=loader_method.features, definition_df=definition_df)
@@ -168,6 +173,9 @@ def load_transform_ACS(loader_method, states=None, return_acs_data=False):
     # df[df.columns] = StandardScaler().fit_transform(df)
     print(f'Loaded data memory used by df: {df.memory_usage().sum() / (2 ** (10 * 3)):.3f} GB')
     ret_value = df, label.iloc[:, 0].astype(int), group.iloc[:, 0]
+    # df.to_csv('datasets/datasets/ACSPublicCoverage/X.csv')
+    # label.iloc[:, 0].astype(int).to_csv('datasets/datasets/ACSPublicCoverage/y.csv')
+    # group.iloc[:, 0].to_csv('datasets/datasets/ACSPublicCoverage/groups.csv')
     if return_acs_data:
         ret_value += tuple([acs_data])
     else:

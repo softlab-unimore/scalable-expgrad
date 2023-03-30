@@ -184,8 +184,7 @@ class ExpreimentRun:
                                   'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
-            loader_method = getattr(folktables, self.dataset_str)
-            X, y, A = utils_prepare_data.load_transform_ACS(loader_method=loader_method, states=prm['states'])
+            X, y, A = utils_prepare_data.load_transform_ACS(dataset_str=self.dataset_str, states=prm['states'])
             # X, y, A = fix_nan(X, y, A, mode='mean')
         elif "synth" in self.dataset_str:
             print(self.dataset_str)
