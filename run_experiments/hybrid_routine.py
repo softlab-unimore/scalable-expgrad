@@ -1,3 +1,4 @@
+import itertools
 import sys
 import numpy as np
 from run import execute_experiment
@@ -5,28 +6,28 @@ import utils_values
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
-
     for dataset_name in utils_values.dataset_names[:]:
-        args = [dataset_name, 'hybrids',
-                '--exp_subset',
-                '--redo_exp',
-                # '--redo_tuning'
-                ]
-        kwargs = {}
+        for base_model_code in ['lr', 'lgbm']:
+            args = [dataset_name, 'hybrids',
+                    '--exp_subset',
+                    '--redo_exp',
+                    # '--redo_tuning'
+                    ]
+            kwargs = {}
 
-        args[1] = 'hybrids'
+            args[1] = 'hybrids'
 
-        # vary exp sample
-        kwargs.update(**{
-            '--eps': utils_values.eps,
-            '--sample_variations': utils_values.sample_variation,
-            '--exp_fractions': utils_values.fractions,
-            '--exp_grid_ratio': 'sqrt',
-            # '--grid_fractions': fixed_sample_frac,
-            #'--grid_fractions': 1,
-            '--base_model_code':  'lr', #'lgbm', #
-        })
-        execute_experiment(args, kwargs, original_argv)
+            # vary exp sample
+            kwargs.update(**{
+                '--eps': utils_values.eps,
+                '--sample_variations': utils_values.sample_variation,
+                '--exp_fractions': utils_values.fractions,
+                #'--exp_grid_ratio': 'sqrt',
+                # '--grid_fractions': fixed_sample_frac,
+                '--grid_fractions': 1,
+                '--base_model_code':  base_model_code, #'lr', #'lgbm', #
+            })
+            execute_experiment(args, kwargs, original_argv)
         # # make grid-sample vary
         # kwargs.update(**{
         #     '--eps': eps,
