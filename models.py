@@ -1,3 +1,4 @@
+from aif360.algorithms.inprocessing import GerryFairClassifier
 from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RepeatedStratifiedKFold, GridSearchCV
@@ -50,3 +51,9 @@ def finetune_model(base_model_code, X, y, random_seed=0):
     clf.fit(X, y)
     return clf
 
+
+
+class Kearns(GerryFairClassifier):
+
+    def predict(self, dataset, threshold=.5):
+        return super().predict(dataset, threshold).labels
