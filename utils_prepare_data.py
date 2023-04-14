@@ -92,7 +92,7 @@ def check_download_dataset(dataset_name='compas'):
     if dataset_name == 'german':
         base_path = '/home/fairlearn/anaconda3/lib/python3.9/site-packages/aif360/data/raw/german/'
         base_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/'
-        file_names = ['german.data','german.doc']
+        file_names = ['german.data', 'german.doc']
         for file_name in file_names:
             turn_path = os.path.join(base_path, file_name)
             if not os.path.exists(turn_path):
@@ -105,32 +105,40 @@ def convert_to_df_aif360(dataset, dataset_name):
     y = pd.Series(dataset.labels.flatten(), name=dataset.label_names[0])
     A = pd.Series(dataset.protected_attributes.flatten(), name=dataset.protected_attribute_names[0])
     if dataset_name == 'german':
-        y[y==2] = 0
+        y[y == 2] = 0
     return X, y, A
 
 
-def load_dataset_aif360(dataset_name='compas', split=True, train_test_seed=0):
+def load_convert_dataset_aif360(dataset_name='compas', train_test_seed=0):
+    ret_dict = {}
     if dataset_name == 'compas':
-        protected = 'race'
+        ret_dict['protected'] = 'race'
+        ret_dict['privileged_groups'] = [{'Race': 1}]
+        ret_dict['unprivileged_groups'] = [{'Race': 0}]
         load_function = load_preproc_data_compas
     elif dataset_name == 'german':
-        protected = 'sex'
+        ret_dict['protected'] = 'sex'
+        ret_dict['privileged_groups'] =  [{'Sex': 1}]
+        ret_dict['unprivileged_groups'] = [{'Sex': 0}]
         load_function = load_preproc_data_german
     else:
-        raise(Exception(f'dataset_name {dataset_name} not allowed.'))
+        raise (Exception(f'dataset_name {dataset_name} not allowed.'))
     check_download_dataset(dataset_name)
-    dataset_orig = load_function(protected_attributes=[protected])
-    if split:
-        if train_test_seed is 0:
-            dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=False)
-        else:
-            dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=True, seed=train_test_seed)
-        ret_value = convert_to_df_aif360(dataset_orig_train, dataset_name)
-        ret_value += convert_to_df_aif360(dataset_orig_test, dataset_name)
-    else:
-        ret_value = convert_to_df_aif360(dataset_orig, dataset_name)
-    return ret_value
+    dataset_orig = load_function(protected_attributes=[ret_dict['protected']])
+    ret_dict['aif360_dataset'] = dataset_orig
+    ret_dict['df'] = convert_to_df_aif360(dataset_orig, dataset_name)
 
+    if train_test_seed is 0:
+        dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=False)
+    else:
+        dataset_orig_train, dataset_orig_test = dataset_orig.split([0.7], shuffle=True, seed=train_test_seed)
+    ret_dict['aif360_train'] = dataset_orig_train
+    ret_dict['aif360_test'] = dataset_orig_test
+    ret_dict['train_df'] = convert_to_df_aif360(dataset_orig_train, dataset_name)
+    ret_dict['test_df'] = convert_to_df_aif360(dataset_orig_test, dataset_name)
+
+
+    return ret_dict
 
 
 def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=42):
@@ -152,7 +160,7 @@ def load_transform_Adult(sensitive_attribute='Sex', test_size=0.3, random_state=
 
 def load_transform_ACS(dataset_str, states=None, return_acs_data=False):
     loader_method: folktables.BasicProblem = getattr(folktables, dataset_str)
-    if loader_method.group in loader_method.features: # remove sensitive feature from data
+    if loader_method.group in loader_method.features:  # remove sensitive feature from data
         loader_method.features.remove(loader_method.group)
     data_source = ACSDataSource(survey_year=2018, horizon='1-Year', survey='person', root_dir='cached_data')
     definition_df = data_source.get_definitions(download=True)

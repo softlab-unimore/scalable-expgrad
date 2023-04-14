@@ -177,9 +177,10 @@ class ExpreimentRun:
         elif self.dataset_str in ["compas", 'german']:
             if skip(dataset_str=self.dataset_str) is True:
                 return 2
-            datasets_divided = utils_prepare_data.load_dataset_aif360(self.dataset_str,
-                                                                      train_test_seed=prm['train_test_seed'])
-            X, y, A = utils_prepare_data.load_dataset_aif360(self.dataset_str, split=False)
+            self.dataset_dict = utils_prepare_data.load_convert_dataset_aif360(self.dataset_str,
+                                                                              train_test_seed=prm['train_test_seed'])
+            datasets_divided = self.dataset_dict['train_df'], self.dataset_dict['test_df']
+            X, y, A = self.dataset_dict['df']
         elif self.dataset_str in ['ACSIncome', 'ACSPublicCoverage', 'ACSMobility', 'ACSEmployment', 'ACSTravelTime',
                                   'ACSHealthInsurance', 'ACSEmploymentFiltered' 'ACSIncomePovertyRatio']:
             if skip(dataset_str=self.dataset_str) is True:
