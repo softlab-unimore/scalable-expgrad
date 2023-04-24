@@ -136,3 +136,5 @@ dmypy.json
 /folktables/
 /datasets/datasets/ACSPublicCoverage/groups.csv
 /datasets/datasets/ACSPublicCoverage/
+/run_experiments/cached_data/
+/run_experiments/results/
