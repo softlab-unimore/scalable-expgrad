@@ -1,12 +1,12 @@
 import sys
 from run import execute_experiment
-from utils_values import fractions, sample_variation, eps, dataset_names
+import utils_experiment
 
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
 
-    for dataset_name in dataset_names:
+    for dataset_name in utils_experiment.dataset_names:
         args = [dataset_name, 'model_name',
                 '--exp_subset','--redo_exp',
                 ]
@@ -16,10 +16,10 @@ if __name__ == "__main__":
 
         # make grid-sample vary
         kwargs.update(**{
-            '--eps': eps,
-            '--sample_variations': sample_variation,
+            '--eps': utils_experiment.eps,
+            '--sample_seeds': utils_experiment.sample_variation,
             '--exp_fractions': 0.001,
-            '--grid_fractions': fractions})
+            '--grid_fractions': utils_experiment.fractions})
         kwargs.pop('--exp_grid_ratio')
         execute_experiment(args, kwargs, original_argv)
         # TODO try different sensitive attr
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     #     for g in [.5, .2, .1]:
     #         kwargs = base_kwargs.copy()
     #         kwargs.update(**{
-    #             '--sample_variations': sample_variation,
+    #             '--sample_seeds': sample_variation,
     #             '--exp_fractions': 0.016,
     #             '--grid-fraction': g})
     #         execute_experiment(args, kwargs, original_argv)
