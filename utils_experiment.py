@@ -13,7 +13,10 @@ ACS_dataset_names = [
 
 dataset_names = ['adult'] + ACS_dataset_names
 
-other_small_dataset_names = ['compas', 'german', ]
+sigmod_datasets = ['compas', 'german', 'adult_sigmod']
+
+sigmod_datasets_aif360 = [x+'_aif360' for x in sigmod_datasets]
+
 
 sample_variation = range(2)
 

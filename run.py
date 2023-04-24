@@ -105,7 +105,7 @@ class ExpreimentRun:
         # arg_parser.add_argument("--test_ratio", type=float, default=0.3)
 
         # For hybrid methods
-        arg_parser.add_argument("--sample_variations")
+        arg_parser.add_argument("--sample_seeds", help='seed for expgrad hybrid sampling')
         arg_parser.add_argument("--exp_fractions")
         arg_parser.add_argument("--grid_fractions")
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None)

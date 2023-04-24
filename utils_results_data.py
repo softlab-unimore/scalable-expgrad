@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 from run import params_initials_map
-from utils_values import index_cols
+from utils_experiment import index_cols
 
 suffix_attr_map = {
     'exp': 'exp_frac',

@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 from run import execute_experiment
-import utils_values
+import utils_experiment
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
         # vary exp sample
         kwargs.update(**{
-            '--sample_variations': utils_values.sample_variation,
+            '--sample_seeds': utils_experiment.sample_variation,
             '--base_model_code':  'lr', #'lgbm', #
         })
         execute_experiment(args, kwargs, original_argv)

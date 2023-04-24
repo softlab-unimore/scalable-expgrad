@@ -1,6 +1,6 @@
 import sys
 from run import execute_experiment
-from utils_values import fractions, sample_variation, eps, dataset_names
+from utils_experiment import fractions, sample_variation, eps, dataset_names
 
 
 if __name__ == "__main__":
@@ -16,7 +16,7 @@ if __name__ == "__main__":
         args[1] = 'hybrids'
         kwargs.update(**{
             '--eps': eps,
-            '--sample_variations': sample_variation,
+            '--sample_seeds': sample_variation,
             '--exp_fractions': fractions,
             '--exp_grid_ratio': 'sqrt',
 
