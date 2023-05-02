@@ -31,8 +31,8 @@ def di(X, Y, S, y_pred):
     s_values.sort()
     group_0_mask = S == s_values[0]
     group_1_mask = S == s_values[1]
-    PrY1_S0 = np.sum(y_pred[group_0_mask] == 1) / np.sum(group_0_mask)
-    PrY1_S1 = np.sum(y_pred[group_1_mask] == 1) / np.sum(group_1_mask)
+    PrY1_S0 = np.sum(y_pred[group_0_mask.ravel()] == 1) / np.sum(group_0_mask)
+    PrY1_S1 = np.sum(y_pred[group_1_mask.ravel()] == 1) / np.sum(group_1_mask)
     disparate_impact = divide_non_0(PrY1_S0, PrY1_S1)
     return disparate_impact
 
@@ -41,8 +41,8 @@ def trueRateBalance(X, Y, S, y_pred):
     y_pred = y_pred >= .5
     s_values = np.unique(S)
     s_values.sort()
-    mask_0 = S == s_values[0]
-    mask_1 = S == s_values[1]
+    mask_0 = (S == s_values[0]).ravel()
+    mask_1 = (S == s_values[1]).ravel()
     results = {}
     for turn_mask, group in zip([mask_1, mask_0], [1, 0]):
         TN, FP, FN, TP = confusion_matrix(Y[turn_mask], y_pred[turn_mask] == 1).ravel()
