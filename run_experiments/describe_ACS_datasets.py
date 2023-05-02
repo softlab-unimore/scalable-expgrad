@@ -8,7 +8,7 @@ from run import ExpreimentRun
 
 if __name__ == '__main__':
     er = ExpreimentRun()
-    descriptions_dir = os.path.join(er.base_result_dir, 'ACSDataset_descriptions')
+    descriptions_dir = os.path.join('..', er.base_result_dir, 'ACSDataset_descriptions')
     os.makedirs(descriptions_dir, exist_ok=True)
     dict_list = []
     t_dict = {}
