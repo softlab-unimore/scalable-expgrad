@@ -78,16 +78,17 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
                          'AdversarialDebiasing': 'AdversarialDebiasing',
                          'Kearns': 'Kearns',
                          'Calmon': 'Calmon',
-                         'ZafarDI':'ZafarDI'
+                         'ZafarDI':'ZafarDI',
+                         'Hardt': 'Hardt'
                          }
     if method_str == methods_name_dict['ThresholdOptimizer']:
-        model = ThresholdOptimizer(
+        model = wrappers.ThresholdOptimizerWrapper(
             estimator=base_model,
             constraints=constrain_name,
             objective="accuracy_score",
             prefit=False,
-            predict_method='predict_proba', )
-        model.predict = partial(model.predict, random_state=random_state)
+            predict_method='predict_proba',
+            random_state=random_state)
         if eps is not None:
             warn(f"eps has no effect with {method_str} methos")
     elif method_str == methods_name_dict['AdversarialDebiasing']:
@@ -106,6 +107,8 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
         model = wrappers.CalmonWrapper(*params)
     elif method_str == methods_name_dict['ZafarDI']:
         model = wrappers.ZafarDI(*params)
+    elif method_str == methods_name_dict['Hardt']:
+        model = wrappers.Hardt(*params)
     else:
         raise ValueError(
             f'the method specified ({method_str}) is not allowed. Valid options are {methods_name_dict.values()}')
