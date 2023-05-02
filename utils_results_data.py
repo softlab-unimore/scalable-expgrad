@@ -282,6 +282,16 @@ def get_combined_groupby(x, alpha=0.5):
     comb_df['alpha'] = alpha
     return comb_df
 
+def load_results_experiment_id(experiment_code_list, dataset_results_path):
+    df_list = []
+    for experiment_code in experiment_code_list:
+        for filepath in os.scandir(os.path.join(dataset_results_path, experiment_code)):
+            if filepath.name.endswith('.csv'):
+                df = pd.read_csv(filepath)
+                df_list.append(df)
+    all_df = pd.concat(df_list)
+    return prepare_data(all_df)
+
 
 index_cols = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'base_model_code', 'constraint_code',
               'iterations', 'dataset']
