@@ -4,15 +4,12 @@ from copy import deepcopy
 
 import numpy as np
 import os, re
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
-from utils_results_data import load_results_single_directory, get_info, get_confidence_error, mean_confidence_interval, \
-    add_combined_stats, aggregate_phase_time, load_results, filter_results
+from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
+    aggregate_phase_time, load_results, filter_results, index_cols
 import matplotlib as mpl
-from run import params_initials_map
-from utils_values import index_cols
 
 sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
@@ -91,70 +88,69 @@ def generate_map_df():
 
 class PlotUtility():
     map_df = generate_map_df()
-    other_models = ['ThresholdOptimizer']
+    other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
     map_df = pd.concat([map_df,
-                        pd.DataFrame.from_dict({x:x for x in other_models},
+                        pd.DataFrame.from_dict({x: x for x in other_models},
                                                orient='index', columns=['label'])
                         ])
 
     to_plot_models = [
-        # 'expgrad_fracs_gri',
-        # 'hybrid_5_gri',
-        # 'hybrid_5_U_gri',
-        # 'hybrid_1_gri',
-        # 'hybrid_2_gri',
-        # 'hybrid_3_gri',
-        # 'hybrid_3_U_gri',
-        # 'hybrid_4_gri',
-        # 'hybrid_6_gri',
-        # 'hybrid_6_U_gri',
-        'expgrad_fracs_exp',
-        'expgrad_fracs_LP_off_exp',
-        'hybrid_5_exp',
-        # 'hybrid_5_U_exp',
-        # 'hybrid_1_exp',
-        # 'hybrid_2_exp',
-        'hybrid_3_exp',
-        # 'hybrid_3_U_exp',
-        # 'hybrid_4_exp',
-        # 'hybrid_6_U_exp',
-        'hybrid_6_exp',
-        'hybrid_6_exp_gf_1',
-        'hybrid_7_exp',
-        'hybrid_7_LP_off_exp',
-        'unconstrained_exp',
-        # 'fairlearn_full',
-        # 'unmitigated',
+                         # 'expgrad_fracs_gri',
+                         # 'hybrid_5_gri',
+                         # 'hybrid_5_U_gri',
+                         # 'hybrid_1_gri',
+                         # 'hybrid_2_gri',
+                         # 'hybrid_3_gri',
+                         # 'hybrid_3_U_gri',
+                         # 'hybrid_4_gri',
+                         # 'hybrid_6_gri',
+                         # 'hybrid_6_U_gri',
+                         'expgrad_fracs_exp',
+                         'expgrad_fracs_LP_off_exp',
+                         'hybrid_5_exp',
+                         # 'hybrid_5_U_exp',
+                         # 'hybrid_1_exp',
+                         # 'hybrid_2_exp',
+                         'hybrid_3_exp',
+                         # 'hybrid_3_U_exp',
+                         # 'hybrid_4_exp',
+                         # 'hybrid_6_U_exp',
+                         'hybrid_6_exp',
+                         'hybrid_6_exp_gf_1',
+                         'hybrid_7_exp',
+                         'hybrid_7_LP_off_exp',
+                         'unconstrained_exp',
+                         # 'fairlearn_full',
+                         # 'unmitigated',
 
-        ## exp subsample models
-        # 'sub_hybrid_1_exp',
-        # 'sub_hybrid_2_exp',
-        # 'sub_hybrid_3_U_exp',
-        'sub_hybrid_3_exp',
-        # 'sub_hybrid_4_exp',
-        # 'sub_hybrid_5_U_exp',
-        # 'sub_hybrid_5_exp',
-        # 'sub_hybrid_6_U_exp',
-        'sub_hybrid_6_exp',
-        'unconstrained_frac_exp',
+                         ## exp subsample models
+                         # 'sub_hybrid_1_exp',
+                         # 'sub_hybrid_2_exp',
+                         # 'sub_hybrid_3_U_exp',
+                         'sub_hybrid_3_exp',
+                         # 'sub_hybrid_4_exp',
+                         # 'sub_hybrid_5_U_exp',
+                         # 'sub_hybrid_5_exp',
+                         # 'sub_hybrid_6_U_exp',
+                         'sub_hybrid_6_exp',
+                         'unconstrained_frac_exp',
 
-        'sub_hybrid_6_exp_gf_1',
+                         'sub_hybrid_6_exp_gf_1',
 
-        ## eps models
-        # 'expgrad_fracs_eps',
-        # 'hybrid_1_eps',
-        # 'hybrid_2_eps',
-        # 'hybrid_3_U_eps',
-        # 'hybrid_3_eps',
-        # 'hybrid_4_eps',
-        # 'hybrid_5_U_eps',
-        # 'hybrid_5_eps',
-        # 'hybrid_6_U_eps',
-        # 'hybrid_6_eps',
-        # 'fairlearn_full_eps',
+                         ## eps models
+                         # 'expgrad_fracs_eps',
+                         # 'hybrid_1_eps',
+                         # 'hybrid_2_eps',
+                         # 'hybrid_3_U_eps',
+                         # 'hybrid_3_eps',
+                         # 'hybrid_4_eps',
+                         # 'hybrid_5_U_eps',
+                         # 'hybrid_5_eps',
+                         # 'hybrid_6_U_eps',
+                         # 'hybrid_6_eps',
+                         # 'fairlearn_full_eps',
 
-        'ThresholdOptimizer',
-    ]
+                     ] + other_models
 
     color_list = mpl.colormaps['tab20'].colors
     suffix = ''
@@ -170,8 +166,10 @@ class PlotUtility():
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
 
-    def plot(self, all_model_df, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95],
+    def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95],
              grid_fractions=[0.1, 0.2, 0.5], groupby_col='frac'):
+        self.index_cols = np.intersect1d(index_cols,all_model_df.columns).tolist()
+        plt.close('all')
         self.groupby_col = groupby_col
         self.fig = plt.figure()
         ax = plt.subplot()
@@ -198,10 +196,15 @@ class PlotUtility():
                 x_offset = 1
             self.add_plot(ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=x_offset)
 
-        ax.set_xlabel(f'{x_axis} (log scale)')
         ax.set_ylabel(y_axis)
-        ax.set_title(f'{y_axis} v.s. {x_axis}')
-        ax.set_xscale("log")
+        ax.set_title(f'{dataset_name} {y_axis} v.s. {x_axis}')
+        if x_axis == 'time':
+            ax.set_xscale("log")
+            ax.set_xlabel(f'{x_axis} (log scale)')
+        else:
+            ax.set_xlabel(f'{x_axis}')
+            # ax.set_xscale("log")
+            # ax.set_xlabel(f'{x_axis} (log scale)')
         if y_axis == 'time':
             ax.set_yscale("log")
             ylabel = ax.get_ylabel()
@@ -213,14 +216,14 @@ class PlotUtility():
             self.fig.show()
 
     def add_plot(self, ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=1, ):
-        agg_x_axis = self.groupby_col if x_axis == 'time' else x_axis
-        turn_data = turn_df.pivot(index=index_cols, columns=agg_x_axis, values=y_axis)
+        agg_x_axis = self.groupby_col  # if x_axis == 'time' else x_axis
+        turn_data = turn_df.pivot(index=self.index_cols, columns=agg_x_axis, values=y_axis)
         ci = mean_confidence_interval(turn_data)
         yerr = (ci[2] - ci[1]) / 2
         y_values = ci[0]
         zorder = 10 if len(y_values) == 1 else None
-        if x_axis == 'time':
-            time_data = turn_df.pivot(index=index_cols, columns=agg_x_axis, values='time')
+        if x_axis != 'frac':
+            time_data = turn_df.pivot(index=self.index_cols, columns=agg_x_axis, values=x_axis)
             ci_x = mean_confidence_interval(time_data)
             xerr = (ci_x[2] - ci_x[1]) / 2
             x_values = ci_x[0]
@@ -268,7 +271,7 @@ class PlotUtility():
                 os.makedirs(t_full_path_svg, exist_ok=True)
                 fig.savefig(t_full_path_svg + '.svg', format='svg')
 
-    def apply_plot_function_and_save(self, df, plot_name, plot_function):
+    def apply_plot_function_and_save(self, df, plot_name, plot_function, dataset_name):
         plt.close('all')
         fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig)
@@ -312,7 +315,8 @@ def plot_metrics_time(df, ax, fig):
     to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
 
 
-def plot_routine_performance_violation(all_model_df, save=True, show=True, suffix='', base_plot_dir=base_plot_dir):
+def plot_routine_performance_violation(all_model_df, dataset_name, save=True, show=True, suffix='',
+                                       base_plot_dir=base_plot_dir, ):
     missed_conf = np.setdiff1d(all_model_df['model_code'].unique(),
                                list(PlotUtility.map_df.index.values)).tolist()
     assert len(missed_conf) == 0, missed_conf
@@ -334,12 +338,12 @@ def plot_routine_performance_violation(all_model_df, save=True, show=True, suffi
         if model_set_name != '' and x_axis == 'frac':
             continue
         pl_util.to_plot_models = to_plot_models
-        pl_util.plot(turn_df, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
+        pl_util.plot(turn_df, dataset_name=dataset_name, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
         pl_util.save(base_plot_dir, dataset_name=dataset_name,
                      name=f'{phase}_{metric_name}_vs_{x_axis}{model_set_name}')
 
 
-def plot_routine_other(all_model_df, save=True, show=True, suffix='', base_plot_dir=base_plot_dir):
+def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix='', base_plot_dir=base_plot_dir):
     pl_util = PlotUtility(show=show, save=save, suffix=suffix)
     df = all_model_df
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
@@ -379,14 +383,14 @@ def plot_routine_other(all_model_df, save=True, show=True, suffix='', base_plot_
 
 
 if __name__ == '__main__':
-    save = True
+    save = False
     show = True
     df_list = []
 
     datasets = [
         "ACSPublicCoverage",
         "ACSEmployment",
-        "adult",
+        "adult"
     ]
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
@@ -402,15 +406,16 @@ if __name__ == '__main__':
     df['delta_error'] = df['train_error'] - df['test_error']
     curr_path = os.path.join(dataset_results_path, 'all_dataset_stats')
     os.makedirs(curr_path, exist_ok=True)
-    df.groupby(['dataset_name','base_model_code']).agg({'delta_error': 'describe'}).to_csv(os.path.join(curr_path, 'delta_error.csv'))
+    df.groupby(['dataset_name', 'base_model_code']).agg({'delta_error': 'describe'}).to_csv(
+        os.path.join(curr_path, 'delta_error.csv'))
     del df
 
     for dataset_name in datasets:
         for base_model_code in ['lr', 'lgbm']:
             turn_results_all = all_dirs_df.query(f'dataset_name == "{dataset_name}" and '
-                                            f'base_model_code == "{base_model_code}"')
+                                                 f'base_model_code == "{base_model_code}"')
             hybrids_results = filter_results(turn_results_all, conf=dict(
-                # exp_grid_ratio='sqrt',
+                exp_grid_ratio='sqrt',
                 states='',
                 exp_subset='True',
                 eps='0.01',
@@ -427,8 +432,9 @@ if __name__ == '__main__':
                 hybrids_results = hybrids_results[~hybrids_results['model_code'].str.contains('eps')]
                 suffix = f'_bmc({base_model_code})' if base_model_code != 'lr' else ''
 
-                plot_routine_performance_violation(pd.concat([hybrids_results, other_results]), save=save, show=show,
-                                                   suffix='ALL MODELS'+suffix)
+                plot_routine_performance_violation(pd.concat([hybrids_results, other_results]), dataset_name,
+                                                   save=save, show=show,
+                                                   suffix='ALL MODELS' + suffix)
 
                 # if base_model_code == 'lr': # take always max grid oracle times
                 # Take max of oracle calls time for grid search
@@ -444,11 +450,13 @@ if __name__ == '__main__':
                     lambda x: pd.DataFrame(ast.literal_eval(x)).sum())
                 exp_time_df.columns += '_sum'
                 df_only_oracle_calls.loc[exp_mask, 'time'] = exp_time_df['fit_sum']
-                plot_routine_performance_violation(df_only_oracle_calls, save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
+                plot_routine_performance_violation(df_only_oracle_calls, dataset_name=dataset_name,
+                                                   save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
                 # df_cut = df_cut.join(exp_time_df)
 
-                plot_routine_performance_violation(hybrids_results, save=save, show=show, suffix=suffix)
-                plot_routine_other(hybrids_results, save=save, show=show, suffix=suffix)
+                plot_routine_performance_violation(hybrids_results, dataset_name,
+                                                   save=save, show=show, suffix=suffix)
+                plot_routine_other(hybrids_results, save=save, show=show, suffix=suffix, dataset_name=dataset_name)
                 hybrids_results['dataset_name'] = dataset_name
 
 

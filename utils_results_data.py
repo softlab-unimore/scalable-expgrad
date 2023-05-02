@@ -1,3 +1,4 @@
+import ast
 import itertools
 import os
 import re
@@ -9,7 +10,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 from run import params_initials_map
-from utils_experiment import index_cols
 
 suffix_attr_map = {
     'exp': 'exp_frac',
@@ -19,6 +19,69 @@ suffix_attr_map = {
 
 
 
+def add_sigmod_metric(df):
+    for split in ['train', 'test']:
+        df[split + '_di'] = pd.concat([df[split + '_di'], 1 / df[split + '_di']], axis=1).min(axis=1)
+        df[split + '_accuracy'] = 1 - df[split + '_error']
+        df[split + '_TPRB'] = 1 - df[split + '_TPRB']
+        df[split + '_TNRB'] = 1 - df[split + '_TNRB']
+    return df
+
+
+def calculate_movign_param(path, df: pd.DataFrame):
+    cols_to_check = suffix_attr_map.values()
+    if np.intersect1d(list(cols_to_check), df.columns).shape[0] < len(cols_to_check):
+        df['frac'] = 1
+        df['model_code'] = df['model_name']
+        return df
+    suffix = ''
+    if path is not None:
+        for key, name in suffix_attr_map.items():
+            if f'_{key}[' in path:
+                suffix += f'{key}'
+
+    if suffix == '':
+        for key, name in suffix_attr_map.items():
+            if df[name].nunique() > 1:
+                suffix = f'{key}'
+                break
+    df['moving_param'] = suffix
+    df['model_code'] = df['model_name'] + '_' + df['moving_param']
+
+    for key, col in suffix_attr_map.items():
+        mask = df['moving_param'] == key
+        df.loc[mask, 'frac'] = df.loc[mask, col]
+    # fix_expgrad_times(df)
+    models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
+    mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac']==1)
+    df.loc[mask, 'model_code'] += '_gf_1'
+    return df
+
+
+def take_max_for_grid_search(df):
+    # Take max of oracle calls time for grid search
+    grid_mask = df['phase'] == 'grid_frac'
+    grid_time_series = df[grid_mask]['grid_oracle_times'].apply(
+        lambda x: np.array(ast.literal_eval(x)).max())
+    df.loc[grid_mask, 'time'] = grid_time_series
+    return df
+
+def prepare_data(df):
+    df = df.reset_index(drop=True)
+    df['dataset_name']= df['dataset'].str.replace('_aif360','').str.replace('_sigmod','')
+    df = add_sigmod_metric(df)
+    df['model_code'] = df['model_name']
+    expgrad_mask = df['method'] == 'hybrids'
+    hybrid = df[expgrad_mask].copy()
+    non_hybrid = df[~expgrad_mask]
+    hybrid = calculate_movign_param(None, hybrid)
+    hybrid = take_max_for_grid_search(hybrid)
+    return pd.concat([hybrid, non_hybrid])
+
+def add_missing_columns(df):
+    if 'train_test_seed' not in df.columns:
+        df['train_test_seed'] = 0
+    return df
 
 def select_set_expgrad_time(df: pd.DataFrame) -> pd.DataFrame:
     sub_mask = df['model_name'].str.contains('sub')
@@ -50,11 +113,7 @@ def filter_results(dirs_df, conf: dict = {}):
     if dirs_df.empty:
         return dirs_df
     df = pd.concat(dirs_df['df'].values)
-    for split in ['train', 'test']:
-        df[split + '_di'] = pd.concat([df[split + '_di'], 1 / df[split + '_di']], axis=1).min(axis=1)
-        df[split + '_accuracy'] = 1 - df[split + '_error']
-        df[split + '_TPRB'] = 1 - df[split + '_TPRB']
-        df[split + '_TNRB'] = 1 - df[split + '_TNRB']
+    df = add_sigmod_metric(df)
     return df.reset_index(drop=True)
 
 
@@ -70,20 +129,20 @@ def read_experiment_configuration(path):
 
 def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
     base_dir = os.path.join(dataset_path, dataset_name)
-    dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
+    path_list = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
     if read_files:
-        dirs = pd.Series([x for x in os.scandir(base_dir) if x.is_file()])
+        path_list = pd.Series([x for x in os.scandir(base_dir) if x.is_file()])
 
     config_list = []
-    for turn_dir in dirs:
+    for turn_dir in path_list:
         config = read_experiment_configuration(turn_dir.name)
         config['dataset_name'] = dataset_name
         if read_files:
             df = pd.read_csv(turn_dir)
+            df = add_missing_columns(df)
+            df = calculate_movign_param(turn_dir.path, df)
         else:
             df = load_results_single_directory(turn_dir.path, prefix=prefix)
-
-        df = calculate_movign_param(turn_dir.path, df)
 
         if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
             # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
@@ -110,6 +169,7 @@ def load_results_single_directory(base_dir, prefix='last'):
         full_path = os.path.join(base_dir, turn_file)
         df_list.append(pd.read_csv(full_path))
     all_df = pd.concat(df_list)
+    all_df = add_missing_columns(all_df)
     all_df = calculate_movign_param(base_dir, all_df)
 
     if 'rls(False)' in base_dir:
@@ -119,37 +179,13 @@ def load_results_single_directory(base_dir, prefix='last'):
     return all_df
 
 
-def calculate_movign_param(path, df: pd.DataFrame):
-    cols_to_check = suffix_attr_map.values()
-    if np.intersect1d(list(cols_to_check), df.columns).shape[0] < len(cols_to_check):
-        df['frac'] = 1
-        df['model_code'] = df['model_name']
-        return df
-    suffix = ''
-    for key, name in suffix_attr_map.items():
-        if f'_{key}[' in path:
-            suffix += f'{key}'
-
-    if suffix == '':
-        for key, name in suffix_attr_map.items():
-            if df[name].nunique() > 1:
-                suffix = f'{key}'
-                break
-    df['moving_param'] = suffix
-    df['model_code'] = df['model_name'] + '_' + df['moving_param']
-
-    for key, col in suffix_attr_map.items():
-        mask = df['moving_param'] == key
-        df.loc[mask, 'frac'] = df.loc[mask, col]
-    fix_expgrad_times(df)
-    return df
-
 
 
 def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
     expgrad_phase_mask = df['phase'] == "expgrad_fracs"
     expgrad_df = df[expgrad_phase_mask]
-    expgrad_df = expgrad_df.groupby(index_cols + ['frac']).apply(select_set_expgrad_time)
+    to_group_cols = np.intersect1d(index_cols + ['frac'], expgrad_df.columns).tolist()
+    expgrad_df = expgrad_df.groupby(to_group_cols).apply(select_set_expgrad_time)
     df[expgrad_phase_mask] = expgrad_df
 
 def aggregate_phase_time(df):
@@ -245,3 +281,7 @@ def get_combined_groupby(x, alpha=0.5):
         comb_df[col] = combo_res[col]
     comb_df['alpha'] = alpha
     return comb_df
+
+
+index_cols = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'base_model_code', 'constraint_code',
+              'iterations', 'dataset']

@@ -27,9 +27,6 @@ eps = 0.01  # , 0.001] # 0.05 old value
 eps_values = [.005, 0.01, 0.02, 0.05, 0.10, 0.2]
 # eps_values = [0.0001, 0.001, 0.01, 0.05]
 
-index_cols = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'base_model_code', 'constraint_code',
-              'iterations', 'dataset']
-
 experiment_configurations = [
     {'experiment_id': 's_h_1.0.TEST',
      'dataset_names': ['adult_sigmod', 'german', 'compas', ],
