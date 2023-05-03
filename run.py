@@ -139,7 +139,6 @@ class ExpreimentRun:
         # arg_parser.add_argument("--test_ratio", type=float, default=0.3)
 
         # For hybrid methods
-        arg_parser.add_argument("--sample_seeds", help='seed for expgrad hybrid sampling')
         arg_parser.add_argument("--exp_fractions")
         arg_parser.add_argument("--grid_fractions")
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None)
@@ -167,13 +166,14 @@ class ExpreimentRun:
         experiment_str = args.method
         for key, value in args.__dict__.items():
             if key in ['save', 'method', 'dataset', 'eps', 'exp_fractions', 'grid_fractions',
-                       'sample_seeds', 'redo_tuning', 'redo_exp'] or value is None:
+                       'redo_tuning', 'redo_exp'] or value is None:
                 continue
             experiment_str += f'_{get_initials(key)}({value})'
 
         if args.states is not None:
             prm['states'] = [x for x in args.states.split(',')]
-        for key, t_type in zip(['exp_fractions', 'grid_fractions', 'eps', 'sample_seeds', 'train_test_seeds', 'random_seeds'],
+        for key, t_type in zip(['exp_fractions', 'grid_fractions', 'eps',
+                                'train_test_seeds', 'random_seeds'],
                                [float] * 3 + [int] * 3):
             if hasattr(args, key) and getattr(args, key) is not None:
                 prm[key] = [t_type(x) for x in getattr(args, key).split(",")]
@@ -225,10 +225,10 @@ class ExpreimentRun:
         self.data_dict['train_test_fold'] = train_test_fold
         if 'hybrids' == self.prm['method']:
             print(
-                f"\nRunning Hybrids with sample variations {self.prm['sample_seeds']} and fractions {self.prm['exp_fractions']}, "
+                f"\nRunning Hybrids with random_seed {self.prm['random_seed']} and fractions {self.prm['exp_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
-            for exp_frac, sampleseed in itertools.product(self.prm['exp_fractions'], self.prm['sample_seeds']):
-                turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'], sample_seeds=[sampleseed],
+            for exp_frac in itertools.product(self.prm['exp_fractions']):
+                turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'],
                                                 exp_fractions=[exp_frac], grid_fractions=self.prm['grid_fractions'],
                                                 exp_subset=self.prm['exp_subset'],
                                                 exp_grid_ratio=self.prm['exp_grid_ratio'],
@@ -288,8 +288,8 @@ class ExpreimentRun:
                 self.data_dict[t_key] = 'empty'
 
     def run_hybrids(self, train_data: list, test_data: list, eps,
-                    sample_seeds, exp_fractions, grid_fractions, base_model_code='lr',
-                    exp_subset=True, exp_grid_ratio=None, run_linprog_step=True, random_seed=0,
+                    random_seed, exp_fractions, grid_fractions, base_model_code='lr',
+                    exp_subset=True, exp_grid_ratio=None, run_linprog_step=True,
                     constraint_code='dp', add_unconstrained=False):
         simplefilter(action='ignore', category=FutureWarning)
         X_train_all, y_train_all, A_train_all = train_data
@@ -308,15 +308,14 @@ class ExpreimentRun:
             grid_fractions = [exp_grid_ratio]
 
         results = []
-        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions, sample_seeds))
+        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
         # Iterations on difference fractions
-        for i, (turn_eps, exp_f, grid_f, sample_seed) in tqdm(list(enumerate(to_iter))):
+        for i, (turn_eps, exp_f, grid_f) in tqdm(list(enumerate(to_iter))):
             print('')
             gc.collect()
             self.turn_results = []
             self.data_dict['eps'] = turn_eps
             self.data_dict['exp_frac'] = exp_f
-            self.data_dict['sample_seed'] = sample_seed
             if type(grid_f) == str:
                 if grid_f == 'sqrt':
                     grid_f = np.sqrt(exp_f)
@@ -325,11 +324,11 @@ class ExpreimentRun:
             # self.data_dict['grid_size'] = int(n_data * grid_f)
             constraint = get_constraint(constraint_code=constraint_code, eps=turn_eps)
 
-            print(f"Processing: fraction {exp_f: <5}, sample {sample_seed: ^10} GridSearch fraction={grid_f:0<5}"
+            print(f"Processing: fraction {exp_f: <5}, sample {random_seed: ^10} GridSearch fraction={grid_f:0<5}"
                   f"turn_eps: {turn_eps: ^3}")
 
             base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=exp_f,
-                                                         random_seed=random_seed)
+                                                         random_state=random_seed)
             self.data_dict['model_name'] = 'unconstrained'
             unconstrained_model = deepcopy(base_model)
             metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
@@ -338,16 +337,16 @@ class ExpreimentRun:
             self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
 
             # GridSearch data fraction
-            grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=sample_seed + 60, replace=False)
+            grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
             grid_sample = grid_sample.reset_index(drop=True)
             grid_params = dict(X=grid_sample.iloc[:, :-2],
                                y=grid_sample.iloc[:, -2],
                                sensitive_features=grid_sample.iloc[:, -1])
 
             if exp_subset:
-                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=sample_seed + 20, replace=False)
+                exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=random_seed + 20, replace=False)
             else:
-                exp_sample = train_all_X_y_A.sample(frac=exp_f, random_state=sample_seed + 20, replace=False)
+                exp_sample = train_all_X_y_A.sample(frac=exp_f, random_state=random_seed + 20, replace=False)
             exp_sample = exp_sample.reset_index(drop=True)
             exp_params = dict(X=exp_sample.iloc[:, :-2],
                               y=exp_sample.iloc[:, -2],
@@ -546,7 +545,7 @@ class ExpreimentRun:
         self.turn_results = []
         eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
                              'test': [X_test_all, y_test_all, A_test_all]}
-        base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+        base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_state=random_seed)
         train_data = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
         metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(base_model, train_data,
                                                                              eval_dataset_dict)
@@ -569,7 +568,7 @@ class ExpreimentRun:
             print('')
             constraint = get_constraint(constraint_code=self.prm['constraint_code'], eps=turn_eps)
             self.data_dict['eps'] = turn_eps
-            base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_seed=random_seed)
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code, random_state=random_seed)
             expgrad_X_logistic = ExponentiatedGradientPmf(base_model,
                                                           constraints=deepcopy(constraint),
                                                           eps=turn_eps, nu=1e-6,
@@ -599,7 +598,7 @@ class ExpreimentRun:
             self.turn_results.append(turn_dict)
 
     @staticmethod
-    def get_metrics(dataset_dict: dict, predict_method, metrics_methods=default_metrics_dict, return_times=False):
+    def get_metrics(dataset_dict: dict, predict_method, metrics_dict=default_metrics_dict, return_times=False):
         metrics_res = {}
         time_list = []
         time_dict = {}
@@ -621,7 +620,7 @@ class ExpreimentRun:
             b = datetime.now()
             time_dict.update(metric=f'{phase}_prediction', time=(b - a).total_seconds())
             time_list.append(deepcopy(time_dict))
-            for name, eval_method in metrics_methods.items():
+            for name, eval_method in metrics_dict.items():
                 turn_name = f'{phase}_{name}'
                 params = inspect.signature(eval_method).parameters.keys()
                 a = datetime.now()
@@ -667,16 +666,16 @@ class ExpreimentRun:
         time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation', 'metrics_time': metrics_time}
         return metrics_res, time_fit_dict, time_eval_dict
 
-    def load_base_model_best_param(self, base_model_code=None, random_seed=None, fraction=1):
+    def load_base_model_best_param(self, base_model_code=None, random_state=None, fraction=1):
         if base_model_code is None:
             base_model_code = self.data_dict['base_model_code']
             if base_model_code is None:
                 raise ValueError(f'base_model_code is None, this is not allowed')
-        if random_seed is None:
-            random_seed = self.data_dict['random_seed']
+        if random_state is None:
+            random_state = self.data_dict['random_seed']
         best_params = self.load_best_params(base_model_code, fraction=fraction,
-                                            random_seed=random_seed)
-        model = models.get_base_model(base_model_code=base_model_code, random_seed=random_seed)
+                                            random_seed=random_state)
+        model = models.get_base_model(base_model_code=base_model_code, random_seed=random_state)
         model.set_params(**best_params)
         return model
 
