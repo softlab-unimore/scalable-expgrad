@@ -21,10 +21,11 @@ def get_model_parameter_grid(base_model_code=None):
         # Unmitigated LogRes
         return {'solver': [  # 'newton-cg',
             'lbfgs',
-            'liblinear'
+            'liblinear',
+            'saga'
         ],
-            'penalty': ['l2'],
-            'C': [0.01, 0.005, 0.001],
+            'penalty': ['l1', 'l2'],
+            'C': [0.01, 0.005, 0.001, 0.1, 1, 10, 100, 1000],
             # [10, 1.0, 0.1, 0.05, 0.01],
             # max-iter': 100,
         }
