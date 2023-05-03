@@ -38,7 +38,7 @@ def to_arg(list_p, dict_p, original_argv):
 def execute_experiment(list_p, dict_p, original_argv):
     orig_argv = sys.argv
     sys.argv = to_arg(list_p, dict_p, original_argv)
-    exp_run = ExpreimentRun()
+    exp_run = ExperimentRun()
     exp_run.run()
     sys.argv = orig_argv
 
@@ -106,7 +106,7 @@ def launch_experiment_by_id(experiment_id:str):
 
 
 
-class ExpreimentRun:
+class ExperimentRun:
 
     def __init__(self):
         host_name = socket.gethostname()
@@ -225,17 +225,16 @@ class ExpreimentRun:
         self.data_dict['train_test_fold'] = train_test_fold
         if 'hybrids' == self.prm['method']:
             print(
-                f"\nRunning Hybrids with random_seed {self.prm['random_seed']} and fractions {self.prm['exp_fractions']}, "
+                f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
-            for exp_frac in itertools.product(self.prm['exp_fractions']):
-                turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'],
-                                                exp_fractions=[exp_frac], grid_fractions=self.prm['grid_fractions'],
-                                                exp_subset=self.prm['exp_subset'],
-                                                exp_grid_ratio=self.prm['exp_grid_ratio'],
-                                                base_model_code=self.prm['base_model_code'],
-                                                run_linprog_step=self.prm['run_linprog_step'],
-                                                random_seed=random_seed,
-                                                constraint_code=self.prm['constraint_code'])
+            turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'],
+                                            exp_fractions=self.prm['exp_fractions'], grid_fractions=self.prm['grid_fractions'],
+                                            exp_subset=self.prm['exp_subset'],
+                                            exp_grid_ratio=self.prm['exp_grid_ratio'],
+                                            base_model_code=self.prm['base_model_code'],
+                                            run_linprog_step=self.prm['run_linprog_step'],
+                                            random_seed=random_seed,
+                                            constraint_code=self.prm['constraint_code'])
         elif 'unmitigated' == self.prm['method']:
             turn_results = self.run_unmitigated(*datasets_divided,
                                                 random_seed=random_seed,
@@ -660,7 +659,7 @@ class ExpreimentRun:
 
         # Training violation & error of hybrid 4
         a = datetime.now()
-        metrics_res, metrics_time = ExpreimentRun.get_metrics(evaluate_dataset_dict, model.predict,
+        metrics_res, metrics_time = ExperimentRun.get_metrics(evaluate_dataset_dict, model.predict,
                                                               return_times=True)
         b = datetime.now()
         time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation', 'metrics_time': metrics_time}
@@ -719,6 +718,6 @@ class ExpreimentRun:
 
 
 if __name__ == "__main__":
-    exp_run = ExpreimentRun()
+    exp_run = ExperimentRun()
     exp_run.run()
 

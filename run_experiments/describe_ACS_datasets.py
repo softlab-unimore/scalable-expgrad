@@ -4,10 +4,10 @@ import pandas as pd
 
 import folktables
 from utils_prepare_data import load_transform_ACS
-from run import ExpreimentRun
+from run import ExperimentRun
 
 if __name__ == '__main__':
-    er = ExpreimentRun()
+    er = ExperimentRun()
     descriptions_dir = os.path.join('..', er.base_result_dir, 'ACSDataset_descriptions')
     os.makedirs(descriptions_dir, exist_ok=True)
     dict_list = []
@@ -17,8 +17,7 @@ if __name__ == '__main__':
                         'ACSMobility', 'ACSPublicCoverage',
                         'ACSTravelTime', 'ACSIncome',
                         ]:
-        loader_method = getattr(folktables, dataset_str)
-        X, y, A, acs_data = load_transform_ACS(loader_method=loader_method, return_acs_data=True)
+        X, y, A, acs_data = load_transform_ACS(dataset_str, return_acs_data=True)
         # acs_data.iloc[:1000].to_csv(f'results/fairlearn-2/ACSDataset_descriptions/ACSPublicCoverage_h1000.csv')
         # acs_data.iloc[:1000].loc[:, ['HISP', 'RAC1P', 'PUBCOV']].to_csv(f'results/fairlearn-2/ACSDataset_descriptions/ACSPublicCoverage_h1000_race.csv')
         mem_usage = X.memory_usage().sum() / (2 ** (10 * 3))
@@ -34,4 +33,6 @@ if __name__ == '__main__':
         desc = X.describe().join([y.describe(), A.describe()])
         desc.to_csv(os.path.join(descriptions_dir, dataset_str + 'describe.csv'))
         dict_list.append(t_dict.copy())
+        er.dataset_str = dataset_str
+        best_params = er.load_best_params(base_model_code='lr', fraction=1)
     pd.DataFrame(dict_list).to_csv(os.path.join(descriptions_dir, 'all_df_descriptions_summary.csv'))
