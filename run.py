@@ -143,7 +143,7 @@ class ExpreimentRun:
         arg_parser.add_argument("--exp_fractions")
         arg_parser.add_argument("--grid_fractions")
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None)
-        arg_parser.add_argument("--exp_subset", action="store_true")
+        arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
 
         # Others
         arg_parser.add_argument("--save", default=True)
