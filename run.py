@@ -306,6 +306,15 @@ class ExperimentRun:
             assert grid_fractions is None
             grid_fractions = [exp_grid_ratio]
 
+        base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=1,
+                                                     random_state=random_seed)
+        self.data_dict['model_name'] = 'unconstrained'
+        unconstrained_model = deepcopy(base_model)
+        metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
+            unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
+        time_unconstrained_dict['phase'] = 'unconstrained'
+        self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
+
         results = []
         to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
         # Iterations on difference fractions
@@ -326,14 +335,7 @@ class ExperimentRun:
             print(f"Processing: fraction {exp_f: <5}, sample {random_seed: ^10} GridSearch fraction={grid_f:0<5}"
                   f"turn_eps: {turn_eps: ^3}")
 
-            base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=exp_f,
-                                                         random_state=random_seed)
-            self.data_dict['model_name'] = 'unconstrained'
-            unconstrained_model = deepcopy(base_model)
-            metrics_res, time_unconstrained_dict, time_eval_dict = self.fit_evaluate_model(
-                unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
-            time_unconstrained_dict['phase'] = 'unconstrained'
-            self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
+
 
             # GridSearch data fraction
             grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
@@ -351,6 +353,8 @@ class ExperimentRun:
                               y=exp_sample.iloc[:, -2],
                               sensitive_features=exp_sample.iloc[:, -1])
             # Unconstrained on sample
+            base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=1,
+                                                         random_state=random_seed)
             self.data_dict['model_name'] = 'unconstrained_frac'
             unconstrained_model_frac = deepcopy(base_model)
             metrics_res, time_uncons_frac_dict, time_eval_dict = self.fit_evaluate_model(
