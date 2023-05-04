@@ -27,7 +27,7 @@ def get_model_parameter_grid(base_model_code=None):
             'penalty': ['l1', 'l2'],
             'C': [0.01, 0.005, 0.001, 0.1, 1, 10, 100, 1000],
             # [10, 1.0, 0.1, 0.05, 0.01],
-            # max-iter': 100,
+            'max_iter': [200],
         }
     elif base_model_code == 'gbm':
         return dict(n_estimators=[10, 100, 500],
