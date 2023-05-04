@@ -34,12 +34,10 @@ if __name__ == '__main__':
         #                                    suffix='ALL MODELS' + key[1])
 
         pl_util = PlotUtility(show=show, save=save, suffix=suffix)
-        original_list = [x.replace('exp', 'eps') for x in pl_util.to_plot_models]
-        restricted_list = [x.replace('exp', 'eps') for x in restricted_list]
         sigmod_list = pl_util.other_models + ['hybrid_7_exp',
                                               'expgrad_fracs_exp',
                                               'sub_hybrid_6_exp_gf_1',
-                                              'unconstrained_frac_exp',
+                                              'unconstrained_exp',
                                               #'unconstrained_exp',
                                               ]
         model_set_list = [(sigmod_list, 'all'),
