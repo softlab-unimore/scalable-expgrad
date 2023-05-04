@@ -7,6 +7,9 @@ import os, re
 import matplotlib.pyplot as plt
 import seaborn as sns;
 import pandas as pd
+from matplotlib.markers import MarkerStyle
+from matplotlib.transforms import Affine2D
+
 from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
     aggregate_phase_time, load_results, filter_results, index_cols
 import matplotlib as mpl
@@ -158,7 +161,7 @@ class PlotUtility():
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
     def __init__(self, show=True, suffix='', save=True):
-        self.markersize = 4
+        self.markersize = 8
         self.linewidth = 0.5
         self.show = show
         self.suffix = suffix
@@ -166,8 +169,7 @@ class PlotUtility():
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
 
-    def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', alphas=[0.05, 0.5, 0.95],
-             grid_fractions=[0.1, 0.2, 0.5], groupby_col='frac'):
+    def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', groupby_col='frac'):
         self.index_cols = np.intersect1d(index_cols,all_model_df.columns).tolist()
         plt.close('all')
         self.groupby_col = groupby_col
@@ -182,16 +184,17 @@ class PlotUtility():
         self.n_points = len(self.x_values)
         to_iter = time_aggregated_df[time_aggregated_df['model_code'].isin(self.to_plot_models)].groupby(['model_code'],
                                                                                                          dropna=False)
+        self.n_models = len(self.to_plot_models)
         for model_code, turn_df in to_iter:
             # label, color = map_df.loc[model_code, ['label', 'color']].values
             label = self.map_df.loc[model_code, 'label']
             # label = model_code
-            index = self.to_plot_models.index(model_code)
-            color = self.color_list[index % len(self.color_list)]
-            n_models = len(self.to_plot_models)
+            self.curr_index = self.to_plot_models.index(model_code)
+            color = self.color_list[self.curr_index % len(self.color_list)]
+
 
             if x_axis == 'frac':
-                x_offset = (((index / n_models) - 0.5) * 20 / 100) + 1
+                x_offset = (((self.curr_index / self.n_models) - 0.5) * 20 / 100) + 1
             else:
                 x_offset = 1
             self.add_plot(ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=x_offset)
@@ -230,12 +233,12 @@ class PlotUtility():
         else:
             xerr = None
             x_values = turn_data.columns
-        if label not in ['UNMITIGATED full']:
-            ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, color=color, label=label,
-                        fmt='--x',
-                        zorder=zorder,
-                        markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth / 2)
-
+        # if label not in ['UNMITIGATED full']:
+        t = Affine2D().rotate_deg(self.curr_index / self.n_models * 120) # rotation for markers
+        ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, color=color, label=label,
+                    fmt='--',
+                    zorder=zorder, marker=MarkerStyle('1', 'left', t),
+                    markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth / 2)
         if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static'] + ['ThresholdOptimizer']:
             if label in ['UNMITIGATED full']:
                 y_values = [y_values.mean()]
@@ -243,6 +246,7 @@ class PlotUtility():
                 y_values = [y_values[-1]]
             ax.axhline(y_values[-1], linestyle="-.", color=color, zorder=10,
                        linewidth=self.linewidth)  # y_values[-1] > min(y_values) and 'error' in y_axis and 'un' not in label
+
 
         # ax.fill_between(x_values, ci[1], ci[2], color=color, alpha=0.3)
         # if len(y_values) == 1:
