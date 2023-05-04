@@ -5,6 +5,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 
 def divide_non_0(a,b):
     res = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+    res[a==b] = 1
     return res.item() if res.shape == () else res
 
 def get_metric_function(metric_f):
