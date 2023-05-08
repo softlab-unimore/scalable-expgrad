@@ -111,15 +111,18 @@ class ZafarDI:
         np.random.seed(random_state)
         X, y, A, aif_dataset = datasets
 
-        """ Classify such that we optimize for accuracy while achieving perfect fairness """
+        """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
+        params = dict(apply_fairness_constraints = 0,  # flag for fairness constraint is set back to0 since we want to apply the accuracy constraint now
+        apply_accuracy_constraint = 1,  # now, we want to optimize fairness subject to accuracy constraints
+        sep_constraint = 0,
+        gamma = 0.5, # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
+        )
 
         self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,
-                               apply_fairness_constraints=1,  # optimize accuracy subject to fairness constraints
-                               apply_accuracy_constraint=0,
-                               sep_constraint=0,
                                sensitive_attrs_to_cov_thresh={aif_dataset.protected_attribute_names[0]: 0},
                                sensitive_attrs=aif_dataset.protected_attribute_names,
-                               gamma=None)
+                               **params
+                               )
         key = aif_dataset.__class__.__name__
         if key == ut_exp.sigmod_dataset_map['adult_sigmod']:
             pass
@@ -137,7 +140,7 @@ class ZafarDI:
         return self
 
     def predict(self, X):
-        return 1 - np.sign(np.dot(X, self.w))
+        return np.sign(np.dot(X, self.w))
 
 
 class Kearns(GeneralAifModel):
