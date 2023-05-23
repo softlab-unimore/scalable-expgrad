@@ -11,12 +11,27 @@ import pandas as pd
 from scipy.stats import sem, t
 from run import params_initials_map
 
+cols_to_aggregate = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'iterations']
+cols_to_index = ['dataset_name', 'method', 'model_code', 'base_model_code', 'constraint_code', 'eps', 'exp_frac',
+                 'grid_frac']
+
+time_columns = ['metrics_time', 'phase', 'time', 'grid_oracle_times']
+numerical_cols = ['time', 'train_error', 'train_accuracy', 'test_accuracy',
+                  'train_violation', 'train_di', 'train_TPRB', 'train_TNRB', 'train_f1',
+                  'train_precision', 'train_recall', 'test_error', 'test_violation',
+                  'test_di', 'test_TPRB', 'test_TNRB', 'test_f1', 'test_precision',
+                  'test_recall', 'total_train_size', 'total_test_size',
+                  'n_oracle_calls_', 'n_oracle_calls_dummy_returned_', ]
+non_numeric_cols = ['best_iter_', 'best_gap_', 'last_iter_',
+                    'oracle_execution_times_', 'metrics_time', 'grid_oracle_times',
+                    'model_code',
+                    'moving_param']
+
 suffix_attr_map = {
-    'exp': 'exp_frac',
     'eps': 'eps',
+    'exp': 'exp_frac',
     'gri': 'grid_frac',
 }
-
 
 
 def add_sigmod_metric(df):
@@ -53,8 +68,8 @@ def calculate_movign_param(path, df: pd.DataFrame):
         df.loc[mask, 'frac'] = df.loc[mask, col]
     # fix_expgrad_times(df)
     models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
-    mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac']==1)
-    df.loc[mask, 'model_code'] += '_gf_1'
+    mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac'] == 1)
+    df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
     return df
 
 
@@ -66,22 +81,30 @@ def take_max_for_grid_search(df):
     df.loc[grid_mask, 'time'] = grid_time_series
     return df
 
+
 def prepare_data(df):
     df = df.reset_index(drop=True)
-    df['dataset_name']= df['dataset'].str.replace('_aif360','').str.replace('_sigmod','')
+    if 'dataset' in df.columns:
+        df['dataset_name'] = df['dataset'].str.replace('_aif360', '').str.replace('_sigmod', '')
     df = add_sigmod_metric(df)
-    df['model_code'] = df['model_name']
+    if 'model_code' not in df.columns:
+        df['model_code'] = df['model_name']
+    if 'method' not in df.columns:
+        df['method'] = 'hybrids'
     expgrad_mask = df['method'] == 'hybrids'
     hybrid = df[expgrad_mask].copy()
     non_hybrid = df[~expgrad_mask]
     hybrid = calculate_movign_param(None, hybrid)
     hybrid = take_max_for_grid_search(hybrid)
+    hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
     return pd.concat([hybrid, non_hybrid])
+
 
 def add_missing_columns(df):
     if 'train_test_seed' not in df.columns:
         df['train_test_seed'] = 0
     return df
+
 
 def select_set_expgrad_time(df: pd.DataFrame) -> pd.DataFrame:
     sub_mask = df['model_name'].str.contains('sub')
@@ -126,7 +149,6 @@ def read_experiment_configuration(path):
     return config
 
 
-
 def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
     base_dir = os.path.join(dataset_path, dataset_name)
     path_list = pd.Series([x for x in os.scandir(base_dir) if x.is_dir() and x.name != 'tuned_models'])
@@ -146,7 +168,7 @@ def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
 
         if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
             # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
-            models_with_gridsearch  = df.query('phase == "grid_frac"')['model_code'].unique()
+            models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
             mask = df['model_code'].isin(models_with_gridsearch)
             df.loc[mask, 'model_code'] += '_gf_1'
         for key, value in config.items():
@@ -154,7 +176,7 @@ def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
                 df[key] = value
         config['df'] = df
         config_list.append(config)
-    return pd.DataFrame(config_list).fillna({'constraint_code': 'dp', 'train_test_split':'0'}).fillna('')
+    return pd.DataFrame(config_list).fillna({'constraint_code': 'dp', 'train_test_split': '0'}).fillna('')
 
 
 def load_results_single_directory(base_dir, prefix='last'):
@@ -179,17 +201,16 @@ def load_results_single_directory(base_dir, prefix='last'):
     return all_df
 
 
-
-
 def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
     expgrad_phase_mask = df['phase'] == "expgrad_fracs"
     expgrad_df = df[expgrad_phase_mask]
-    to_group_cols = np.intersect1d(index_cols + ['frac'], expgrad_df.columns).tolist()
+    to_group_cols = np.intersect1d(cols_to_aggregate + ['frac'], expgrad_df.columns).tolist()
     expgrad_df = expgrad_df.groupby(to_group_cols).apply(select_set_expgrad_time)
     df[expgrad_phase_mask] = expgrad_df
 
+
 def aggregate_phase_time(df):
-    results_df = df.groupby(df.columns.drop(['metrics_time', 'phase', 'time', 'grid_oracle_times']).tolist(),
+    results_df = df.groupby(df.columns.drop(time_columns).tolist(),
                             as_index=False, dropna=False).agg({'time': 'sum'})
     return results_df
 
@@ -282,6 +303,7 @@ def get_combined_groupby(x, alpha=0.5):
     comb_df['alpha'] = alpha
     return comb_df
 
+
 def load_results_experiment_id(experiment_code_list, dataset_results_path):
     df_list = []
     for experiment_code in experiment_code_list:
@@ -291,7 +313,3 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                 df_list.append(df)
     all_df = pd.concat(df_list)
     return prepare_data(all_df)
-
-
-index_cols = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'base_model_code', 'constraint_code',
-              'iterations', 'dataset']
