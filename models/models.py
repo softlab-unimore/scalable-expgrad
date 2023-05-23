@@ -43,8 +43,6 @@ def get_model_parameter_grid(base_model_code=None):
         assert False, f'available model codes are:{["lr", "gbm", "lgbm"]}'
 
 
-
-
 def get_base_model(base_model_code, random_seed=0):
     if base_model_code is None or base_model_code == 'lr':
         # Unmitigated LogRes
@@ -67,10 +65,9 @@ def finetune_model(base_model_code, X, y, random_seed=0):
     return clf
 
 
-
-
-def get_model(method_str, base_model, constrain_name, eps, random_state, datasets):
-    params = method_str, base_model, constrain_name, eps, random_state, datasets
+def get_model(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+    param_dict = dict(method_str=method_str, base_model=base_model, constrain_name=constrain_name, eps=eps,
+                      random_state=random_state, datasets=datasets)
     methods_name_dict = {'hybrids': 'hybrids',
                          'unmitigated': 'unmitigated',
                          'fairlearn': 'fairlearn',
@@ -79,8 +76,9 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
                          'AdversarialDebiasing': 'AdversarialDebiasing',
                          'Kearns': 'Kearns',
                          'Calmon': 'Calmon',
-                         'ZafarDI':'ZafarDI',
-                         'Hardt': 'Hardt'
+                         'ZafarDI': 'ZafarDI',
+                         'Hardt': 'Hardt',
+                         'fairlearn_full': 'fairlearn_full',
                          }
     if method_str == methods_name_dict['ThresholdOptimizer']:
         model = wrappers.ThresholdOptimizerWrapper(
@@ -98,18 +96,20 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
         sess = tf.Session()
         # Learn parameters with debias set to True
         model = AdversarialDebiasing(privileged_groups=privileged_groups,
-                                              unprivileged_groups=unprivileged_groups,
-                                              scope_name='debiased_classifier',
-                                              debias=True,
-                                              sess=sess)
+                                     unprivileged_groups=unprivileged_groups,
+                                     scope_name='debiased_classifier',
+                                     debias=True,
+                                     sess=sess)
     elif method_str == methods_name_dict['Kearns']:
-        model = wrappers.Kearns(*params)
+        model = wrappers.Kearns(**param_dict, **kwargs)
     elif method_str == methods_name_dict['Calmon']:
-        model = wrappers.CalmonWrapper(*params)
+        model = wrappers.CalmonWrapper(**param_dict, **kwargs)
     elif method_str == methods_name_dict['ZafarDI']:
-        model = wrappers.ZafarDI(*params)
+        model = wrappers.ZafarDI(**param_dict, **kwargs)
     elif method_str == methods_name_dict['Hardt']:
-        model = wrappers.Hardt(*params)
+        model = wrappers.Hardt(**param_dict, **kwargs)
+    elif method_str == methods_name_dict['fairlearn_full']:
+        model = wrappers.ExponentiatedGradientPmf(**param_dict, **kwargs)
     else:
         raise ValueError(
             f'the method specified ({method_str}) is not allowed. Valid options are {methods_name_dict.values()}')

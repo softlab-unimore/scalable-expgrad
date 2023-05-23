@@ -144,6 +144,9 @@ class ExperimentRun:
         arg_parser.add_argument("--states")
         arg_parser.add_argument("--base_model_code", default=None)
         arg_parser.add_argument("--experiment_id", default=None)
+        arg_parser.add_argument("--other_params", default={}, type=json.loads,
+                                help='dict with keys as name of params to add and list of values to'
+                                     ' be iterated combining each value with the other combination of params ')
 
         args = arg_parser.parse_args()
         params_to_initials_map = {get_initials(key): key for key in args.__dict__.keys()}
@@ -207,12 +210,18 @@ class ExperimentRun:
                 for train_test_fold, datasets_divided in tqdm(enumerate(
                         utils_prepare_data.split_dataset_generator(self.dataset_str, datasets, train_test_seed))):
                     print('')
-                    self.run_model(datasets_divided=datasets_divided, train_test_fold=train_test_fold,random_seed=random_seed)
+                    self.data_dict['train_test_fold'] = train_test_fold
+                    params_to_iterate = {'eps': self.prm['eps']}
+                    params_to_iterate.update(**self.prm['other_params'])
+                    keys = params_to_iterate.keys()
+                    for values in itertools.product(*params_to_iterate.values()):
+                        turn_params_dict = dict(zip(keys, values))
+                        self.data_dict.update(**turn_params_dict)
+                        self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
+                                       other_params=turn_params_dict)
 
-
-    def run_model(self, datasets_divided, train_test_fold, random_seed):
+    def run_model(self, datasets_divided, random_seed, other_params):
         results_list = []
-        self.data_dict['train_test_fold'] = train_test_fold
         if 'hybrids' == self.prm['method']:
             print(
                 f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
@@ -229,11 +238,11 @@ class ExperimentRun:
             turn_results = self.run_unmitigated(*datasets_divided,
                                                 random_seed=random_seed,
                                                 base_model_code=self.prm['base_model_code'])
-        elif 'fairlearn' == self.prm['method']:
-            turn_results = self.run_fairlearn_full(*datasets_divided, eps=self.prm['eps'],
-                                                   run_linprog_step=self.prm['run_linprog_step'],
-                                                   random_seed=random_seed,
-                                                   base_model_code=self.prm['base_model_code'], )
+        # elif 'fairlearn' == self.prm['method']:
+        #     turn_results = self.run_fairlearn_full(*datasets_divided, eps=self.prm['eps'],
+        #                                            run_linprog_step=self.prm['run_linprog_step'],
+        #                                            random_seed=random_seed,
+        #                                            base_model_code=self.prm['base_model_code'], )
         else:
             turn_results = self.run_general_fairness_model(*datasets_divided,
                                                            random_seed=random_seed,
