@@ -56,17 +56,7 @@ def get_initials(s: str, split_char='_'):
     return "".join([x[0] for x in re.split(split_char, s)])
 
 
-def get_constraint(constraint_code='dp', eps=.05):
-    code_to_constraint = {'dp': DemographicParity,
-                          'eo': EqualizedOdds}
-    if constraint_code not in code_to_constraint.keys():
-        assert False, f'available constraint_code are: {list(code_to_constraint.keys())}'
-    constraint: UtilityParity = code_to_constraint[constraint_code]
-    return constraint(difference_bound=eps)
-
-
-
-def launch_experiment_by_id(experiment_id:str):
+def launch_experiment_by_id(experiment_id: str):
     exp_dict = None
     for x in experiment_configurations:
         if x['experiment_id'] == experiment_id:

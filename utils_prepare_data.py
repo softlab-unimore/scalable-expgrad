@@ -12,6 +12,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 import folktables
 import utils_experiment
+from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
 
 try:
@@ -285,6 +286,7 @@ def get_dataset(dataset_str, prm=None):
 
 
 def split_dataset_generator(dataset_str, datasets, train_test_seed):
+    # todo add parameter to control split mode
     if dataset_str in utils_experiment.sigmod_datasets + utils_experiment.sigmod_datasets_aif360:
         dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
         # if dataset_str in utils_experiment.sigmod_datasets:
@@ -312,3 +314,15 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed):
 
 def split_X_y_A(df: pd.DataFrame):
     return [df.iloc[:, :-2], df.iloc[:, -2], df.iloc[:, -1]]
+
+
+def get_constraint(constraint_code, eps):
+    code_to_constraint = {'dp': DemographicParity,
+                          'eo': EqualizedOdds,
+                          'demographic_parity': DemographicParity,
+                          'equalized_odds': EqualizedOdds,
+                          }
+    if constraint_code not in code_to_constraint.keys():
+        assert False, f'available constraint_code are: {list(code_to_constraint.keys())}'
+    constraint: UtilityParity = code_to_constraint[constraint_code]
+    return constraint(difference_bound=eps)
