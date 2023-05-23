@@ -1,11 +1,8 @@
-import gc
 import itertools
 import json
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Sequence
-from warnings import warn
 import joblib, re
 import numpy as np
 
@@ -66,7 +63,7 @@ def launch_experiment_by_id(experiment_id: str):
     exp_dict = None
     for x in experiment_configurations:
         if x['experiment_id'] == experiment_id:
-            exp_dict:dict = x
+            exp_dict: dict = x
             break
     if exp_dict is None:
         raise ValueError(f"{experiment_id} is not a valid experiment id")
@@ -89,17 +86,31 @@ def launch_experiment_by_id(experiment_id: str):
             os.remove(filepath)
     except:
         pass
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.INFO,
+                        format='%(levelname)s:%(name)s-%(asctime)s: %(message)s', datefmt='%d/%m/%y %H:%M:%S',
+                        handlers=[logging.FileHandler(os.path.join(filepath, 'run.log'), mode='w'),
+                                  logging.StreamHandler()])
+    logging.info(f'Parameters of experiment {experiment_id}\n' + json.dumps(exp_dict, indent='\n\t'))
+    a = datetime.now()
+    logging.info(f'Started logging.')
     to_iter = itertools.product(base_model_code_list, dataset_name_list, model_name_list)
     original_argv = sys.argv.copy()
     for base_model_code, dataset_name, model_name in to_iter:
-        args = [dataset_name, model_name,
-                ] + params
+        turn_a = datetime.now()
+        logging.infospl(f'Starting combintion:'
+                        f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
+        args = [dataset_name, model_name] + params
         kwargs = {}
         for key in exp_dict.keys():
             kwargs[f'--{key}'] = exp_dict[key]
         kwargs['--base_model_code'] = base_model_code
         execute_experiment(args, kwargs, original_argv)
-
+        turn_b = datetime.now()
+        logging.info(
+            f'Ended: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name} in:\n {turn_b - turn_a}')
+    b = datetime.now()
+    logging.info(f'Ended experiment. It took: {b - a}')
 
 
 class ExperimentRun:
@@ -158,48 +169,17 @@ class ExperimentRun:
 
         args = arg_parser.parse_args()
         params_to_initials_map = {get_initials(key): key for key in args.__dict__.keys()}
+        prm = args.__dict__.copy()
 
         if args.grid_fractions is not None:
             assert args.exp_grid_ratio is None, '--exp_grid_ratio must not be set if using --grid_fractions'
-        ### Parse parameters
-
-        prm = args.__dict__.copy()
-        experiment_str = args.method
-        for key, value in args.__dict__.items():
-            if key in ['save', 'method', 'dataset', 'eps', 'exp_fractions', 'grid_fractions',
-                       'redo_tuning', 'redo_exp'] or value is None:
-                continue
-            experiment_str += f'_{get_initials(key)}({value})'
-
-        if args.states is not None:
-            prm['states'] = [x for x in args.states.split(',')]
-        for key, t_type in zip(['exp_fractions', 'grid_fractions', 'eps',
-                                'train_test_seeds', 'random_seeds'],
-                               [float] * 3 + [int] * 3):
-            if hasattr(args, key) and getattr(args, key) is not None:
-                prm[key] = [t_type(x) for x in getattr(args, key).split(",")]
-            else:
-                warn(f'The key: {key} was not found in parameters. Is it correct?')
-                prm[key] = None
-            value = prm[key]
-            if key in ['exp_fractions', 'grid_fractions', 'eps']:
-                if type(value) is list and len(value) > 1:
-                    experiment_str += f'_{key[:3]}(VARY)'
-                elif type(value) is list and len(value) == 1:
-                    experiment_str += f'_{key[:3]}({value[0]})'
-            else:
-                experiment_str += f'_{key[:3]}{value}'
-        if 'exp_fractions' not in prm.keys() or prm['exp_fractions'] is None:
-            prm['exp_fractions'] = [1]
 
         print('Configuration:')
 
         for key, value in prm.items():
             print(f'{key}: {value}')
-        print('*'*100)
+        print('*' * 100)
 
-        experiment_str += '_LP_off' if prm['run_linprog_step'] is False else ''
-        self.experiment_str = experiment_str
         self.prm = prm
         ### Load dataset
         self.dataset_str = prm['dataset']
@@ -235,7 +215,8 @@ class ExperimentRun:
                 f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
             turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'],
-                                            exp_fractions=self.prm['exp_fractions'], grid_fractions=self.prm['grid_fractions'],
+                                            exp_fractions=self.prm['exp_fractions'],
+                                            grid_fractions=self.prm['grid_fractions'],
                                             exp_subset=self.prm['exp_subset'],
                                             exp_grid_ratio=self.prm['exp_grid_ratio'],
                                             base_model_code=self.prm['base_model_code'],
@@ -254,7 +235,7 @@ class ExperimentRun:
         else:
             turn_results = self.run_general_fairness_model(*datasets_divided,
                                                            random_seed=random_seed,
-                                                           base_model_code=self.prm['base_model_code'], )
+                                                           base_model_code=self.prm['base_model_code'], **other_params)
         results_list += turn_results
         results_df = pd.DataFrame(results_list)
         self.save_result(df=results_df)
@@ -282,7 +263,7 @@ class ExperimentRun:
             print(f'Saving results in: {path}')
 
     def set_base_data_dict(self):
-        keys = ['dataset', 'method', 'frac', 'model_name', 'eps', 'base_model_code',
+        keys = ['dataset', 'method', 'frac', 'model_name', 'base_model_code',
                 'constraint_code', 'train_test_fold', 'iterations', 'total_train_size', 'total_test_size', 'phase',
                 'time', ]
         self.data_dict = {key: None for key in keys}
@@ -298,21 +279,22 @@ class ExperimentRun:
                     exp_subset=True, exp_grid_ratio=None, run_linprog_step=True,
                     constraint_code='dp', add_unconstrained=False):
         simplefilter(action='ignore', category=FutureWarning)
-        X_train_all, y_train_all, A_train_all = train_data
-        X_test_all, y_test_all, A_test_all = test_data
+        X_train_all, y_train_all, S_train_all = train_data
+        X_test_all, y_test_all, S_test_all = test_data
         # Combine all training data into a single data frame
-        train_all_X_y_A = pd.concat([pd.DataFrame(x) for x in [X_train_all, y_train_all, A_train_all]], axis=1)
+        train_all_X_y_A = pd.concat([pd.DataFrame(x) for x in [X_train_all, y_train_all, S_train_all]], axis=1)
         self.data_dict.update(**{'random_seed': random_seed, 'base_model_code': base_model_code,
                                  'constraint_code': constraint_code,
                                  'total_train_size': X_train_all.shape[0], 'total_test_size': X_test_all.shape[0]})
         run_lp_suffix = '_LP_off' if run_linprog_step is False else ''
-        eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
-                             'test': [X_test_all, y_test_all, A_test_all]}
-        all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
+        eval_dataset_dict = {'train': [X_train_all, y_train_all, S_train_all],
+                             'test': [X_test_all, y_test_all, S_test_all]}
+        all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=S_train_all)
         if exp_grid_ratio is not None:
             assert grid_fractions is None
             grid_fractions = [exp_grid_ratio]
 
+        self.turn_results = []
         base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=1,
                                                      random_state=random_seed)
         self.data_dict['model_name'] = 'unconstrained'
@@ -322,13 +304,10 @@ class ExperimentRun:
         time_unconstrained_dict['phase'] = 'unconstrained'
         self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
 
-        results = []
         to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
         # Iterations on difference fractions
         for i, (turn_eps, exp_f, grid_f) in tqdm(list(enumerate(to_iter))):
             print('')
-            gc.collect()
-            self.turn_results = []
             self.data_dict['eps'] = turn_eps
             self.data_dict['exp_frac'] = exp_f
             if type(grid_f) == str:
@@ -341,8 +320,6 @@ class ExperimentRun:
 
             print(f"Processing: fraction {exp_f: <5}, sample {random_seed: ^10} GridSearch fraction={grid_f:0<5}"
                   f"turn_eps: {turn_eps: ^3}")
-
-
 
             # GridSearch data fraction
             grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
@@ -366,7 +343,6 @@ class ExperimentRun:
             unconstrained_model_frac = deepcopy(base_model)
             metrics_res, time_uncons_frac_dict, time_eval_dict = self.fit_evaluate_model(
                 unconstrained_model_frac, dict(X=exp_params['X'], y=exp_params['y']), eval_dataset_dict)
-            time_unconstrained_dict['phase'] = 'unconstrained'
             self.add_turn_results(metrics_res, [time_eval_dict, time_uncons_frac_dict])
 
             # Expgrad on sample
@@ -522,10 +498,8 @@ class ExperimentRun:
             #################################################################################################
             # End models
             #################################################################################################
-            results += self.turn_results
             print("Fraction processing complete.\n")
-
-        return results
+        return self.turn_results
 
     def run_general_fairness_model(self, train_data: list, test_data: list,
                                    **kwargs):
@@ -542,13 +516,13 @@ class ExperimentRun:
         self.add_turn_results(metrics_res, [time_train_dict, time_eval_dict])
         return self.turn_results
 
-    def init_fairness_model(self, base_model_code=None, random_seed=None, **kwargs):
+    def init_fairness_model(self, base_model_code=None, random_seed=None, fraction=1, **kwargs):
         constraint_code_to_name = {'dp': 'demographic_parity',
                                    'eo': 'equalized_odds'}
-        base_model = self.load_base_model_best_param(base_model_code, random_seed, **kwargs)
+        base_model = self.load_base_model_best_param(base_model_code, random_seed, fraction=fraction)
         constrain_name = constraint_code_to_name[self.prm['constraint_code']]
         return models.get_model(method_str=self.prm['method'], base_model=base_model, constrain_name=constrain_name,
-                                eps=self.prm['eps'], random_state=random_seed, datasets=self.datasets)
+                                random_state=random_seed, datasets=self.datasets, **kwargs)
 
     def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all,
                         base_model_code, random_seed=0):
@@ -677,6 +651,7 @@ class ExperimentRun:
         return metrics_res, time_fit_dict, time_eval_dict
 
     def load_base_model_best_param(self, base_model_code=None, random_state=None, fraction=1):
+        fraction = float(fraction)
         if base_model_code is None:
             base_model_code = self.data_dict['base_model_code']
             if base_model_code is None:
@@ -693,7 +668,10 @@ class ExperimentRun:
         if base_model_code is None:
             print(f'base_model_code is None. Not starting finetuning.')
             return
-
+        fractions = deepcopy(fractions)
+        if 1 not in fractions:  # always add fraction 1 because it is used in run_hybrids
+            fractions += [1]
+        fractions = [float(x) for x in fractions]
         for turn_frac in (pbar := tqdm(fractions)):
             pbar.set_description(f'fraction: {turn_frac: <5}')
             directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
@@ -722,7 +700,7 @@ class ExperimentRun:
 
     def load_best_params(self, base_model_code, fraction, random_seed=0):
         directory = os.path.join(self.base_result_dir, self.dataset_str, 'tuned_models')
-        os.makedirs(directory, exist_ok=True)
+        # os.makedirs(directory, exist_ok=True)
         path = os.path.join(directory, f'grid_search_{base_model_code}_rnd{random_seed}_frac{fraction}.pkl')
         grid_clf = joblib.load(path)
         return grid_clf.best_params_
@@ -731,4 +709,3 @@ class ExperimentRun:
 if __name__ == "__main__":
     exp_run = ExperimentRun()
     exp_run.run()
-
