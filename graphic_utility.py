@@ -1,4 +1,5 @@
 import ast
+import functools
 import itertools
 from copy import deepcopy
 
@@ -10,8 +11,9 @@ import pandas as pd
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
+import utils_results_data
 from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
-    aggregate_phase_time, load_results, filter_results, index_cols
+    aggregate_phase_time, load_results, filter_results, cols_to_aggregate
 import matplotlib as mpl
 
 sns.set()  # for plot styling
@@ -23,7 +25,6 @@ plt.rcParams.update({'font.size': 16, "figure.dpi": 400, 'savefig.dpi': 600,
                      })
 plt.rcParams['figure.constrained_layout.use'] = True
 sns.set_context(rc={"legend.fontsize": 7})
-base_plot_dir = os.path.join('results', 'plots')
 
 restricted_list = [
     'expgrad_fracs_exp',
@@ -90,12 +91,16 @@ def generate_map_df():
 
 
 class PlotUtility():
+    base_plot_dir = os.path.join('results', 'plots')
     map_df = generate_map_df()
     other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
     map_df = pd.concat([map_df,
                         pd.DataFrame.from_dict({x: x for x in other_models},
                                                orient='index', columns=['label'])
                         ])
+
+    def get_label(self, model_code):
+        return self.map_df.loc[model_code, 'label']
 
     to_plot_models = [
                          # 'expgrad_fracs_gri',
@@ -160,23 +165,44 @@ class PlotUtility():
 
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    def __init__(self, show=True, suffix='', save=True):
+    def __init__(self, show=True, path_suffix='', save=True):
         self.markersize = 8
         self.linewidth = 0.5
         self.show = show
-        self.suffix = suffix
+        self.suffix = path_suffix
         self.save_flag = save
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
 
-    def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', groupby_col='frac'):
-        self.index_cols = np.intersect1d(index_cols,all_model_df.columns).tolist()
+    def _start_plot(self):
         plt.close('all')
-        self.groupby_col = groupby_col
         self.fig = plt.figure()
-        ax = plt.subplot()
+        self.ax = plt.subplot()
 
-        def_alpha = .5
+    def _end_plot(self, x_axis, y_axis, title):
+        self.ax.set_ylabel(y_axis)
+        self.ax.set_title(f'{title} - {x_axis} v.s. {y_axis}')
+        if x_axis == 'time':
+            self.ax.set_xscale("log")
+            self.ax.set_xlabel(f'{x_axis} (log scale)')
+        else:
+            self.ax.set_xlabel(f'{x_axis}')
+            # ax.set_xscale("log")
+            # ax.set_xlabel(f'{x_axis} (log scale)')
+        if y_axis == 'time':
+            self.ax.set_yscale("log")
+            ylabel = self.ax.get_ylabel()
+            self.ax.set_ylabel(f'{ylabel} (log)')
+        self.ax.legend()
+        self.ax = self.ax
+        if self.show:
+            self.fig.show()
+
+    def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', groupby_col='frac'):
+        self._start_plot()
+        self.cols_to_aggregate = np.intersect1d(cols_to_aggregate, all_model_df.columns).tolist()
+        self.groupby_col = groupby_col
+
         all_model_df = all_model_df[all_model_df['model_code'].isin(self.to_plot_models)]
         time_aggregated_df = aggregate_phase_time(all_model_df)
         time_aggregated_df[self.groupby_col].fillna(1, inplace=True)
@@ -186,47 +212,26 @@ class PlotUtility():
                                                                                                          dropna=False)
         self.n_models = len(self.to_plot_models)
         for model_code, turn_df in to_iter:
-            # label, color = map_df.loc[model_code, ['label', 'color']].values
-            label = self.map_df.loc[model_code, 'label']
-            # label = model_code
             self.curr_index = self.to_plot_models.index(model_code)
-            color = self.color_list[self.curr_index % len(self.color_list)]
-
-
+            errorbar_params = self.get_line_params(self.curr_index, model_code)
+            errorbar_params.update(self.get_label_params(self.curr_index, model_code))
             if x_axis == 'frac':
                 x_offset = (((self.curr_index / self.n_models) - 0.5) * 20 / 100) + 1
             else:
                 x_offset = 1
-            self.add_plot(ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=x_offset)
+            self.add_plot(self.ax, turn_df, x_axis, y_axis, errorbar_params=errorbar_params, x_offset_relative=x_offset)
 
-        ax.set_ylabel(y_axis)
-        ax.set_title(f'{dataset_name} {y_axis} v.s. {x_axis}')
-        if x_axis == 'time':
-            ax.set_xscale("log")
-            ax.set_xlabel(f'{x_axis} (log scale)')
-        else:
-            ax.set_xlabel(f'{x_axis}')
-            # ax.set_xscale("log")
-            # ax.set_xlabel(f'{x_axis} (log scale)')
-        if y_axis == 'time':
-            ax.set_yscale("log")
-            ylabel = ax.get_ylabel()
-            ax.set_ylabel(f'{ylabel} (log)')
+        self._end_plot(x_axis, y_axis, title=f'{dataset_name} {x_axis} vs {y_axis}')
 
-        ax.legend()
-        self.ax = ax
-        if self.show:
-            self.fig.show()
-
-    def add_plot(self, ax, turn_df, x_axis, y_axis, color, label, x_offset_relative=1, ):
+    def add_plot(self, ax, turn_df, x_axis, y_axis, errorbar_params, x_offset_relative=1, ):
         agg_x_axis = self.groupby_col  # if x_axis == 'time' else x_axis
-        turn_data = turn_df.pivot(index=self.index_cols, columns=agg_x_axis, values=y_axis)
+        turn_data = turn_df.pivot(index=self.cols_to_aggregate, columns=agg_x_axis, values=y_axis)
         ci = mean_confidence_interval(turn_data)
         yerr = (ci[2] - ci[1]) / 2
         y_values = ci[0]
         zorder = 10 if len(y_values) == 1 else None
         if x_axis != 'frac':
-            time_data = turn_df.pivot(index=self.index_cols, columns=agg_x_axis, values=x_axis)
+            time_data = turn_df.pivot(index=self.cols_to_aggregate, columns=agg_x_axis, values=x_axis)
             ci_x = mean_confidence_interval(time_data)
             xerr = (ci_x[2] - ci_x[1]) / 2
             x_values = ci_x[0]
@@ -234,11 +239,10 @@ class PlotUtility():
             xerr = None
             x_values = turn_data.columns
         # if label not in ['UNMITIGATED full']:
-        t = Affine2D().rotate_deg(self.curr_index / self.n_models * 120) # rotation for markers
-        ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, color=color, label=label,
-                    fmt='--',
-                    zorder=zorder, marker=MarkerStyle('1', 'left', t),
-                    markersize=self.markersize, linewidth=self.linewidth, elinewidth=self.linewidth / 2)
+        t = self.get_marker(self.curr_index)
+        ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, zorder=zorder, marker=t,  **errorbar_params)
+        label = errorbar_params['label']
+        color = errorbar_params['color']
         if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static'] + ['ThresholdOptimizer']:
             if label in ['UNMITIGATED full']:
                 y_values = [y_values.mean()]
@@ -247,21 +251,47 @@ class PlotUtility():
             ax.axhline(y_values[-1], linestyle="-.", color=color, zorder=10,
                        linewidth=self.linewidth)  # y_values[-1] > min(y_values) and 'error' in y_axis and 'un' not in label
 
-
         # ax.fill_between(x_values, ci[1], ci[2], color=color, alpha=0.3)
         # if len(y_values) == 1:
         #     ax.plot(self.x_values, np.repeat(y_values, self.n_points), "-.", color=color, zorder=10, label=label)
         # else:
         #     ax.plot(x_values, y_values, color=color, label=label, marker="x", linestyle='--', markersize=self.markersize)
 
-    def save(self, base_dir, dataset_name, name, fig=None):
+    def get_color(self, index):
+        return self.color_list[index % len(self.color_list)]
+
+    def get_marker(self, index, total=None):
+        if total is None:
+            total = len(self.to_plot_models)
+        rot = Affine2D().rotate_deg(index / total * 120)  # rotation for markers
+        return MarkerStyle('1', 'left', rot)
+
+    def get_line_params(self, index, model_code, ):
+        return dict(color=self.get_color(index),
+                    fmt='--', linewidth=self.linewidth, elinewidth=self.linewidth / 2)
+
+    def get_marker_params(self, index, model_code, total, grouping_values=None):
+        marker_size = self.markersize
+        if grouping_values is not None:
+            n = len(grouping_values)
+            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(len(grouping_values)) / len(grouping_values))
+            # dimension between start-stop original marker size
+        return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
+
+    def get_label_params(self, index, model_code, total=None):
+        tmp_dict = self.get_line_params(index, model_code)
+        tmp_dict.update(label=self.get_label(model_code=model_code),
+                        marker=self.get_marker(index, total), fmt='--', markersize=self.markersize)
+        return tmp_dict
+
+    def save_figure(self, base_dir, dataset_name, name, fig=None):
         if self.save_flag:
             if fig is None:
                 fig = self.fig
-            self.save_figure(base_dir, dataset_name, name, fig, suffix=self.suffix)
+            self.save_figure_static(base_dir, dataset_name, name, fig, suffix=self.suffix)
 
     @staticmethod
-    def save_figure(base_dir, dataset_name, name, fig, suffix=''):
+    def save_figure_static(base_dir, dataset_name, name, fig, suffix=''):
         host_name, current_time_str = get_info()
         dir_path = os.path.join(base_dir, dataset_name, host_name + suffix)
         for t_dir in [dir_path]:
@@ -269,17 +299,17 @@ class PlotUtility():
                 # f'{current_time_str}_{name}',
                 f'last_{name}']:
                 t_full_path = os.path.join(t_dir, t_name)
-                os.makedirs(t_full_path, exist_ok=True)
+                os.makedirs(t_dir, exist_ok=True)
                 fig.savefig(t_full_path + '.png')
                 t_full_path_svg = os.path.join(t_dir + '_svg', t_name)
-                os.makedirs(t_full_path_svg, exist_ok=True)
+                os.makedirs(t_dir + '_svg', exist_ok=True)
                 fig.savefig(t_full_path_svg + '.svg', format='svg')
 
     def apply_plot_function_and_save(self, df, plot_name, plot_function, dataset_name):
         plt.close('all')
         fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig)
-        self.save(base_plot_dir, dataset_name=dataset_name, name=plot_name, fig=fig)
+        self.save_figure(self.base_plot_dir, dataset_name=dataset_name, name=plot_name, fig=fig)
         if self.show:
             plt.show()
 
@@ -320,35 +350,37 @@ def plot_metrics_time(df, ax, fig):
 
 
 def plot_routine_performance_violation(all_model_df, dataset_name, save=True, show=True, suffix='',
-                                       base_plot_dir=base_plot_dir, ):
+                                       base_plot_dir=PlotUtility.base_plot_dir, ):
     missed_conf = np.setdiff1d(all_model_df['model_code'].unique(),
                                list(PlotUtility.map_df.index.values)).tolist()
     assert len(missed_conf) == 0, missed_conf
 
-    pl_util = PlotUtility(show=show, save=save, suffix=suffix)
+    pl_util = PlotUtility(show=show, save=save, path_suffix=suffix)
 
     original_list = deepcopy(pl_util.to_plot_models)
 
     model_set_list = [(original_list, ''),
-                      (restricted_list, '_restricted'),
-                      (['unconstrained_frac_exp'], '_unconstrained'),
+                      (restricted_list, '_restricted_'),
+                      (['unconstrained_frac_exp'], '_unconstrained_'),
                       ]
     to_iter = list(itertools.product(['train', 'test'], ['error', 'violation', 'di'],
                                      [('time', all_model_df), ('frac', all_model_df)],
                                      model_set_list
                                      ))
     for phase, metric_name, (x_axis, turn_df), (to_plot_models, model_set_name) in to_iter:
+        y_axis = f'{phase}_{metric_name}'
         plt.close('all')
         if model_set_name != '' and x_axis == 'frac':
             continue
         pl_util.to_plot_models = to_plot_models
-        pl_util.plot(turn_df, dataset_name=dataset_name, y_axis=f'{phase}_{metric_name}', x_axis=x_axis)
-        pl_util.save(base_plot_dir, dataset_name=dataset_name,
-                     name=f'{phase}_{metric_name}_vs_{x_axis}{model_set_name}')
+        pl_util.plot(turn_df, dataset_name=dataset_name, y_axis=y_axis, x_axis=x_axis)
+        pl_util.save_figure(base_plot_dir, dataset_name=dataset_name,
+                            name=f'{model_set_name}{x_axis}_vs_{y_axis}')
 
 
-def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix='', base_plot_dir=base_plot_dir):
-    pl_util = PlotUtility(show=show, save=save, suffix=suffix)
+def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix='',
+                       base_plot_dir=PlotUtility.base_plot_dir):
+    pl_util = PlotUtility(show=show, save=save, path_suffix=suffix)
     df = all_model_df
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
     df.loc[:, 'model_code'] = PlotUtility.map_df.loc[df['model_code'], 'label'].values
@@ -366,14 +398,14 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
         if name == 'time_stacked_by_phase':
             old = plt.rcParams.get('savefig.dpi')
             plt.rcParams.update({'savefig.dpi': 400})
-        pl_util.apply_plot_function_and_save(df=df, plot_name=name, plot_function=plot_f)
+        pl_util.apply_plot_function_and_save(df=df, plot_name=name, plot_function=plot_f, dataset_name=dataset_name)
 
         if name == 'time_stacked_by_phase':
             plt.rcParams.update({'savefig.dpi': old})
 
-    pl_util.plot(all_model_df, x_axis='frac', y_axis='time')
+    pl_util.plot(all_model_df, x_axis='frac', y_axis='time', dataset_name=dataset_name)
     if save is True:
-        pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'frac_vs_time')
+        pl_util.save_figure(base_plot_dir, dataset_name=dataset_name, name=f'frac_vs_time')
 
     ### train_error_vs_eps
     # pl_util = PlotUtility(show=show)
@@ -387,8 +419,6 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
 
 
 if __name__ == '__main__':
-    save = False
-    show = True
     df_list = []
 
     datasets = [
@@ -413,7 +443,6 @@ if __name__ == '__main__':
     df.groupby(['dataset_name', 'base_model_code']).agg({'delta_error': 'describe'}).to_csv(
         os.path.join(curr_path, 'delta_error.csv'))
     del df
-
     for dataset_name in datasets:
         for base_model_code in ['lr', 'lgbm']:
             turn_results_all = all_dirs_df.query(f'dataset_name == "{dataset_name}" and '

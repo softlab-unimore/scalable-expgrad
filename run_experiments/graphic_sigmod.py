@@ -33,7 +33,7 @@ if __name__ == '__main__':
         # plot_routine_performance_violation(turn_df, dataset_name=key[0], save=save, show=show,
         #                                    suffix='ALL MODELS' + key[1])
 
-        pl_util = PlotUtility(show=show, save=save, suffix=suffix)
+        pl_util = PlotUtility(show=show, save=save, path_suffix=suffix)
         sigmod_list = pl_util.other_models + ['hybrid_7_exp',
                                               'expgrad_fracs_exp',
                                               'sub_hybrid_6_exp_gf_1',
@@ -61,5 +61,5 @@ if __name__ == '__main__':
                 continue
             pl_util.to_plot_models = to_plot_models
             pl_util.plot(turn_df, y_axis=y_axis, x_axis=x_axis, groupby_col='eps', dataset_name=dataset_name)
-            pl_util.save(base_plot_dir, dataset_name=dataset_name,
-                         name=f'{phase}_{metric_name}_vs_{x_axis}_{model_set_name}')
+            pl_util.save_figure(base_plot_dir, dataset_name=dataset_name,
+                                name=f'{phase}_{metric_name}_vs_{x_axis}_{model_set_name}')
