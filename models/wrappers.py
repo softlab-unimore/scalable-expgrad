@@ -2,6 +2,7 @@ import copy
 from random import seed
 
 import numpy as np
+import sklearn
 from aif360.algorithms.inprocessing import GerryFairClassifier
 from aif360.algorithms.postprocessing import EqOddsPostprocessing
 from aif360.algorithms.preprocessing.optim_preproc_helpers.distortion_functions \
@@ -14,6 +15,7 @@ import fair_classification.loss_funcs
 import fair_classification.utils
 import utils_experiment as ut_exp
 import utils_prepare_data
+from fairlearn.reductions import ExponentiatedGradient
 
 
 class GeneralAifModel():
@@ -112,13 +114,22 @@ class ZafarDI:
         X, y, A, aif_dataset = datasets
 
         """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
-        params = dict(apply_fairness_constraints = 0,  # flag for fairness constraint is set back to0 since we want to apply the accuracy constraint now
-        apply_accuracy_constraint = 1,  # now, we want to optimize fairness subject to accuracy constraints
-        sep_constraint = 0,
-        gamma = 0.5, # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
+        params = dict(
+            apply_fairness_constraints=0,
+            # flag for fairness constraint is set back to 0 since we want to apply the accuracy constraint now
+            apply_accuracy_constraint=1,  # now, we want to optimize fairness subject to accuracy constraints
+            # sep_constraint=1,
+            # # set the separate constraint flag to one, since in addition to accuracy constrains, we also want no misclassifications for certain points (details in demo README.md)
+            # gamma=1000.0,
+            sep_constraint=0,
+            gamma=0.001,
+            # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
         )
 
-        self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,
+        def log_loss_sklearn(w, X, y, return_arr=None):
+            return sklearn.metrics.log_loss(y_true=y, y_pred=np.sign(np.dot(X, w)), normalize=return_arr)
+
+        self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,  # log_loss_sklearn,
                                sensitive_attrs_to_cov_thresh={aif_dataset.protected_attribute_names[0]: 0},
                                sensitive_attrs=aif_dataset.protected_attribute_names,
                                **params
@@ -134,13 +145,14 @@ class ZafarDI:
             raise ValueError(f'{key} not found in available dataset configurations')
 
     def fit(self, X, y, sensitive_features):
-        self.w = fair_classification.utils.train_model(X, y,
+        self.w = fair_classification.utils.train_model(X.values, y * 2 - 1,
                                                        {self.fit_params['sensitive_attrs'][0]: sensitive_features},
                                                        **self.fit_params)
         return self
 
     def predict(self, X):
-        return np.sign(np.dot(X, self.w))
+        y_pred = (np.sign(np.dot(X.values, self.w))).astype(int)
+        return y_pred
 
 
 class Kearns(GeneralAifModel):
@@ -199,3 +211,18 @@ class ThresholdOptimizerWrapper(ThresholdOptimizer):
 
     def predict(self, X, sensitive_features):
         return super().predict(X, sensitive_features=sensitive_features, random_state=self.random_state)
+
+
+class ExponentiatedGradientPmf(ExponentiatedGradient):
+    def __init__(self, base_model, constrain_name, eps, random_state, datasets, run_linprog_step, eta0,
+                 method_str='fairlearn_full'):
+        self.method_str = method_str
+        constraint = utils_prepare_data.get_constraint(constraint_code=constrain_name, eps=eps)
+        super().__init__(base_model, constraints=copy.deepcopy(constraint), eps=eps, nu=1e-6,
+                         run_linprog_step=run_linprog_step, random_state=random_state, eta0=eta0)
+
+    def fit(self, X, y, sensitive_features, **kwargs):
+        super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
+
+    def predict(self, X, random_state=None):
+        return self._pmf_predict(X)[:, 1]
