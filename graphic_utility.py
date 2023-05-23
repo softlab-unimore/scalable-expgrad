@@ -313,6 +313,12 @@ class PlotUtility():
         if self.show:
             plt.show()
 
+    @staticmethod
+    def get_error(df):
+        ci = mean_confidence_interval(df)
+        err = (ci[2] - ci[1]) / 2
+        return pd.Series({'error': err})
+
 
 def time_stacked_by_phase(df, ax, fig: plt.figure):
     fig.set_figheight(8)
@@ -418,6 +424,57 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
     #     pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{y_axis}_vs_{x_axis}')
 
 
+def plot_all_df(all_df, model_list, save_dir, grouping_col, save,show):
+
+    filtered_df = utils_results_data.prepare_data(all_df)
+    filtered_df = filtered_df[filtered_df['model_code'].isin(model_list)]
+
+
+    time_aggregated_df = utils_results_data.aggregate_phase_time(filtered_df)
+    groupby_col = np.intersect1d(utils_results_data.cols_to_index, time_aggregated_df.columns).tolist()
+    mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False)[
+        utils_results_data.numerical_cols].agg(['mean', ('error', PlotUtility.get_error)]).reset_index()
+    pl_util = PlotUtility(show=show, save=save, path_suffix='')
+
+    result_path_name = 'all_df'
+    for x_axis, y_axis in [
+        ['time', 'test_error'],
+        ['time', 'test_violation'],
+        ['time', 'test_di', ],
+        ['test_violation', 'test_error'],
+        ['test_di', 'test_error'],
+    ]:
+        for base_model_code, base_model_df in mean_error_df.groupby('base_model_code'):
+            pl_util._start_plot()
+            params_dict = {}
+            for key, column in {'x': x_axis, 'y': y_axis}.items():
+                for (suffix, sub_col) in {'': 'mean', 'err': 'error'}.items():
+                    params_dict[key + suffix] = base_model_df.pivot(
+                        index=['dataset_name', 'model_code', 'base_model_code'],
+                        columns=grouping_col,
+                        values=(column, sub_col))
+            index_values = params_dict['x'].index.values
+            n_lines = params_dict['x'].shape[0]
+            for i in range(n_lines):
+                dataset_name, model_code, base_model_code = index_values[i]
+                turn_values_dict = {key: df.iloc[i] for key, df in params_dict.items()}
+                x, xerr, y, yerr = turn_values_dict.values()
+                line_params = pl_util.get_line_params(i, model_code=model_code)
+                markers_params = pl_util.get_marker_params(i, model_code=model_code, total=n_lines,
+                                                           grouping_values=x.index)
+                label_params = pl_util.get_label_params(index=i, model_code=model_code)
+                label_params['label'] += f' | {dataset_name}'
+                pl_util.ax.errorbar(**turn_values_dict, **line_params)
+                plt.scatter(x, y, **markers_params)
+                pl_util.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
+                [ plt.text(x, y, f' {v:.3g}',  fontsize = 10,  va = 'center') for x,y,v in zip(x,y,x.index)]
+            pl_util._end_plot(x_axis, y_axis, title=f'{base_model_code} - VARY {grouping_col}')
+            pl_util.save_figure(save_dir, dataset_name=result_path_name,
+                                name=f'all_{base_model_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}')
+
+
+save = True
+show = False
 if __name__ == '__main__':
     df_list = []
 
@@ -442,6 +499,12 @@ if __name__ == '__main__':
     os.makedirs(curr_path, exist_ok=True)
     df.groupby(['dataset_name', 'base_model_code']).agg({'delta_error': 'describe'}).to_csv(
         os.path.join(curr_path, 'delta_error.csv'))
+
+
+    # all datasets
+    selected_model = ['sub_hybrid_6_exp_gf_1']
+    plot_all_df(df, model_list=selected_model, save_dir=PlotUtility.base_plot_dir, grouping_col='exp_frac',
+                save=save,show=show)
     del df
     for dataset_name in datasets:
         for base_model_code in ['lr', 'lgbm']:
