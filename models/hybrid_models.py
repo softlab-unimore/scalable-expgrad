@@ -50,6 +50,9 @@ def _pmf_predict(X, predictors, weights):
 
 
 class ExponentiatedGradientPmf(ExponentiatedGradient):
+    def fit(self, X, y, sensitive_features, **kwargs):
+        super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
+
     def predict(self, X, random_state=None):
         return self._pmf_predict(X)[:, 1]
 
@@ -196,5 +199,3 @@ class Hybrid4(Hybrid1):
 
     def predict(self, X):
         return _pmf_predict(X, self.predictors, self.weights)[:, 1]
-
-
