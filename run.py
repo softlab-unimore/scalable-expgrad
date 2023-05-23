@@ -1,5 +1,7 @@
 import gc
 import itertools
+import json
+import logging
 from copy import deepcopy
 from functools import partial
 from typing import Sequence
@@ -18,20 +20,24 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from models import models
-from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 import utils_prepare_data
 import inspect
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
 from metrics import default_metrics_dict
 from utils_experiment import experiment_configurations
+from utils_prepare_data import get_constraint
 
 
 def to_arg(list_p, dict_p, original_argv):
     res_string = original_argv + list_p
     for key, value in dict_p.items():
         if isinstance(value, list) or isinstance(value, range):
-            value = ','.join([str(x) for x in value])
-        res_string += [f'{key}={value}']
+            value = [str(x) for x in value]
+            # value = ' '.join([str(x) for x in value])
+        else:
+            value = [value]
+        res_string += [key] + value
+        # res_string += [f'{key}={value}']
     return res_string
 
 
@@ -114,7 +120,7 @@ class ExperimentRun:
         arg_parser.add_argument("method")
 
         # For Fairlearn and Hybrids
-        arg_parser.add_argument("--eps")
+        arg_parser.add_argument("--eps", nargs='+', type=float)
         arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
 
         # For synthetic data
@@ -129,19 +135,21 @@ class ExperimentRun:
         # arg_parser.add_argument("--test_ratio", type=float, default=0.3)
 
         # For hybrid methods
-        arg_parser.add_argument("--exp_fractions")
-        arg_parser.add_argument("--grid_fractions")
-        arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None)
+        arg_parser.add_argument("--exp_fractions", nargs='+', type=float, default=[1])
+        arg_parser.add_argument("--grid_fractions", nargs='+', type=float)
+        arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None, nargs='+')
         arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
 
         # Others
         arg_parser.add_argument("--save", default=True)
-        arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for base learner. (aka random_state)')
-        arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default='0')
+        arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for base learner. (aka random_state)',
+                                nargs='+', type=int)
+        arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default='0', nargs='+',
+                                type=int)
         arg_parser.add_argument("--no_run_linprog_step", default=True, dest='run_linprog_step', action='store_false')
         arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
         arg_parser.add_argument("--redo_exp", action="store_true", default=False)
-        arg_parser.add_argument("--states")
+        arg_parser.add_argument("--states", nargs='+', type=str)
         arg_parser.add_argument("--base_model_code", default=None)
         arg_parser.add_argument("--experiment_id", default=None)
         arg_parser.add_argument("--other_params", default={}, type=json.loads,
