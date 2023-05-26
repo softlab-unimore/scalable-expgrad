@@ -213,7 +213,7 @@ class PlotUtility():
         self.n_models = len(self.to_plot_models)
         for model_code, turn_df in to_iter:
             self.curr_index = self.to_plot_models.index(model_code)
-            errorbar_params = self.get_line_params(self.curr_index, model_code)
+            errorbar_params = self.get_line_params(self.curr_index)
             errorbar_params.update(self.get_label_params(self.curr_index, model_code))
             if x_axis == 'frac':
                 x_offset = (((self.curr_index / self.n_models) - 0.5) * 20 / 100) + 1
@@ -239,8 +239,8 @@ class PlotUtility():
             xerr = None
             x_values = turn_data.columns
         # if label not in ['UNMITIGATED full']:
-        t = self.get_marker(self.curr_index)
-        ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, zorder=zorder, marker=t,  **errorbar_params)
+
+        ax.errorbar(x_values * x_offset_relative, y_values, xerr=xerr, yerr=yerr, zorder=zorder, **errorbar_params)
         label = errorbar_params['label']
         color = errorbar_params['color']
         if label in ['UNMITIGATED full', 'EXPGRAD=static GS=off LP=off', 'UNMITIGATED=static'] + ['ThresholdOptimizer']:
@@ -266,20 +266,20 @@ class PlotUtility():
         rot = Affine2D().rotate_deg(index / total * 120)  # rotation for markers
         return MarkerStyle('1', 'left', rot)
 
-    def get_line_params(self, index, model_code, ):
+    def get_line_params(self, index):
         return dict(color=self.get_color(index),
                     fmt='--', linewidth=self.linewidth, elinewidth=self.linewidth / 2)
 
-    def get_marker_params(self, index, model_code, total, grouping_values=None):
-        marker_size = self.markersize
+    def get_marker_params(self, index, total, grouping_values=None):
+        marker_size = self.markersize ** 2
         if grouping_values is not None:
             n = len(grouping_values)
-            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(len(grouping_values)) / len(grouping_values))
+            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(n) / n)
             # dimension between start-stop original marker size
         return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
 
     def get_label_params(self, index, model_code, total=None):
-        tmp_dict = self.get_line_params(index, model_code)
+        tmp_dict = self.get_line_params(index)
         tmp_dict.update(label=self.get_label(model_code=model_code),
                         marker=self.get_marker(index, total), fmt='--', markersize=self.markersize)
         return tmp_dict
@@ -297,7 +297,7 @@ class PlotUtility():
         for t_dir in [dir_path]:
             for t_name in [
                 # f'{current_time_str}_{name}',
-                f'last_{name}']:
+                f'{name}']:
                 t_full_path = os.path.join(t_dir, t_name)
                 os.makedirs(t_dir, exist_ok=True)
                 fig.savefig(t_full_path + '.png')
@@ -424,53 +424,100 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
     #     pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{y_axis}_vs_{x_axis}')
 
 
-def plot_all_df(all_df, model_list, save_dir, grouping_col, save,show):
+def select_rename_columns_to_plot(df, x_axis, y_axis):
+    for key, column in {'x': x_axis, 'y': y_axis}.items():
+        for (suffix, sub_col) in {'': 'mean', 'err': 'error'}.items():
+            df[f'{key}{suffix}'] = df[f'{column}_{sub_col}']
+    return df
 
+
+def plot_all_df(all_df, model_list, save_dir, grouping_col, save, show):
     filtered_df = utils_results_data.prepare_data(all_df)
     filtered_df = filtered_df[filtered_df['model_code'].isin(model_list)]
-
 
     time_aggregated_df = utils_results_data.aggregate_phase_time(filtered_df)
     groupby_col = np.intersect1d(utils_results_data.cols_to_index, time_aggregated_df.columns).tolist()
     mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False)[
-        utils_results_data.numerical_cols].agg(['mean', ('error', PlotUtility.get_error)]).reset_index()
+        utils_results_data.numerical_cols + [grouping_col]].agg(['mean', ('error', PlotUtility.get_error)]).reset_index()
+    mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
     pl_util = PlotUtility(show=show, save=save, path_suffix='')
-
     result_path_name = 'all_df'
-    for x_axis, y_axis in [
-        ['time', 'test_error'],
-        ['time', 'test_violation'],
-        ['time', 'test_di', ],
-        ['test_violation', 'test_error'],
-        ['test_di', 'test_error'],
-    ]:
-        for base_model_code, base_model_df in mean_error_df.groupby('base_model_code'):
+    axis_to_plot = [[grouping_col, 'time'],
+                    [grouping_col, 'test_error'],
+                    [grouping_col, 'test_violation']]
+    dataset_name_list = mean_error_df['dataset_name'].unique()
+
+    pl_util.show = False
+    for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code']):
+        base_model_code, constraint_code = keys
+        fig, axes_array = plt.subplots(nrows=len(axis_to_plot), ncols=len(dataset_name_list), sharex=True,
+                                       sharey='row', figsize=np.array([6.4 * 1.5, 4.8]) * 1.5)
+        pl_util.fig = fig
+        for row, (x_axis, y_axis) in enumerate(axis_to_plot):
+            df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
+            df_to_plot = df_to_plot.groupby(['dataset_name', 'base_model_code'])[
+                ['x', 'xerr', 'y', 'yerr', grouping_col, 'model_code']]
+            n_lines = len(df_to_plot)
+            for col, ((dataset_name, base_model_code), value) in enumerate(df_to_plot):
+                pl_util.ax = axes_array[row, col]
+                for i, (model_code, value) in enumerate(value.groupby('model_code')):
+                    value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
+                    x, xerr, y, yerr = value_dict.values()
+                    grouping_values = value[grouping_col]
+                    line_params = pl_util.get_line_params(i)
+                    markers_params = pl_util.get_marker_params(i, total=n_lines, grouping_values=None)
+                    label_params = pl_util.get_label_params(i, model_code=model_code)
+                    label_params['label'] += f' | {dataset_name}'
+                    # pl_util.ax.errorbar(**turn_values_dict, **line_params)
+                    pl_util.ax.errorbar(**value_dict, **line_params)
+                    pl_util.ax.scatter(x, y, **markers_params)
+                    pl_util.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
+                    pl_util._end_plot(x_axis, y_axis, f'{dataset_name}')
+                    pl_util.ax.set_title(f'{dataset_name}')
+                    pl_util.ax.get_legend().remove()
+
+        axes_array[1, 0].set_ylim(0, 0.4)
+        for ax in axes_array[1:].flat:
+            ax.set_title('')
+        for ax in axes_array.flat:
+            ax.label_outer()
+        pl_util.fig.suptitle(f'{base_model_code} - {constraint_code}')
+        # pl_util.fig.show()
+        pl_util.save_figure(save_dir, dataset_name=result_path_name,
+                            name=f'all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_subplots')
+
+    for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code']):
+        base_model_code, constraint_code = keys
+        for x_axis, y_axis in [
+            ['time', 'test_error'],
+            ['time', 'test_violation'],
+            ['time', 'test_di', ],
+            ['test_violation', 'test_error'],
+            ['test_di', 'test_error'],
+        ]:
             pl_util._start_plot()
-            params_dict = {}
-            for key, column in {'x': x_axis, 'y': y_axis}.items():
-                for (suffix, sub_col) in {'': 'mean', 'err': 'error'}.items():
-                    params_dict[key + suffix] = base_model_df.pivot(
-                        index=['dataset_name', 'model_code', 'base_model_code'],
-                        columns=grouping_col,
-                        values=(column, sub_col))
-            index_values = params_dict['x'].index.values
-            n_lines = params_dict['x'].shape[0]
-            for i in range(n_lines):
-                dataset_name, model_code, base_model_code = index_values[i]
-                turn_values_dict = {key: df.iloc[i] for key, df in params_dict.items()}
-                x, xerr, y, yerr = turn_values_dict.values()
-                line_params = pl_util.get_line_params(i, model_code=model_code)
-                markers_params = pl_util.get_marker_params(i, model_code=model_code, total=n_lines,
-                                                           grouping_values=x.index)
+            df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
+            df_to_plot = df_to_plot.groupby(['dataset_name', 'model_code', 'base_model_code'])[
+                ['x', 'xerr', 'y', 'yerr', grouping_col]]
+            n_lines = len(df_to_plot)
+            for i, (key, value) in enumerate(df_to_plot):
+                dataset_name, model_code, base_model_code = key
+                value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
+                x, xerr, y, yerr = value_dict.values()
+                grouping_values = value[grouping_col]
+                line_params = pl_util.get_line_params(i)
+                markers_params = pl_util.get_marker_params(i, total=n_lines, grouping_values=grouping_values)
                 label_params = pl_util.get_label_params(index=i, model_code=model_code)
                 label_params['label'] += f' | {dataset_name}'
-                pl_util.ax.errorbar(**turn_values_dict, **line_params)
-                plt.scatter(x, y, **markers_params)
+                pl_util.ax.errorbar(**value_dict, **line_params)
+                pl_util.ax.scatter(x, y, **markers_params)
                 pl_util.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
-                [ plt.text(x, y, f' {v:.3g}',  fontsize = 10,  va = 'center') for x,y,v in zip(x,y,x.index)]
+                to_annotate = list(zip(x, y, grouping_values))
+                for tx, ty, tv in [to_annotate[0], to_annotate[-1]]:
+                    plt.text(tx, ty, f' {tv:.3g}', fontsize=10, va='center')
             pl_util._end_plot(x_axis, y_axis, title=f'{base_model_code} - VARY {grouping_col}')
             pl_util.save_figure(save_dir, dataset_name=result_path_name,
-                                name=f'all_{base_model_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}')
+                                name=f'all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}')
 
 
 save = True
@@ -500,11 +547,10 @@ if __name__ == '__main__':
     df.groupby(['dataset_name', 'base_model_code']).agg({'delta_error': 'describe'}).to_csv(
         os.path.join(curr_path, 'delta_error.csv'))
 
-
     # all datasets
     selected_model = ['sub_hybrid_6_exp_gf_1']
     plot_all_df(df, model_list=selected_model, save_dir=PlotUtility.base_plot_dir, grouping_col='exp_frac',
-                save=save,show=show)
+                save=save, show=show)
     del df
     for dataset_name in datasets:
         for base_model_code in ['lr', 'lgbm']:
@@ -519,7 +565,7 @@ if __name__ == '__main__':
             ))
             other_results = filter_results(turn_results_all.query('model != "hybrids"'))
 
-            # all_model_df.query('frac > 0.04').pivot_table(index=['frac'], columns=['model_name', 'eps'],
+            # all_model_df.query('frac > 0.04').pivot_table(index=['frac'], columns=['model_name', grouping_col],
             #                          values=['train_violation', 'train_di', 'test_violation', 'test_di']).plot(
             #     kind='scatter')
 
