@@ -1,6 +1,8 @@
+import itertools
 import json
+import pandas as pd
 
-fractions = [0.001, 0.004, 0.016, 0.063, 0.251, 1]  # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
+
 
 ACS_dataset_names = [
     'ACSPublicCoverage',  # 1138289
@@ -25,13 +27,19 @@ sample_variation = range(2)
 
 fixed_sample_frac = 0.1
 
-eps = 0.01  # , 0.001] # 0.05 old value
-eps_values = [.005, 0.01, 0.02, 0.05, 0.10, 0.2]
-# eps_values = [0.0001, 0.001, 0.01, 0.05]
+eps_v0= 0.01  # , 0.001] # 0.05 old value
+eps_values_v0 = [.005, 0.01, 0.02, 0.05, 0.10, 0.2]
+
+base_eps_v1 = [0.005]
+eps_list_v1 = [0.001, .005, 0.01, 0.02, 0.05, 0.10]
+exp_fraction_list_v1 = [0.001, 0.004, 0.016, 0.063, 0.251, 1] # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
+eta_params_v1 = json.dumps({'eta0': [0.5, 1.0, 2.0], 'run_linprog_step': [False],
+                                 'max_iter': [20,50,100]})
+
 
 experiment_configurations = [
     {'experiment_id': 's_h_1.0.TEST',
-     'dataset_names': ['adult_sigmod', 'german', 'compas', ],
+     'dataset_names': sigmod_datasets,
      'model_names': ['hybrids'],
      'params': ['--redo_tuning'],
      'eps': [0.001, 0.01],
@@ -43,7 +51,7 @@ experiment_configurations = [
      'constraint_code': 'dp'},
 
     {'experiment_id': 's_o_1.0',
-     'dataset_names': ['german_aif360', 'compas_aif360', 'adult_sigmod_aif360'],
+     'dataset_names': sigmod_datasets_aif360,
      'model_names': ['Calmon', 'ZafarDI'],
      'random_seeds': 0,
      'train_test_seeds': [0, 1],
@@ -51,11 +59,10 @@ experiment_configurations = [
      },
 
     {'experiment_id': 's_h_1.0',
-     'dataset_names': ['compas', 'german', 'adult_sigmod'],
+     'dataset_names': sigmod_datasets,
      'model_names': ['hybrids'],
      'params': ['--redo_tuning'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
-
+     'eps': eps_list_v1,
      'exp_fractions': [1],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
@@ -64,7 +71,7 @@ experiment_configurations = [
      'constraint_code': 'dp'},
 
     {'experiment_id': 's_c_1.0',
-     'dataset_names': ['german_aif360', 'compas_aif360', 'adult_sigmod_aif360'],
+     'dataset_names': sigmod_datasets_aif360,
      'model_names': ['Calmon'],
      'random_seeds': range(3),
      'train_test_seeds': range(3),
@@ -72,7 +79,7 @@ experiment_configurations = [
      },
 
     {'experiment_id': 's_zDI_1.1',
-     'dataset_names': ['adult_sigmod_aif360', 'german_aif360', 'compas_aif360', ],
+     'dataset_names': sigmod_datasets_aif360,
      'model_names': ['ZafarDI'],
      'random_seeds': range(3),
      'train_test_seeds': range(3),
@@ -80,7 +87,7 @@ experiment_configurations = [
      },
 
     {'experiment_id': 's_tr_1.0',
-     'dataset_names': ['german', 'compas', 'adult_sigmod'],
+     'dataset_names': sigmod_datasets,
      'model_names': ['ThresholdOptimizer'],
      'random_seeds': range(3),
      'train_test_seeds': range(3),
@@ -88,7 +95,7 @@ experiment_configurations = [
      },
 
     {'experiment_id': 's_hardt_1.0',
-     'dataset_names': ['german_aif360', 'compas_aif360', 'adult_sigmod_aif360'],
+     'dataset_names': sigmod_datasets_aif360,
      'model_names': ['Hardt'],
      'random_seeds': range(3),
      'train_test_seeds': range(3),
@@ -100,8 +107,8 @@ experiment_configurations = [
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning', '--redo_exp'
      ],
-     'eps': [0.005, ],
-     'exp_fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
      'random_seeds': range(2),
@@ -109,14 +116,14 @@ experiment_configurations = [
      'constraint_code': 'dp',
      'states': ['CA', 'LA']},
 
-    {'experiment_id': 'acs_h_gs1_1.0',
-     'dataset_names': ['adult', 'ACSPublicCoverage',  # done partially, missining 'ACSEmployment',
+    {'experiment_id': 'acs_h_gs1_1.0',  # done
+     'dataset_names': ['adult', 'ACSPublicCoverage',
                        ],
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
-     'eps': [0.005, ],
-     'exp_fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', ],
      'random_seeds': range(2),
@@ -129,11 +136,11 @@ experiment_configurations = [
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
-     'eps': [0.005, ],
-     'exp_fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', ],
-     'random_seeds': range(2),
+     'random_seeds': range(1),
      'train_test_seeds': range(1),
      'constraint_code': 'dp',
      },
@@ -142,8 +149,8 @@ experiment_configurations = [
      'dataset_names': ['ACSEmployment', ],
      'model_names': ['hybrids'],
      'params': ['--redo_exp'],
-     'eps': [0.005, ],
-     'exp_fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
      'base_model_code': ['lgbm', ],
      'random_seeds': range(2),
@@ -151,30 +158,52 @@ experiment_configurations = [
      'constraint_code': 'dp',
      },
 
-    {'experiment_id': 'acs_h_gs1_EO_1.0',  # doing
+    {'experiment_id': 'acs_h_gs1_EO_1.0',  # done
      'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
-     'eps': [0.005, ],
-     'exp_fractions': [0.001, 0.004, 0.016, 0.063, 0.251, 1],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
-     'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'base_model_code': ['lr', ],  # missing 'lgbm'
+     'random_seeds': range(2),  # missing lr random seed 1
+     'train_test_seeds': range(1),
+     'constraint_code': 'eo',
+     },
+{'experiment_id': 'acs_h_gs1_EO_2.0',  # todo
+     'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
+     'model_names': ['hybrids'],
+     'params': [  # '--redo_tuning',
+         '--redo_exp'],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
+     'grid_fractions': [1],
+     'base_model_code': ['lgbm', ],
+     'random_seeds': range(1),
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
 
     {'experiment_id': 'f_eta0_1.0',  # todo
-     'dataset_names': ['adult', 'ACSPublicCoverage', ],
+     'dataset_names': sigmod_datasets,
      'model_names': ['fairlearn_full'],
-     'params': ['--redo_exp', '--no_run_linprog_step', ],
-     'eps': [0.005, ],
+     'eps': base_eps_v1,
      'base_model_code': ['lr'],
-     'random_seeds': range(2),
+     'random_seeds': range(1),
      'train_test_seeds': range(1),  # Skf 3 splits --> 2*3 = 6 different splits
      'constraint_code': 'dp',
-     'other_params': json.dumps({'eta0': [0.5, 1.0, 2.0], 'run_linprog_step': [False]})
+     'other_params': eta_params_v1,
+     },
+    {'experiment_id': 'f_eta0_2.0',  # todo
+     'dataset_names': sigmod_datasets,
+     'model_names': ['fairlearn_full'],
+     'eps': base_eps_v1,
+     'base_model_code': ['lr'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),  # Skf 3 splits --> 2*3 = 6 different splits
+     'constraint_code': 'eo',
+     'other_params': eta_params_v1,
      },
 
     {'experiment_id': 'sigmod_h_exp_1.0',  # done
@@ -182,7 +211,7 @@ experiment_configurations = [
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
-     'eps': [0.005, ],
+     'eps': base_eps_v1,
      'exp_fractions': [0.016, 0.063, 0.251, 1.],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
@@ -194,7 +223,7 @@ experiment_configurations = [
     {'experiment_id': 'acs_h_eps_1.0',  # done
      'dataset_names': ['ACSPublicCoverage'],
      'model_names': ['hybrids'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
+     'eps': eps_list_v1,
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr'],
@@ -205,7 +234,7 @@ experiment_configurations = [
     {'experiment_id': 'acs_h_eps_1.E0',  # done
      'dataset_names': ['ACSEmployment'],
      'model_names': ['hybrids'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
+     'eps': eps_list_v1,
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr'],
@@ -217,7 +246,7 @@ experiment_configurations = [
     {'experiment_id': 'acs_h_eps_1.LGBM0',  # done
      'dataset_names': ['ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
+     'eps': eps_list_v1,
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lgbm'],
@@ -228,7 +257,7 @@ experiment_configurations = [
     {'experiment_id': 'acs_eps_EO_1.0',  # todo
      'dataset_names': ['ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
+     'eps': eps_list_v1,
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
@@ -236,10 +265,10 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-    {'experiment_id': 's_h_EO_1.0',  # todo
-     'dataset_names': ['compas', 'german', 'adult_sigmod'],
+    {'experiment_id': 's_h_EO_1.0',  # doing
+     'dataset_names': sigmod_datasets,
      'model_names': ['hybrids'],
-     'eps': [0.001, .005, 0.01, 0.02, 0.05, 0.10],
+     'eps': eps_list_v1,
      'exp_fractions': [1],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
@@ -247,3 +276,21 @@ experiment_configurations = [
      'train_test_seeds': range(3),
      'constraint_code': 'eo'},
 ]
+
+config_values_dict = {
+    'vary': ['eps', 'exp_frac', 'fairlearn_eta0'],
+    'constrain_code': ['dp', 'eo'],
+    'base_model_code': ['lr', 'lgbm'],
+    'model_names': ['hybrids'],
+    'dataset_name': ['compas', 'german', 'adult_sigmod', 'ACSPublicCoverage', 'ACSEmployment'],
+}
+configurations_matrix = []
+for combination in itertools.product(*config_values_dict.values()):
+    configurations_matrix.append(dict(zip(config_values_dict.keys(), combination)))
+
+cols_to_unstack = set(config_values_dict.keys())- set(['vary'])
+df = pd.DataFrame(configurations_matrix)
+df['state'] = 'todo'
+df['exp_name'] = ''
+# df.pivot(index=['vary'], columns=cols_to_unstack, values=['state', 'exp_name'])
+# df.to_csv('run_experiments/experiment_matrix_state.csv')
