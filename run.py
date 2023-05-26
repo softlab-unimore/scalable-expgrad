@@ -1,6 +1,7 @@
 import itertools
 import json
 import logging
+import traceback
 from copy import deepcopy
 from functools import partial
 import joblib, re
@@ -79,26 +80,32 @@ def launch_experiment_by_id(experiment_id: str):
         params = []
 
     host_name = socket.gethostname()
+    results_dir = os.path.join(f'results', host_name, experiment_id)
+    os.makedirs(results_dir,exist_ok=True)
     if "." in host_name:
         host_name = host_name.split(".")[-1]
     try:
-        for filepath in os.scandir(os.path.join(f'results', host_name, experiment_id)):
+        for filepath in os.scandir(results_dir):
             os.remove(filepath)
     except:
         pass
-    logger = logging.getLogger(__name__)
+    #logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO,
-                        format='%(levelname)s:%(name)s-%(asctime)s: %(message)s', datefmt='%d/%m/%y %H:%M:%S',
-                        handlers=[logging.FileHandler(os.path.join(filepath, 'run.log'), mode='w'),
-                                  logging.StreamHandler()])
-    logging.info(f'Parameters of experiment {experiment_id}\n' + json.dumps(exp_dict, indent='\n\t'))
+                        format='%(asctime)s %(levelname)s:%(name)s: %(message)s', datefmt='%d/%m/%y %H:%M:%S',
+                        handlers=[logging.FileHandler(os.path.join(results_dir, 'run.log'), mode='a'),
+                                  logging.StreamHandler()], force=True)
+
+    def exc_handler(exctype, value, tb):
+        logging.exception(''.join(traceback.format_exception(exctype, value, tb)))
+    sys.excepthook = exc_handler
+    logging.info(f'Parameters of experiment {experiment_id}\n' + json.dumps(exp_dict, default=list).replace(', \"', ',\n\t\"'))
     a = datetime.now()
     logging.info(f'Started logging.')
     to_iter = itertools.product(base_model_code_list, dataset_name_list, model_name_list)
     original_argv = sys.argv.copy()
     for base_model_code, dataset_name, model_name in to_iter:
         turn_a = datetime.now()
-        logging.infospl(f'Starting combintion:'
+        logging.info(f'Starting combintion:'
                         f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
         args = [dataset_name, model_name] + params
         kwargs = {}
@@ -264,7 +271,7 @@ class ExperimentRun:
 
     def set_base_data_dict(self):
         keys = ['dataset', 'method', 'frac', 'model_name', 'base_model_code',
-                'constraint_code', 'train_test_fold', 'iterations', 'total_train_size', 'total_test_size', 'phase',
+                'constraint_code', 'train_test_fold', 'total_train_size', 'total_test_size', 'phase',
                 'time', ]
         self.data_dict = {key: None for key in keys}
         prm_keys = self.prm.keys()
