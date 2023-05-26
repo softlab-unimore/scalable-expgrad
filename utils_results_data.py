@@ -12,7 +12,7 @@ from scipy.stats import sem, t
 from run import params_initials_map
 
 cols_to_aggregate = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'iterations']
-cols_to_index = ['dataset_name', 'method', 'model_code', 'base_model_code', 'constraint_code', 'eps', 'exp_frac',
+cols_to_index = ['dataset_name', 'model_code', 'base_model_code', 'method', 'constraint_code', 'eps', 'exp_frac',
                  'grid_frac']
 
 time_columns = ['metrics_time', 'phase', 'time', 'grid_oracle_times']
@@ -20,7 +20,7 @@ numerical_cols = ['time', 'train_error', 'train_accuracy', 'test_accuracy',
                   'train_violation', 'train_di', 'train_TPRB', 'train_TNRB', 'train_f1',
                   'train_precision', 'train_recall', 'test_error', 'test_violation',
                   'test_di', 'test_TPRB', 'test_TNRB', 'test_f1', 'test_precision',
-                  'test_recall', 'total_train_size', 'total_test_size',
+                  'test_recall', # 'total_train_size', 'total_test_size',
                   'n_oracle_calls_', 'n_oracle_calls_dummy_returned_', ]
 non_numeric_cols = ['best_iter_', 'best_gap_', 'last_iter_',
                     'oracle_execution_times_', 'metrics_time', 'grid_oracle_times',
