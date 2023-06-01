@@ -17,8 +17,8 @@
 15,eps,eo,lgbm,hybrids,compas,done,s_h_EO_1.0
 16,eps,eo,lgbm,hybrids,german,done,s_h_EO_1.0
 17,eps,eo,lgbm,hybrids,adult_sigmod,done,s_h_EO_1.0
-18,eps,eo,lgbm,hybrids,ACSPublicCoverage,todo,acs_eps_EO_1.0
-19,eps,eo,lgbm,hybrids,ACSEmployment,todo,acs_eps_EO_1.0
+18,eps,eo,lgbm,hybrids,ACSPublicCoverage,todo,acs_eps_EO_2
+19,eps,eo,lgbm,hybrids,ACSEmployment,todo,acs_eps_EO_2
 20,exp_frac,dp,lr,hybrids,compas,no,no
 21,exp_frac,dp,lr,hybrids,german,no,no
 22,exp_frac,dp,lr,hybrids,adult_sigmod,done,old_sys / acs_h_gs1_1.0
