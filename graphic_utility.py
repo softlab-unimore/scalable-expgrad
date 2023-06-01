@@ -446,7 +446,9 @@ def plot_all_df(all_df, model_list, save_dir, grouping_col, save, show):
                     [grouping_col, 'test_error'],
                     [grouping_col, 'test_violation']]
     dataset_name_list = mean_error_df['dataset_name'].unique()
-
+    # Check available combinations
+    # mean_error_df[['base_model_code', 'constraint_code', 'dataset_name']].astype('str').apply(
+    #     lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
     pl_util.show = False
     for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code']):
         base_model_code, constraint_code = keys
@@ -455,10 +457,10 @@ def plot_all_df(all_df, model_list, save_dir, grouping_col, save, show):
         pl_util.fig = fig
         for row, (x_axis, y_axis) in enumerate(axis_to_plot):
             df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
-            df_to_plot = df_to_plot.groupby(['dataset_name', 'base_model_code'])[
+            df_groups = df_to_plot.groupby(['dataset_name', 'base_model_code'])[
                 ['x', 'xerr', 'y', 'yerr', grouping_col, 'model_code']]
-            n_lines = len(df_to_plot)
-            for col, ((dataset_name, base_model_code), value) in enumerate(df_to_plot):
+            n_lines = len(df_groups)
+            for col, ((dataset_name, base_model_code), value) in enumerate(df_groups):
                 pl_util.ax = axes_array[row, col]
                 for i, (model_code, value) in enumerate(value.groupby('model_code')):
                     value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
@@ -497,10 +499,10 @@ def plot_all_df(all_df, model_list, save_dir, grouping_col, save, show):
         ]:
             pl_util._start_plot()
             df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
-            df_to_plot = df_to_plot.groupby(['dataset_name', 'model_code', 'base_model_code'])[
+            df_groups = df_to_plot.groupby(['dataset_name', 'model_code', 'base_model_code'])[
                 ['x', 'xerr', 'y', 'yerr', grouping_col]]
-            n_lines = len(df_to_plot)
-            for i, (key, value) in enumerate(df_to_plot):
+            n_lines = len(df_groups)
+            for i, (key, value) in enumerate(df_groups):
                 dataset_name, model_code, base_model_code = key
                 value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
                 x, xerr, y, yerr = value_dict.values()
@@ -547,10 +549,17 @@ if __name__ == '__main__':
     df.groupby(['dataset_name', 'base_model_code']).agg({'delta_error': 'describe'}).to_csv(
         os.path.join(curr_path, 'delta_error.csv'))
 
+    grid_chart_models = ['hybrid_3_exp_gf_1',  'sub_hybrid_3_exp_gf_1',
+                         'hybrid_5_exp', 'sub_hybrid_5_exp',
+                         'expgrad_fracs_exp', 'hybrid_7_exp',
+                         'hybrid_3_exp', 'sub_hybrid_3_exp' #sqrt
+                         ]
+
     # all datasets
     selected_model = ['sub_hybrid_6_exp_gf_1']
-    plot_all_df(df, model_list=selected_model, save_dir=PlotUtility.base_plot_dir, grouping_col='exp_frac',
+    plot_all_df(all_results_df, model_list=selected_model, save_dir=PlotUtility.base_plot_dir, grouping_col='exp_frac',
                 save=save, show=show)
+
     del df
     for dataset_name in datasets:
         for base_model_code in ['lr', 'lgbm']:

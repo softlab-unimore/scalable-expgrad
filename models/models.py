@@ -1,6 +1,6 @@
+import logging
 import tensorflow as tf
 from functools import partial
-from warnings import warn
 from aif360.algorithms.inprocessing import AdversarialDebiasing, MetaFairClassifier, GerryFairClassifier
 from aif360.algorithms.preprocessing import OptimPreproc
 from aif360.algorithms.preprocessing.optim_preproc_helpers.distortion_functions import get_distortion_adult
@@ -89,7 +89,7 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
             predict_method='predict_proba',
             random_state=random_state)
         if eps is not None:
-            warn(f"eps has no effect with {method_str} methos")
+            logging.warning(f"eps has no effect with {method_str} methos")
     elif method_str == methods_name_dict['AdversarialDebiasing']:
 
         privileged_groups, unprivileged_groups = utils_prepare_data.find_privileged_unprivileged(**datasets)
