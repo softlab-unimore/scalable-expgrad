@@ -2,8 +2,6 @@ import itertools
 import json
 import pandas as pd
 
-
-
 ACS_dataset_names = [
     'ACSPublicCoverage',  # 1138289
     'ACSEmployment',  # 3236107
@@ -27,15 +25,14 @@ sample_variation = range(2)
 
 fixed_sample_frac = 0.1
 
-eps_v0= 0.01  # , 0.001] # 0.05 old value
+eps_v0 = 0.01  # , 0.001] # 0.05 old value
 eps_values_v0 = [.005, 0.01, 0.02, 0.05, 0.10, 0.2]
 
 base_eps_v1 = [0.005]
 eps_list_v1 = [0.001, .005, 0.01, 0.02, 0.05, 0.10]
-exp_fraction_list_v1 = [0.001, 0.004, 0.016, 0.063, 0.251, 1] # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
+exp_fraction_list_v1 = [0.001, 0.004, 0.016, 0.063, 0.251, 1]  # np.geomspace(0.001,1,7) np.linspace(0.001,1,7)
 eta_params_v1 = json.dumps({'eta0': [0.5, 1.0, 2.0], 'run_linprog_step': [False],
-                                 'max_iter': [20,50,100]})
-
+                            'max_iter': [20, 50, 100]})
 
 experiment_configurations = [
     {'experiment_id': 's_h_1.0.TEST',
@@ -93,7 +90,6 @@ experiment_configurations = [
      'train_test_seeds': range(3),
      'base_model_code': ['lr', 'lgbm'],
      },
-
     {'experiment_id': 's_hardt_1.0',
      'dataset_names': sigmod_datasets_aif360,
      'model_names': ['Hardt'],
@@ -101,12 +97,20 @@ experiment_configurations = [
      'train_test_seeds': range(3),
      'base_model_code': ['lr', 'lgbm'],
      },
-
+    {'experiment_id': 's_h_EO_1.0',  # done
+     'dataset_names': sigmod_datasets,
+     'model_names': ['hybrids'],
+     'eps': eps_list_v1,
+     'exp_fractions': [1],
+     'grid_fractions': [1],
+     'base_model_code': ['lr', 'lgbm'],
+     'random_seeds': range(3),
+     'train_test_seeds': range(3),
+     'constraint_code': 'eo'
+     },
     {'experiment_id': 'acs_h_gs1_1.test',
      'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
-     'params': [  # '--redo_tuning', '--redo_exp'
-     ],
      'eps': base_eps_v1,
      'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
@@ -117,8 +121,7 @@ experiment_configurations = [
      'states': ['CA', 'LA']},
 
     {'experiment_id': 'acs_h_gs1_1.0',  # done
-     'dataset_names': ['adult', 'ACSPublicCoverage',
-                       ],
+     'dataset_names': ['adult', 'ACSPublicCoverage'],
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
@@ -142,6 +145,7 @@ experiment_configurations = [
      'base_model_code': ['lr', ],
      'random_seeds': range(1),
      'train_test_seeds': range(1),
+     'train_test_fold': [0],
      'constraint_code': 'dp',
      },
 
@@ -171,7 +175,7 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-{'experiment_id': 'acs_h_gs1_EO_2.0',  # todo
+    {'experiment_id': 'acs_h_gs1_EO_2.0',  # todo
      'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
@@ -260,21 +264,22 @@ experiment_configurations = [
      'eps': eps_list_v1,
      'exp_fractions': [0.251],
      'grid_fractions': [1],
-     'base_model_code': ['lr', 'lgbm'],
+     'base_model_code': ['lr'],
      'random_seeds': range(1),
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-    {'experiment_id': 's_h_EO_1.0',  # doing
-     'dataset_names': sigmod_datasets,
+    {'experiment_id': 'acs_eps_EO_2.0',  # todo
+     'dataset_names': ['ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
      'eps': eps_list_v1,
-     'exp_fractions': [1],
+     'exp_fractions': [0.251],
      'grid_fractions': [1],
-     'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(3),
-     'train_test_seeds': range(3),
-     'constraint_code': 'eo'},
+     'base_model_code': ['lgbm'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),
+     'constraint_code': 'eo',
+     },
 ]
 
 config_values_dict = {
@@ -288,7 +293,7 @@ configurations_matrix = []
 for combination in itertools.product(*config_values_dict.values()):
     configurations_matrix.append(dict(zip(config_values_dict.keys(), combination)))
 
-cols_to_unstack = set(config_values_dict.keys())- set(['vary'])
+cols_to_unstack = set(config_values_dict.keys()) - set(['vary'])
 df = pd.DataFrame(configurations_matrix)
 df['state'] = 'todo'
 df['exp_name'] = ''
