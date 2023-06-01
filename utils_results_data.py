@@ -170,7 +170,7 @@ def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
             # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
             models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
             mask = df['model_code'].isin(models_with_gridsearch)
-            df.loc[mask, 'model_code'] += '_gf_1'
+            df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
         for key, value in config.items():
             if key not in df.columns:
                 df[key] = value
