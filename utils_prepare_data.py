@@ -1,6 +1,9 @@
+import logging
 import os
 from functools import partial
+from logging import warn
 
+import aif360.datasets
 import numpy as np
 import pandas as pd
 import requests
@@ -168,7 +171,7 @@ def load_convert_dataset_aif360(dataset_name='compas'):
     return X, y, A, dataset_orig
 
 
-def split_dataset_aif360(aif360_dataset, train_test_seed):
+def split_dataset_aif360(aif360_dataset: aif360.datasets.StandardDataset, train_test_seed):
     ret_dict = {}
     if train_test_seed is 0:
         dataset_orig_train, dataset_orig_test = aif360_dataset.split([0.7], shuffle=False)
@@ -285,9 +288,10 @@ def get_dataset(dataset_str, prm=None):
         raise_dataset_name_error(dataset_str)
 
 
-def split_dataset_generator(dataset_str, datasets, train_test_seed):
-    # todo add parameter to control split mode
+def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strategy):
+
     if dataset_str in utils_experiment.sigmod_datasets + utils_experiment.sigmod_datasets_aif360:
+        logging.warning('split_strategy has no effect when using aif 360 datasets ')
         dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
         # if dataset_str in utils_experiment.sigmod_datasets:
         yield dataset_dict['train_df'], dataset_dict['test_df']
@@ -302,14 +306,26 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed):
         # test_data['X'] = dataset_dict['aif360_test']
         # yield list(train_data.values()), list(test_data.values())
     elif dataset_str in utils_experiment.dataset_names:
-        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
-        X, y, A = datasets[:3]
-        to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
-        for train_index, test_index in skf.split(X, to_stratify):
+        if split_strategy == 'StratifiedKFold':
+            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
+            X, y, A = datasets[:3]
+            to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
+            for train_index, test_index in skf.split(X, to_stratify):
+                datasets_divided = []
+                for turn_index in [train_index, test_index]:  # train test split of datasets
+                    datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
+                yield datasets_divided
+        elif split_strategy == 'stratified_train_test_split':
+            X, y, A = datasets[:3]
+            to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
+            sample_mask = np.arange(X.shape[0])
+            train_index, test_index = train_test_split(sample_mask, stratify=to_stratify,
+                                              random_state=train_test_seed, shuffle=True)
             datasets_divided = []
-            for turn_index in [train_index, test_index]:  # train test split of datasets
+            for turn_index in [train_index, test_index]:
                 datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
             yield datasets_divided
+
 
 
 def split_X_y_A(df: pd.DataFrame):
