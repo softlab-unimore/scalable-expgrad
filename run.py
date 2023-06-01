@@ -6,6 +6,7 @@ from copy import deepcopy
 from functools import partial
 import joblib, re
 import numpy as np
+import send2trash
 
 from tqdm import tqdm
 import sys
@@ -81,15 +82,15 @@ def launch_experiment_by_id(experiment_id: str):
 
     host_name = socket.gethostname()
     results_dir = os.path.join(f'results', host_name, experiment_id)
-    os.makedirs(results_dir,exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
     if "." in host_name:
         host_name = host_name.split(".")[-1]
     try:
         for filepath in os.scandir(results_dir):
-            os.remove(filepath)
+            send2trash.send2trash(filepath)
     except:
         pass
-    #logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)s:%(name)s: %(message)s', datefmt='%d/%m/%y %H:%M:%S',
                         handlers=[logging.FileHandler(os.path.join(results_dir, 'run.log'), mode='a'),
@@ -97,16 +98,18 @@ def launch_experiment_by_id(experiment_id: str):
 
     def exc_handler(exctype, value, tb):
         logging.exception(''.join(traceback.format_exception(exctype, value, tb)))
+
     sys.excepthook = exc_handler
-    logging.info(f'Parameters of experiment {experiment_id}\n' + json.dumps(exp_dict, default=list).replace(', \"', ',\n\t\"'))
+    logging.info(f'Parameters of experiment {experiment_id}\n' +
+                 json.dumps(exp_dict, default=list).replace(', \"', ',\n\t\"'))
     a = datetime.now()
     logging.info(f'Started logging.')
     to_iter = itertools.product(base_model_code_list, dataset_name_list, model_name_list)
     original_argv = sys.argv.copy()
     for base_model_code, dataset_name, model_name in to_iter:
         turn_a = datetime.now()
-        logging.info(f'Starting combintion:'
-                        f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
+        logging.info(f'Starting combination:'
+                     f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
         args = [dataset_name, model_name] + params
         kwargs = {}
         for key in exp_dict.keys():
@@ -161,8 +164,14 @@ class ExperimentRun:
         # Others
         arg_parser.add_argument("--save", default=True)
         arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for base learner. (aka random_state)',
+                                default=0,
                                 nargs='+', type=int)
-        arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default='0', nargs='+',
+        arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default=None, nargs='+',
+                                type=int)
+        arg_parser.add_argument('--split_strategy', help='splitting strategy. default: ',
+                                choices=['StratifiedKFold', 'stratified_train_test_split', None],
+                                default='StratifiedKFold', type=str)
+        arg_parser.add_argument('--train_test_fold', help='train_test_fold to run with k-fold', default=[0,1,2], nargs='+',
                                 type=int)
         arg_parser.add_argument("--no_run_linprog_step", default=True, dest='run_linprog_step', action='store_false')
         arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
@@ -195,25 +204,35 @@ class ExperimentRun:
         self.datasets = datasets
         X, y, A = datasets[:3]
 
-        for random_seed in prm['random_seeds']:
+        for random_seed, train_test_seed in itertools.product(prm['random_seeds'], prm['train_test_seeds']):
             self.set_base_data_dict()
             self.data_dict['random_seed'] = random_seed
+            self.data_dict['train_test_seed'] = train_test_seed
             self.tuning_step(base_model_code=prm['base_model_code'], X=X, y=y, fractions=prm['exp_fractions'],
                              random_seed=random_seed, redo_tuning=prm['redo_tuning'])
-            for train_test_seed in prm['train_test_seeds']:
-                self.data_dict['train_test_seed'] = train_test_seed
-                for train_test_fold, datasets_divided in tqdm(enumerate(
-                        utils_prepare_data.split_dataset_generator(self.dataset_str, datasets, train_test_seed))):
-                    print('')
-                    self.data_dict['train_test_fold'] = train_test_fold
-                    params_to_iterate = {'eps': self.prm['eps']}
-                    params_to_iterate.update(**self.prm['other_params'])
-                    keys = params_to_iterate.keys()
-                    for values in itertools.product(*params_to_iterate.values()):
-                        turn_params_dict = dict(zip(keys, values))
-                        self.data_dict.update(**turn_params_dict)
-                        self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
-                                       other_params=turn_params_dict)
+
+            for train_test_fold, datasets_divided in tqdm(enumerate(
+                    utils_prepare_data.split_dataset_generator(self.dataset_str, datasets, train_test_seed,
+                                                               prm['split_strategy']))):
+                print('')
+                if train_test_fold not in prm['train_test_fold']:
+                    continue
+                self.data_dict['train_test_fold'] = train_test_fold
+                params_to_iterate = {'eps': self.prm['eps']}
+                params_to_iterate.update(**self.prm['other_params'])
+                keys = params_to_iterate.keys()
+                for values in itertools.product(*params_to_iterate.values()):
+                    turn_params_dict = dict(zip(keys, values))
+                    self.data_dict.update(**turn_params_dict)
+                    turn_params_dict.update(random_seed=random_seed,
+                                            train_test_seed=train_test_seed,
+                                            train_test_fold=train_test_fold)
+                    logging.info(f'Starting step: \n' + json.dumps(turn_params_dict,default=list))
+                    a = datetime.now()
+                    self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
+                                   other_params=turn_params_dict)
+                    b = datetime.now()
+                    logging.info(f'Ended step in: {b - a}')
 
     def run_model(self, datasets_divided, random_seed, other_params):
         results_list = []
