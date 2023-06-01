@@ -20,13 +20,17 @@ if __name__ == '__main__':
         "s_c_1.0",
         "s_zDI_1.1",
         "s_tr_1.0",
+        'acs_eps_EO_1.0',
+        's_h_EO_1.0'
     ]
 
     dataset_results_path = os.path.join(".", "results", "fairlearn-2")
     base_plot_dir = os.path.join(".", 'results', 'plots')
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
+    # check results
     # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
     # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str).values),axis=1).unique()
+    # a.query('dataset_name == "ACSEmployment"')[np.intersect1d(x.columns, utils_results_data.cols_to_aggregate)].apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
     model_list = PlotUtility.other_models + ['hybrid_7_exp',
                                              'expgrad_fracs_exp',
                                              'sub_hybrid_6_exp_gf_1',
