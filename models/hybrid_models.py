@@ -154,6 +154,7 @@ class Hybrid1(Hybrid5):
 
 
 class Hybrid2(Hybrid1):
+
     def predict(self, X):
         self.weights = self.expgrad_logistic_frac.weights_
         self.predictors = self.grid_search_frac.predictors_
