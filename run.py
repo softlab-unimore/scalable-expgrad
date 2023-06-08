@@ -224,9 +224,6 @@ class ExperimentRun:
                 for values in itertools.product(*params_to_iterate.values()):
                     turn_params_dict = dict(zip(keys, values))
                     self.data_dict.update(**turn_params_dict)
-                    turn_params_dict.update(random_seed=random_seed,
-                                            train_test_seed=train_test_seed,
-                                            train_test_fold=train_test_fold)
                     logging.info(f'Starting step: \n' + json.dumps(turn_params_dict,default=list))
                     a = datetime.now()
                     self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
@@ -240,7 +237,7 @@ class ExperimentRun:
             print(
                 f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
-            turn_results = self.run_hybrids(*datasets_divided, eps=self.prm['eps'],
+            turn_results = self.run_hybrids(*datasets_divided,
                                             exp_fractions=self.prm['exp_fractions'],
                                             grid_fractions=self.prm['grid_fractions'],
                                             exp_subset=self.prm['exp_subset'],
@@ -248,7 +245,8 @@ class ExperimentRun:
                                             base_model_code=self.prm['base_model_code'],
                                             run_linprog_step=self.prm['run_linprog_step'],
                                             random_seed=random_seed,
-                                            constraint_code=self.prm['constraint_code'])
+                                            constraint_code=self.prm['constraint_code'],
+                                            **other_params)
         elif 'unmitigated' == self.prm['method']:
             turn_results = self.run_unmitigated(*datasets_divided,
                                                 random_seed=random_seed,
@@ -318,7 +316,7 @@ class ExperimentRun:
         all_params = dict(X=X_train_all, y=y_train_all, sensitive_features=S_train_all)
         if exp_grid_ratio is not None:
             assert grid_fractions is None
-            grid_fractions = [exp_grid_ratio]
+            grid_fractions = exp_grid_ratio
 
         self.turn_results = []
         base_model = self.load_base_model_best_param(base_model_code=base_model_code, fraction=1,
@@ -329,7 +327,8 @@ class ExperimentRun:
             unconstrained_model, dict(X=X_train_all, y=y_train_all), eval_dataset_dict)
         time_unconstrained_dict['phase'] = 'unconstrained'
         self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
-
+        if not hasattr(eps, '__iter__'):
+            eps = [eps]
         to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
         # Iterations on difference fractions
         for i, (turn_eps, exp_f, grid_f) in tqdm(list(enumerate(to_iter))):

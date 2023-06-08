@@ -215,11 +215,11 @@ class ThresholdOptimizerWrapper(ThresholdOptimizer):
 
 class ExponentiatedGradientPmf(ExponentiatedGradient):
     def __init__(self, base_model, constrain_name, eps, random_state, datasets, run_linprog_step, eta0,
-                 method_str='fairlearn_full'):
+                 method_str='fairlearn_full', **kwargs):
         self.method_str = method_str
         constraint = utils_prepare_data.get_constraint(constraint_code=constrain_name, eps=eps)
         super().__init__(base_model, constraints=copy.deepcopy(constraint), eps=eps, nu=1e-6,
-                         run_linprog_step=run_linprog_step, random_state=random_state, eta0=eta0)
+                         run_linprog_step=run_linprog_step, random_state=random_state, eta0=eta0, **kwargs)
 
     def fit(self, X, y, sensitive_features, **kwargs):
         super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
