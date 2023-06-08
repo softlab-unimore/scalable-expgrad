@@ -9,6 +9,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
+
 from run import params_initials_map
 
 cols_to_aggregate = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'iterations']
@@ -313,3 +314,19 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                 df_list.append(df)
     all_df = pd.concat(df_list)
     return prepare_data(all_df)
+
+
+def get_error(df):
+    ci = mean_confidence_interval(df)
+    err = (ci[2] - ci[1]) / 2
+    return pd.Series({'error': err})
+
+
+def prepare_for_plot(df, grouping_col):
+    time_aggregated_df = aggregate_phase_time(df)
+    groupby_col = np.intersect1d(cols_to_index, time_aggregated_df.columns).tolist()
+    mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False)[
+        numerical_cols + [grouping_col]].agg(
+        ['mean', ('error', get_error)]).reset_index()
+    mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
+    return mean_error_df.fillna(0)
