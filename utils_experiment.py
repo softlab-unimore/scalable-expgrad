@@ -15,6 +15,8 @@ ACS_dataset_names = [
 
 dataset_names = ['adult'] + ACS_dataset_names
 
+bigger_selected_datasets = ['adult', 'ACSPublicCoverage', 'ACSEmployment']
+
 sigmod_datasets = ['compas', 'german', 'adult_sigmod']
 
 sigmod_dataset_map = dict(zip(['compas', 'german', 'adult_sigmod'], ['CompasDataset', 'GermanDataset', 'AdultDataset']))
@@ -109,7 +111,7 @@ experiment_configurations = [
      'constraint_code': 'eo'
      },
     {'experiment_id': 'acs_h_gs1_1.test',
-     'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
+     'dataset_names': bigger_selected_datasets,
      'model_names': ['hybrids'],
      'eps': base_eps_v1,
      'exp_fractions': exp_fraction_list_v1,
@@ -157,16 +159,16 @@ experiment_configurations = [
      'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
      'base_model_code': ['lgbm', ],
-     'random_seeds': range(2),
+     'random_seeds': range(1),
      'train_test_seeds': range(1),
      'constraint_code': 'dp',
+     'train_test_fold': [0],
      },
 
     {'experiment_id': 'acs_h_gs1_EO_1.0',  # done
-     'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
+     'dataset_names': bigger_selected_datasets,
      'model_names': ['hybrids'],
-     'params': [  # '--redo_tuning',
-         '--redo_exp'],
+     'params': ['--redo_exp'],
      'eps': base_eps_v1,
      'exp_fractions': exp_fraction_list_v1,
      'grid_fractions': [1],
@@ -175,8 +177,8 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-    {'experiment_id': 'acs_h_gs1_EO_2.0',  # todo
-     'dataset_names': ['adult', 'ACSPublicCoverage', 'ACSEmployment', ],
+    {'experiment_id': 'acs_h_gs1_EO_2.0',  # done
+     'dataset_names': bigger_selected_datasets,
      'model_names': ['hybrids'],
      'params': [  # '--redo_tuning',
          '--redo_exp'],
@@ -187,6 +189,55 @@ experiment_configurations = [
      'random_seeds': range(1),
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
+     'train_test_fold': [0],
+     },
+    {'experiment_id': 'acs_h_gsSR_1.0',  # todo
+     'dataset_names': bigger_selected_datasets,
+     'model_names': ['hybrids'],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
+     'exp_grid_ratio': ['sqrt'],
+     'base_model_code': ['lr'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),
+     'constraint_code': 'dp',
+     'train_test_fold': [0],
+     },
+    {'experiment_id': 'acs_h_gsSR_1.1',  # todo
+     'dataset_names': bigger_selected_datasets,
+     'model_names': ['hybrids'],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
+     'exp_grid_ratio': ['sqrt'],
+     'base_model_code': ['lgbm'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),
+     'constraint_code': 'dp',
+     'train_test_fold': [0],
+     },
+    {'experiment_id': 'acs_h_gsSR_2.0',  # todo
+     'dataset_names': bigger_selected_datasets,
+     'model_names': ['hybrids'],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
+     'exp_grid_ratio': ['sqrt'],
+     'base_model_code': ['lr'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),
+     'constraint_code': 'eo',
+     'train_test_fold': [0],
+     },
+    {'experiment_id': 'acs_h_gsSR_2.1',  # todo
+     'dataset_names': bigger_selected_datasets,
+     'model_names': ['hybrids'],
+     'eps': base_eps_v1,
+     'exp_fractions': exp_fraction_list_v1,
+     'exp_grid_ratio': ['sqrt'],
+     'base_model_code': ['lgbm'],
+     'random_seeds': range(1),
+     'train_test_seeds': range(1),
+     'constraint_code': 'eo',
+     'train_test_fold': [0],
      },
 
     {'experiment_id': 'f_eta0_1.0',  # todo
@@ -195,7 +246,7 @@ experiment_configurations = [
      'eps': base_eps_v1,
      'base_model_code': ['lr'],
      'random_seeds': range(1),
-     'train_test_seeds': range(1),  # Skf 3 splits --> 2*3 = 6 different splits
+     'train_test_seeds': range(1),
      'constraint_code': 'dp',
      'other_params': eta_params_v1,
      },
@@ -205,7 +256,7 @@ experiment_configurations = [
      'eps': base_eps_v1,
      'base_model_code': ['lr'],
      'random_seeds': range(1),
-     'train_test_seeds': range(1),  # Skf 3 splits --> 2*3 = 6 different splits
+     'train_test_seeds': range(1),
      'constraint_code': 'eo',
      'other_params': eta_params_v1,
      },
@@ -222,6 +273,19 @@ experiment_configurations = [
      'random_seeds': range(2),
      'train_test_seeds': range(2),
      'constraint_code': 'dp',
+     },
+    {'experiment_id': 's_h_exp_EO_1.0',  # done
+     'dataset_names': ['german', 'compas', ],
+     'model_names': ['hybrids'],
+     'params': [  # '--redo_tuning',
+         '--redo_exp'],
+     'eps': base_eps_v1,
+     'exp_fractions': [0.016, 0.063, 0.251, 1.],
+     'grid_fractions': [1],
+     'base_model_code': ['lr', 'lgbm'],
+     'random_seeds': range(2),
+     'train_test_seeds': range(2),
+     'constraint_code': 'eo',
      },
 
     {'experiment_id': 'acs_h_eps_1.0',  # done
@@ -258,7 +322,7 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'dp',
      },
-    {'experiment_id': 'acs_eps_EO_1.0',  # todo
+    {'experiment_id': 'acs_eps_EO_1.0',  # done
      'dataset_names': ['ACSPublicCoverage', 'ACSEmployment', ],
      'model_names': ['hybrids'],
      'eps': eps_list_v1,
@@ -269,8 +333,8 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-    {'experiment_id': 'acs_eps_EO_2.0',  # todo
-     'dataset_names': ['ACSPublicCoverage', 'ACSEmployment', ],
+    {'experiment_id': 'acs_eps_EO_2.0',  # done
+     'dataset_names': ['ACSPublicCoverage'],
      'model_names': ['hybrids'],
      'eps': eps_list_v1,
      'exp_fractions': [0.251],
@@ -278,8 +342,33 @@ experiment_configurations = [
      'base_model_code': ['lgbm'],
      'random_seeds': range(1),
      'train_test_seeds': range(1),
+     'train_test_fold': [0],
      'constraint_code': 'eo',
      },
+     {'experiment_id': 'acs_eps_EO_2.1',  # done
+      'dataset_names': ['ACSEmployment'],
+      'model_names': ['hybrids'],
+      'eps': eps_list_v1,
+      'exp_fractions': [0.251],
+      'grid_fractions': [1],
+      'base_model_code': ['lgbm'],
+      'random_seeds': range(1),
+      'train_test_seeds': range(1),
+      'train_test_fold': [0],
+      'constraint_code': 'eo',
+      },
+{'experiment_id': 'acs_eps_EO_2.1.test',  # done
+      'dataset_names': ['adult'],
+      'model_names': ['hybrids'],
+      'eps': eps_list_v1,
+      'exp_fractions': [0.251],
+      'grid_fractions': [1],
+      'base_model_code': ['lgbm'],
+      'random_seeds': range(1),
+      'train_test_seeds': range(1),
+      'train_test_fold': [0],
+      'constraint_code': 'eo',
+      },
 ]
 
 config_values_dict = {
