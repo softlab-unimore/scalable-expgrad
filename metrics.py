@@ -81,3 +81,9 @@ default_metrics_dict = {'error': getError,
                         'precision': get_metric_function(precision_score),
                         'recall': get_metric_function(recall_score)
                         }
+# Metrics function may follow one of these 2 interfaces.
+# f(X, Y, S, predict_method)
+# or
+# f(X, Y, S, y_pred)
+# if the metric function takes f(y_true,y_pred) parameters only
+# then you may simply wrap the function with get_metric_function
