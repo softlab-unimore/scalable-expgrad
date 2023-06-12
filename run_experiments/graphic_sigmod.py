@@ -21,7 +21,6 @@ if __name__ == '__main__':
     ]
 
     dataset_results_path = os.path.join("..", "results", "fairlearn-2")
-    base_plot_dir = os.path.join("..", 'results', 'plots')
     all_df = load_results_experiment_id(experiment_code_list, dataset_results_path)
 
     df = all_df.copy()
@@ -33,12 +32,12 @@ if __name__ == '__main__':
         # plot_routine_performance_violation(turn_df, dataset_name=key[0], save=save, show=show,
         #                                    suffix='ALL MODELS' + key[1])
 
-        pl_util = PlotUtility(show=show, save=save, path_suffix=suffix)
+        pl_util = PlotUtility(save=save, show=show, suffix=suffix, base_plot_dir=os.path.join("..", 'results', 'plots'))
         sigmod_list = pl_util.other_models + ['hybrid_7_exp',
                                               'expgrad_fracs_exp',
                                               'sub_hybrid_6_exp_gf_1',
                                               'unconstrained_exp',
-                                              #'unconstrained_exp',
+                                              # 'unconstrained_exp',
                                               ]
         model_set_list = [(sigmod_list, 'all'),
                           # (restricted_list, 'restricted'),
@@ -61,5 +60,5 @@ if __name__ == '__main__':
                 continue
             pl_util.to_plot_models = to_plot_models
             pl_util.plot(turn_df, y_axis=y_axis, x_axis=x_axis, groupby_col='eps', dataset_name=dataset_name)
-            pl_util.save_figure(base_plot_dir, dataset_name=dataset_name,
+            pl_util.save_figure(additional_dir_path=dataset_name,
                                 name=f'{phase}_{metric_name}_vs_{x_axis}_{model_set_name}')
