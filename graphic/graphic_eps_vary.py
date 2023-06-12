@@ -27,8 +27,8 @@ if __name__ == '__main__':
         "s_tr_1.0",
     ]
 
-    dataset_results_path = os.path.join(".", "results", "fairlearn-2")
-    base_plot_dir = os.path.join(".", 'results', 'plots')
+    dataset_results_path = os.path.join("../run_experiments", "results", "fairlearn-2")
+    base_plot_dir = os.path.join("../run_experiments", 'results', 'plots')
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
     # check results
     # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)

@@ -166,7 +166,7 @@ class PlotUtility():
 
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    def __init__(self, save:bool=True, show:bool=True, suffix:str='', base_plot_dir=os.path.join('results', 'plots')):
+    def __init__(self, save:bool=True, show:bool=True, suffix:str='', base_plot_dir=os.path.join('../results', 'plots')):
         '''
 
         :param save: bool. whether to save the chart
@@ -640,7 +640,7 @@ if __name__ == '__main__':
         "adult"
     ]
 
-    dataset_results_path = os.path.join("results", "fairlearn-2")
+    dataset_results_path = os.path.join("../results", "fairlearn-2")
     for dataset_name in datasets:
         dirs_df = load_results(dataset_results_path, dataset_name)
         df_list.append(dirs_df)
