@@ -13,7 +13,8 @@ from scipy.stats import sem, t
 from run import params_initials_map
 
 cols_to_aggregate = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'iterations']
-cols_to_index = ['dataset_name', 'model_code', 'base_model_code', 'method', 'constraint_code', 'eps', 'exp_frac',
+cols_to_synch = ['dataset_name', 'base_model_code', 'constraint_code', 'eps',]
+cols_to_index = ['dataset_name', 'base_model_code', 'constraint_code', 'eps', 'model_code', 'method', 'exp_frac',
                  'grid_frac']
 
 time_columns = ['metrics_time', 'phase', 'time', 'grid_oracle_times']
@@ -34,6 +35,12 @@ suffix_attr_map = {
     'gri': 'grid_frac',
 }
 
+def get_numerical_cols(df):
+    num_cols = []
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            num_cols.append(col)
+    return num_cols
 
 def add_sigmod_metric(df):
     for split in ['train', 'test']:
@@ -95,8 +102,9 @@ def prepare_data(df):
     expgrad_mask = df['method'] == 'hybrids'
     hybrid = df[expgrad_mask].copy()
     non_hybrid = df[~expgrad_mask]
-    hybrid = calculate_movign_param(None, hybrid)
-    hybrid = take_max_for_grid_search(hybrid)
+    if not hybrid.empty:
+        hybrid = calculate_movign_param(None, hybrid)
+        hybrid = take_max_for_grid_search(hybrid)
     hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
     return pd.concat([hybrid, non_hybrid])
 
@@ -211,7 +219,8 @@ def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def aggregate_phase_time(df):
-    results_df = df.groupby(df.columns.drop(time_columns).tolist(),
+    cols_to_group = np.setdiff1d(df.columns, time_columns).tolist()
+    results_df = df.groupby(cols_to_group,
                             as_index=False, dropna=False).agg({'time': 'sum'})
     return results_df
 
@@ -324,9 +333,10 @@ def get_error(df):
 
 def prepare_for_plot(df, grouping_col):
     time_aggregated_df = aggregate_phase_time(df)
-    groupby_col = np.intersect1d(cols_to_index, time_aggregated_df.columns).tolist()
-    mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False)[
-        numerical_cols + [grouping_col]].agg(
+    groupby_col = np.intersect1d(cols_to_index+ [grouping_col], time_aggregated_df.columns).tolist()
+    new_numerical_cols = get_numerical_cols(time_aggregated_df)
+    mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False, sort=False)[
+        new_numerical_cols].agg(
         ['mean', ('error', get_error)]).reset_index()
     mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
     return mean_error_df.fillna(0)
