@@ -57,6 +57,6 @@ if __name__ == '__main__':
     dir_path = os.path.join(base_plot_dir, result_path_name, host_name)
     mean_error_df_filtered.to_csv(os.path.join(dir_path, 'all_model_all_metrics_mean_error.csv'))
 
-    pl_util = PlotUtility(show=show, save=save)
+    pl_util = PlotUtility(save=save, show=show)
     plot_by_df(pl_util, all_df, to_plot_models=model_list, model_set_name='baselines', grouping_col='eps')
 
