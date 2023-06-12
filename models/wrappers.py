@@ -226,3 +226,12 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
 
     def predict(self, X, random_state=None):
         return self._pmf_predict(X)[:, 1]
+
+    def get_stats_dict(self):
+        res_dict = {}
+        for key in ['best_iter_', 'best_gap_',
+                    # 'weights_', '_hs',  'predictors_', 'lambda_vecs_',
+                    'last_iter_', 'n_oracle_calls_',
+                    'n_oracle_calls_dummy_returned_', 'oracle_execution_times_', ]:
+            res_dict[key] = getattr(self, key)
+        return res_dict

@@ -289,7 +289,7 @@ class ExperimentRun:
     def set_base_data_dict(self):
         keys = ['dataset', 'method', 'frac', 'model_name', 'base_model_code',
                 'constraint_code', 'train_test_fold', 'total_train_size', 'total_test_size', 'phase',
-                'time', ]
+                'time']
         self.data_dict = {key: None for key in keys}
         prm_keys = self.prm.keys()
         for t_key in keys:
@@ -538,6 +538,8 @@ class ExperimentRun:
                              'test': test_data}
         metrics_res, time_train_dict, time_eval_dict = self.fit_evaluate_model(model, train_data, eval_dataset_dict)
         time_train_dict['phase'] = 'train'
+        if hasattr(model, 'get_stats_dict'):
+            self.data_dict.update(**model.get_stats_dict())
         self.add_turn_results(metrics_res, [time_train_dict, time_eval_dict])
         return self.turn_results
 
