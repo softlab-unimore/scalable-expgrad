@@ -99,7 +99,10 @@ class PlotUtility():
                         ])
 
     def get_label(self, model_code):
-        return self.map_df.loc[model_code, 'label']
+        if model_code in self.map_df.index:
+            return self.map_df.loc[model_code, 'label']
+        else:
+            return model_code
 
     to_plot_models = [
                          # 'expgrad_fracs_gri',
@@ -163,7 +166,14 @@ class PlotUtility():
 
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    def __init__(self, show=True, suffix='', save=True, base_plot_dir=os.path.join('results', 'plots')):
+    def __init__(self, save:bool=True, show:bool=True, suffix:str='', base_plot_dir=os.path.join('results', 'plots')):
+        '''
+
+        :param save: bool. whether to save the chart
+        :param show: bool. whether show the plot in runtime
+        :param suffix: str to add at saving directory. Identify feature/config of thecharts
+        :param base_plot_dir:
+        '''
         self.markersize = 8
         self.linewidth = 0.5
         self.show = show
@@ -261,7 +271,7 @@ class PlotUtility():
         label_params = self.get_all_params(index=i, model_code=model_code)
         label_params['label'] += label_suffix
 
-        if len(set(value_dict['x'])) == 1:
+        if len(set(x)) == 1:
             line_params.update(linestyle="-.")
             line_params['linewidth'] *= 1.5
             for x in ['fmt', 'elinewidth']:
@@ -270,8 +280,9 @@ class PlotUtility():
                 except:
                     pass
             self.ax.axhline(y[-1], zorder=10, label=self.get_label(model_code), **line_params)
-            return
-        self.ax.errorbar(**value_dict, **line_params)
+        else:
+            self.ax.errorbar(**value_dict, **line_params)
+
         self.ax.scatter(x, y, **markers_params)
         self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
 
@@ -378,7 +389,7 @@ def plot_routine_performance_violation(all_model_df, dataset_name, save=True, sh
                                list(PlotUtility.map_df.index.values)).tolist()
     assert len(missed_conf) == 0, missed_conf
 
-    pl_util = PlotUtility(show=show, save=save, suffix=suffix)
+    pl_util = PlotUtility(save=save, show=show, suffix=suffix)
 
     original_list = deepcopy(pl_util.to_plot_models)
     model_set_list = [(original_list, ''),
@@ -406,7 +417,7 @@ def plot_cycle(all_model_df, dataset_name, model_list, set_name, pl_util):
 
 
 def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=''):
-    pl_util = PlotUtility(show=show, save=save, suffix=suffix)
+    pl_util = PlotUtility(save=save, show=show, suffix=suffix)
     df = all_model_df
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
     df.loc[:, 'model_code'] = PlotUtility.map_df.loc[df['model_code'], 'label'].values
@@ -460,7 +471,7 @@ def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save,
     filtered_df = filtered_df[filtered_df['model_code'].isin(model_list)]
 
     mean_error_df = prepare_for_plot(filtered_df, grouping_col)
-    pl_util = PlotUtility(show=show, save=save, suffix='')
+    pl_util = PlotUtility(save=save, show=show, suffix='')
     axis_to_plot = [[grouping_col, 'time'],
                     [grouping_col, 'test_error'],
                     [grouping_col, 'test_violation']]
@@ -604,7 +615,7 @@ def plot_by_df(pl_util: PlotUtility, all_df, to_plot_models, model_set_name, gro
 
             pl_util._start_plot()
             df_to_plot = select_rename_columns_to_plot(turn_df, x_axis, y_axis)
-            df_groups = df_to_plot.groupby(['model_code'])[
+            df_groups = df_to_plot.groupby(['model_code'], sort=False, dropna=False)[
                 ['x', 'xerr', 'y', 'yerr', grouping_col]]
             n_lines = len(df_groups)
             for i, (model_code, value) in enumerate(df_groups):
@@ -660,14 +671,14 @@ if __name__ == '__main__':
     gs_analysis_df = select_oracle_call_time(gs_analysis_df)
     gs_analysis_df = utils_results_data.prepare_data(gs_analysis_df)
 
-    pl_util = PlotUtility(show=show, save=save)
+    pl_util = PlotUtility(save=save, show=show)
     plot_by_df(pl_util, gs_analysis_df, grid_chart_models, model_set_name='oracle_calls',
                grouping_col='exp_frac')
     plot_all_df_subplots(gs_analysis_df, model_list=grid_chart_models, model_set_name='oracle_calls',
                          grouping_col='exp_frac', save=save, show=show, sharey=False, single_chart=False)
     # plot_gs_analysis(gs_analysis_df, grouping_col='exp_frac', pl_util=pl_util)
 
-    pl_util = PlotUtility(show=show, save=save, suffix='')
+    pl_util = PlotUtility(save=save, show=show, suffix='')
     # all datasets
     # Check available combinations
     # df[['base_model_code', 'constraint_code', 'dataset_name','exp_grid_ratio']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
@@ -705,7 +716,7 @@ if __name__ == '__main__':
 
                 # if base_model_code == 'lr': # take always max grid oracle times
                 df_only_oracle_calls = select_oracle_call_time(hybrids_results)
-                pl_util = PlotUtility(show=show, save=save, suffix='ONLY ORACLE CALLS' + suffix)
+                pl_util = PlotUtility(save=save, show=show, suffix='ONLY ORACLE CALLS' + suffix)
                 plot_cycle(df_only_oracle_calls, dataset_name, grid_chart_models, 'gs_comparison_', pl_util)
                 plot_routine_performance_violation(df_only_oracle_calls, dataset_name=dataset_name,
                                                    save=save, show=show, )
