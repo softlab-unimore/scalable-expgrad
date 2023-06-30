@@ -6,21 +6,21 @@ from copy import deepcopy
 import numpy as np
 import os, re
 import matplotlib.pyplot as plt
-import seaborn as sns;
+import seaborn as sns
 import pandas as pd
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
 import utils_results_data
 from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
-    aggregate_phase_time, load_results, filter_results, cols_to_aggregate, prepare_for_plot
+    aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constrain_code_to_name
 import matplotlib as mpl
 
 sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
 # sns.set_context('notebook')
 sns.set_style('whitegrid')
-plt.rcParams.update({'font.size': 16, "figure.dpi": 400, 'savefig.dpi': 600,
+plt.rcParams.update({'font.size': 16, "figure.dpi": 200, 'savefig.dpi': 600,
                      # 'figure.figsize': (16 * 2 / 3, 9 * 2 / 3)
                      })
 plt.rcParams['figure.constrained_layout.use'] = True
@@ -69,6 +69,7 @@ def generate_map_df():
                 name += f'_{t_varing}'
                 if t_grid_mode == 'gf_1':
                     name += f'_gf_1'
+                    t_grid_mode = '1'
 
                 label = f'EXPGRAD=' + ('adaptive' if t_active_sampling else 'static')
                 label += ' GS=' + (
@@ -166,7 +167,8 @@ class PlotUtility():
 
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
-    def __init__(self, save:bool=True, show:bool=True, suffix:str='', base_plot_dir=os.path.join('../results', 'plots')):
+    def __init__(self, save: bool = True, show: bool = True, suffix: str = '',
+                 base_plot_dir=os.path.join('results', 'plots')):
         '''
 
         :param save: bool. whether to save the chart
@@ -182,6 +184,7 @@ class PlotUtility():
         self.base_plot_dir = base_plot_dir
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
+        # self.label_map = {} # todo label map to change label names
 
     def _start_plot(self):
         plt.close('all')
@@ -189,6 +192,7 @@ class PlotUtility():
         self.ax = plt.subplot()
 
     def _end_plot(self, x_axis, y_axis, title):
+
         self.ax.set_ylabel(y_axis)
         self.ax.set_title(f'{title} - {x_axis} v.s. {y_axis}')
         if x_axis == 'time':
@@ -208,7 +212,7 @@ class PlotUtility():
 
     def plot(self, all_model_df, dataset_name, x_axis='frac', y_axis='time', groupby_col='frac'):
         self._start_plot()
-        self.cols_to_aggregate = np.intersect1d(cols_to_aggregate, all_model_df.columns).tolist()
+        self.cols_to_aggregate = np.intersect1d(seed_columns, all_model_df.columns).tolist()
         self.groupby_col = groupby_col
 
         all_model_df = all_model_df[all_model_df['model_code'].isin(self.to_plot_models)]
@@ -274,22 +278,44 @@ class PlotUtility():
         if len(set(x)) == 1:
             line_params.update(linestyle="-.")
             line_params['linewidth'] *= 1.5
-            for x in ['fmt', 'elinewidth']:
+            for key in ['fmt', 'elinewidth']:
                 try:
-                    line_params.pop(x)
+                    line_params.pop(key)
                 except:
                     pass
-            self.ax.axhline(y[-1], zorder=10, label=self.get_label(model_code), **line_params)
+
+            self.ax.axhline(y[-1], zorder=10, **line_params)
+            if x[0] != 0:
+                self.ax.scatter(x, y, **markers_params)
+            else:
+                label_params.pop('marker')
         else:
             self.ax.errorbar(**value_dict, **line_params)
+            self.ax.scatter(x, y, **markers_params)
 
-        self.ax.scatter(x, y, **markers_params)
         self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
 
-    def add_annotation(self, x, y, grouping_values, annotation_fontize=10):
-        to_annotate = list(zip(x, y, grouping_values))
-        for tx, ty, tv in [to_annotate[0], to_annotate[-1]]:
-            plt.text(tx, ty, f' {tv:.3g}', fontsize=annotation_fontize, va='center')
+    def add_multiple_lines(self, df, grouping_col, model_list, increasing_marker_size, annotate_col=None):
+        n_lines = len(model_list)
+        df_groups = df.groupby('model_code', sort=False)
+        for i, (model_code, turn_df) in enumerate(df_groups):
+            turn_df = turn_df.sort_values(grouping_col)
+            index = model_list.index(model_code)
+            value_dict = turn_df[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
+            grouping_values = None
+            if increasing_marker_size:
+                grouping_values = turn_df[grouping_col]
+            self.add_line_errorbar(value_dict, grouping_values=grouping_values, model_code=model_code,
+                                   i=index, n_lines=n_lines)
+            if annotate_col is not None:
+                annotate_values = turn_df[annotate_col]
+                self.add_annotation(value_dict['x'], value_dict['y'], annotate_values)
+
+    def add_annotation(self, x, y, annotate_values, annotation_fontize=10):
+        to_annotate = list(zip(x, y, annotate_values))
+        for tx, ty, tt in [to_annotate[0], to_annotate[-1]]:
+            self.ax.annotate(text=f' {tt:.3g}', xy=(tx, ty), xycoords='data',
+                             fontsize=annotation_fontize)
 
     def get_color(self, index):
         return self.color_list[index % len(self.color_list)]
@@ -308,7 +334,7 @@ class PlotUtility():
         marker_size = self.markersize ** 2
         if grouping_values is not None:
             n = len(grouping_values)
-            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(n) / n)
+            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(1, n + 1) / n)
             # dimension between start-stop original marker size
         return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
 
@@ -455,87 +481,118 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
     #     pl_util.save(base_plot_dir, dataset_name=dataset_name, name=f'{y_axis}_vs_{x_axis}')
 
 
-def select_rename_columns_to_plot(df, x_axis, y_axis):
+def rename_columns_to_plot(df, x_axis, y_axis):
     for key, column in {'x': x_axis, 'y': y_axis}.items():
         for (suffix, sub_col) in {'': 'mean', 'err': 'error'}.items():
             df[f'{key}{suffix}'] = df[f'{column}_{sub_col}']
     return df
 
 
-def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save, show,
+def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save, show, axis_to_plot=None,
                          sharex=True,
-                         sharey='row', result_path_name='all_df', single_chart=True, xlog=False):
+                         sharey='row', result_path_name='all_df', single_chart=False, xlog=False,
+                         increasing_marker_size=False,
+                         subplots_by_col='dataset_name', subplots=True, annotate_col=None,
+                         ylim_list=None, add_threshold=False):
+    if annotate_col is not None:
+        annotate_col += '_mean'
     if model_set_name != '':
         model_set_name += '_'
-    filtered_df = utils_results_data.prepare_data(all_df)
-    filtered_df = filtered_df[filtered_df['model_code'].isin(model_list)]
+    # filtered_df = utils_results_data.prepare_data(all_df)
+    model_list = list(model_list)
 
-    mean_error_df = prepare_for_plot(filtered_df, grouping_col)
+    mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
+    if add_threshold:
+        mean_error_df = utils_results_data.add_threshold(mean_error_df)
+        model_list += ['Threshold']
+    # mean_error_df = mean_error_df[mean_error_df['model_code']]
     pl_util = PlotUtility(save=save, show=show, suffix='')
-    axis_to_plot = [[grouping_col, 'time'],
-                    [grouping_col, 'test_error'],
-                    [grouping_col, 'test_violation']]
-    dataset_name_list = mean_error_df['dataset_name'].unique()
-    pl_util.show = False
-    for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code']):
+    if axis_to_plot is None:
+        axis_to_plot = [[grouping_col, 'time'],
+                        [grouping_col, 'test_error'],
+                        [grouping_col, 'test_violation'],
+                        [grouping_col, 'train_error'],
+                        [grouping_col, 'train_violation'],
+                        ]
+
+    for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code'], sort=False):
         base_model_code, constraint_code = keys
-        fig, axes_array = plt.subplots(nrows=len(axis_to_plot), ncols=len(dataset_name_list), sharex=sharex,
-                                       sharey=sharey, figsize=np.array([6.4 * 1.5, 4.8]) * 1.5, tight_layout=True)
-        pl_util.fig = fig
+        if subplots:
+            pl_util.show = False
+            figsize = np.array([14.4, 2.4 * len(list(axis_to_plot))])
+            fig, axes_array = plt.subplots(nrows=len(axis_to_plot), ncols=df_to_plot[subplots_by_col].nunique(),
+                                           sharex=sharex,
+                                           sharey=sharey, figsize=figsize,
+                                           tight_layout=True)  # todo fix sharey not showing multiple axis labels
+            pl_util.fig = fig
         for row, (x_axis, y_axis) in enumerate(axis_to_plot):
-            df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
-            df_groups = df_to_plot.groupby(['dataset_name', 'base_model_code'])[
-                ['x', 'xerr', 'y', 'yerr', grouping_col, 'model_code']]
-            n_lines = len(df_groups)
-            for col, ((dataset_name, base_model_code), value) in enumerate(df_groups):
-                pl_util.ax = axes_array[row, col]
-                for i, (model_code, turn_df) in enumerate(value.groupby('model_code')):
-                    index = model_list.index(model_code)
-                    value_dict = turn_df[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
+            if 'violation' in y_axis:
+                y_axis = y_axis.replace('violation', constrain_code_to_name[constraint_code])
+            check_axis_validity(df_to_plot, x_axis, y_axis)
+            df_to_plot = rename_columns_to_plot(df_to_plot, x_axis, y_axis)
 
-                    pl_util.add_line_errorbar(value_dict, grouping_values=None, model_code=model_code, i=index,
-                                              n_lines=n_lines)
+            col_to_use = ['x', 'xerr', 'y', 'yerr', grouping_col, 'model_code']
+            if annotate_col is not None:
+                col_to_use += [annotate_col]
+            df_subplot = df_to_plot.groupby([subplots_by_col], sort=False, )[col_to_use]
 
-                pl_util._end_plot(x_axis, y_axis, f'{dataset_name}')
-                pl_util.ax.set_title(f'{dataset_name}')
-                pl_util.ax.get_legend().remove()
-                if xlog:
-                    pl_util.ax.set_Xscale("log")
-                    xlabel = pl_util.ax.get_ylabel()
-                    pl_util.ax.set_ylabel(f'{xlabel} (log)')
+            for col, (subplot_value, turn_df) in enumerate(df_subplot):
+                if subplots:
+                    pl_util.ax = axes_array[row, col]
 
-        if sharey == 'row':
-            axes_array[1, 0].set_ylim(0, 0.4)
-        for ax in axes_array.flat[::-1]:
-            handles, labels = ax.get_legend_handles_labels()
-            if len(labels) == len(model_list):
-                break
-        if len(labels) != len(model_list):
-            logging.warning('Some model are not displayed.')
+                    pl_util.add_multiple_lines(turn_df, grouping_col, model_list, increasing_marker_size, annotate_col)
 
-        fig.legend(handles, labels, ncol=len(model_list),
-                   loc='lower center', bbox_to_anchor=(0.5, 0.01),
-                   bbox_transform=fig.transFigure,
-                   borderaxespad=-1.1,
-                   fontsize=10,
-                   )
-        # fig.subplots_adjust(bottom=0.15)
-        # fig.tight_layout()
+                    pl_util._end_plot(x_axis, y_axis, f'{subplot_value}')
+                    pl_util.ax.set_title(f'{subplot_value}')
+                    pl_util.ax.get_legend().remove()
+                    if xlog:
+                        pl_util.ax.set_xscale("log")
+                        xlabel = pl_util.ax.get_xlabel()
+                        pl_util.ax.set_xlabel(f'{xlabel} (log)')
+                    if sharey is False:
+                        pl_util.ax.yaxis.set_tick_params(which='both', labelleft=True)
 
+                else:
+                    pl_util._start_plot()
+                    pl_util.add_multiple_lines(df_to_plot, grouping_col, model_list, increasing_marker_size=True,
+                                               annotate_col=annotate_col)
+                    pl_util._end_plot(x_axis, y_axis,
+                                      title=f'{constraint_code} - {subplot_value} - {base_model_code} - VARY {grouping_col}')
+                    name = f'all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}'
+                    pl_util.save_figure(additional_dir_path=subplot_value, name=name)
 
-        for ax in axes_array[1:].flat:
-            ax.set_title('')
-        for ax in axes_array.flat:
-            ax.label_outer()
-        pl_util.fig.suptitle(f'{base_model_code} - {constraint_code}')
-        if show:
-            fig.show()
-        pl_util.save_figure(additional_dir_path=result_path_name,
-                            name=f'{model_set_name}all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_subplots')
+        if subplots:
+            if sharey == 'row':
+                if ylim_list is not None:
+                    for r, lim in enumerate(ylim_list):
+                        if lim is not None:
+                            axes_array[r, 0].set_ylim(lim)
+            for ax in axes_array.flat[::-1]:
+                handles, labels = ax.get_legend_handles_labels()
+                if len(labels) == len(model_list):
+                    break
+            if len(labels) != len(model_list):
+                logging.warning('Some model are not displayed.')
+            fig.legend(handles, labels, ncol=min(4, len(model_list)),
+                       loc='lower center',
+                       bbox_to_anchor=(0.5, 0.01),
+                       bbox_transform=fig.transFigure,
+                       borderaxespad=-1.1,
+                       fontsize=10,
+                       )
+            for ax in axes_array[1:].flat:
+                ax.set_title('')
+            for ax in axes_array.flat:
+                ax.label_outer()
+            pl_util.fig.suptitle(f'{base_model_code} - {constraint_code}')
+            if show:
+                fig.show()
+            pl_util.save_figure(additional_dir_path=result_path_name,
+                                name=f'{model_set_name}all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_subplots')
     pl_util.show = show
 
-    if single_chart:
-        plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name)
+    # if single_chart:
+    #     plot_all_df_single_chart(pl_util, grouping_col, mean_error_df, model_set_name)
 
 
 def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name='',
@@ -555,12 +612,13 @@ def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name=
             ['test_di', 'test_error'],
         ]:
             pl_util._start_plot()
-            df_to_plot = select_rename_columns_to_plot(df_to_plot, x_axis, y_axis)
+            df_to_plot = rename_columns_to_plot(df_to_plot, x_axis, y_axis)
             df_groups = df_to_plot.groupby(['dataset_name', 'model_code'])[
                 ['x', 'xerr', 'y', 'yerr', grouping_col]]
             n_lines = len(df_groups)
             for i, (key, value) in enumerate(df_groups):
                 dataset_name, model_code = key
+                value = value.sort_values(grouping_col)
                 value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
                 grouping_values = value[grouping_col]
                 pl_util.add_line_errorbar(value_dict, grouping_values, model_code=model_code,
@@ -580,53 +638,70 @@ def select_oracle_call_time(results_df):
         lambda x: np.array(ast.literal_eval(x)).max())
     df.loc[grid_mask, 'time'] = grid_time_series
     # ONLY ORACLE CALLLS
+    extract_oracle_time(df)
+    return df
+
+
+def extract_oracle_time(df, new_col_name='time', cols_to_select=['fit_sum']):
+    df[new_col_name] = 0
     exp_mask = df['phase'] == 'expgrad_fracs'
     exp_time_df = df[exp_mask]['oracle_execution_times_'].agg(
         lambda x: pd.DataFrame(ast.literal_eval(x)).sum())
     exp_time_df.columns += '_sum'
-    df.loc[exp_mask, 'time'] = exp_time_df['fit_sum']
-    return df
+    if cols_to_select == 'all':
+        cols_to_select = exp_time_df.columns
+    df.loc[exp_mask, new_col_name] = exp_time_df[cols_to_select].sum(1)
 
 
-def plot_by_df(pl_util: PlotUtility, all_df, to_plot_models, model_set_name, grouping_col,
+def plot_by_df(pl_util: PlotUtility, all_df, model_list, model_set_name, grouping_col,
                x_axis_list=['time'],
-               y_axis_list=['_'.join(x) for x in itertools.product(['train', 'test'], ['error', 'violation', 'di'])],
+               y_axis_list=['_'.join(x) for x in
+                            itertools.product(['train', 'test'], ['error', 'violation'])],
                ):
     if model_set_name != '':
         pl_util.suffix = '_' + model_set_name
 
     mean_error_df = prepare_for_plot(all_df, grouping_col)
-    mean_error_df = mean_error_df[mean_error_df['model_code'].isin(to_plot_models)]
+    mean_error_df = mean_error_df[mean_error_df['model_code'].isin(model_list)]
 
-    grouped = mean_error_df.groupby(['base_model_code', 'dataset_name', 'constraint_code'])
+    grouped = mean_error_df.groupby(['base_model_code', 'dataset_name', 'constraint_code'], sort=False)
     for key, turn_df in grouped:
         base_model_code, dataset_name, constraint_code = key
         to_iter = list(itertools.product(y_axis_list,
                                          x_axis_list
                                          ))
         for y_axis, x_axis in to_iter:
+            if 'violation' in y_axis:
+                y_axis = y_axis.replace('violation', constrain_code_to_name[constraint_code])
             # to_plot_models = [x.replace('_exp', '_eps') for x in to_plot_models]
             if model_set_name != '' and x_axis == 'frac':
                 continue
-            if x_axis not in turn_df.columns and x_axis + '_mean' not in turn_df.columns:
-                raise ValueError(f'{x_axis} is not a valid x_axis')
-            if y_axis == x_axis:
-                raise ValueError(f'{x_axis} and {y_axis} are not a valid x_axis, y_axis combination.')
+            check_axis_validity(turn_df, x_axis, y_axis)
 
+            df_to_plot = rename_columns_to_plot(turn_df, x_axis, y_axis)
             pl_util._start_plot()
-            df_to_plot = select_rename_columns_to_plot(turn_df, x_axis, y_axis)
-            df_groups = df_to_plot.groupby(['model_code'], sort=False, dropna=False)[
-                ['x', 'xerr', 'y', 'yerr', grouping_col]]
-            n_lines = len(df_groups)
-            for i, (model_code, value) in enumerate(df_groups):
-                value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
-                grouping_values = value[grouping_col]
-                pl_util.add_line_errorbar(value_dict, grouping_values, model_code=model_code,
-                                          label_suffix='', i=i, n_lines=n_lines)
-                pl_util.add_annotation(value_dict['x'], value_dict['y'], grouping_values)
-            pl_util._end_plot(x_axis, y_axis, title=f'{dataset_name} - {base_model_code} - VARY {grouping_col}')
+            pl_util.add_multiple_lines(df_to_plot, grouping_col, model_list, increasing_marker_size=True)
+            # df_groups = df_to_plot.groupby(['model_code'], sort=False, dropna=False)[
+            #     ['x', 'xerr', 'y', 'yerr', grouping_col]]
+            # n_lines = len(df_groups)
+            # for i, (model_code, value) in enumerate(df_groups):
+            #     value = value.sort_values(grouping_col)
+            #     value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
+            #     grouping_values = value[grouping_col]
+            #     pl_util.add_line_errorbar(value_dict, grouping_values, model_code=model_code,
+            #                               label_suffix='', i=i, n_lines=n_lines)
+            #     pl_util.add_annotation(value_dict['x'], value_dict['y'], grouping_values)
+            pl_util._end_plot(x_axis, y_axis,
+                              title=f'{constraint_code} - {dataset_name} - {base_model_code} - VARY {grouping_col}')
             name = f'all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}'
             pl_util.save_figure(additional_dir_path=dataset_name, name=name)
+
+
+def check_axis_validity(df, x_axis, y_axis):
+    if x_axis not in df.columns and x_axis + '_mean' not in df.columns:
+        raise ValueError(f'{x_axis} is not a valid x_axis')
+    if y_axis == x_axis:
+        raise ValueError(f'{x_axis} and {y_axis} are not a valid x_axis, y_axis combination.')
 
 
 save = True
