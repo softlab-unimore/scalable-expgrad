@@ -5,7 +5,7 @@ import pandas as pd
 import scipy.optimize as opt
 
 from fairlearn.reductions import ErrorRate, GridSearch
-from fairlearn.reductions import ExponentiatedGradient, DemographicParity
+from fairlearn.reductions import ExponentiatedGradient
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
 
@@ -50,7 +50,7 @@ def _pmf_predict(X, predictors, weights):
 
 
 class ExponentiatedGradientPmf(ExponentiatedGradient):
-    def fit(self, X, y, sensitive_features, **kwargs):
+    def fit(self, X, y, sensitive_features,  **kwargs):
         super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
 
     def predict(self, X, random_state=None):
@@ -59,9 +59,7 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
 
 class Hybrid5(BaseEstimator):
 
-    def __init__(self, expgrad_frac=None, eps=None, constraint=None, unconstrained_model=None):
-        if constraint is None:
-            constraint = DemographicParity(difference_bound=eps)
+    def __init__(self, constraint, expgrad_frac=None, eps=None, unconstrained_model=None):
         self.constraint = constraint
         self.expgrad_logistic_frac = expgrad_frac
         self.eps = eps
@@ -80,9 +78,9 @@ class Hybrid5(BaseEstimator):
         error_list = []
         violation_dict = {}
         # violation of log res
-        disparity_moment = DemographicParity()
+        disparity_moment = deepcopy(self.constraint)
         disparity_moment.load_data(X, y,
-                                   sensitive_features=sensitive_features)  # try different demographic parity function
+                                   sensitive_features=sensitive_features)
         # error of log res
         error = ErrorRate()
         error.load_data(X, y, sensitive_features=sensitive_features)  # Add timing here
@@ -124,7 +122,7 @@ class Hybrid5(BaseEstimator):
 
 class Hybrid1(Hybrid5):
 
-    def __init__(self, base_model=None, expgrad=None, grid_search_frac=None, eps=None, constraint=None,
+    def __init__(self,  eps, constraint,base_model=None, expgrad=None, grid_search_frac=None,
                  unconstrained_model=None, grid_subsample=None, random_state=None):
         super().__init__(eps=eps, constraint=constraint, unconstrained_model=unconstrained_model)
         self.expgrad_logistic_frac = expgrad
@@ -163,8 +161,7 @@ class Hybrid2(Hybrid1):
 
 class Hybrid3(Hybrid1):
 
-    def __init__(self, add_exp_predictors=False, expgrad=None, grid_search_frac=None, eps=None, constraint=None,
-                 unconstrained_model=None):
+    def __init__(self, constraint, add_exp_predictors=False, expgrad=None, grid_search_frac=None, eps=None, unconstrained_model=None):
         super().__init__(expgrad=expgrad, grid_search_frac=grid_search_frac, eps=eps, constraint=constraint,
                          unconstrained_model=unconstrained_model)
         self.add_exp_predictors = add_exp_predictors
