@@ -2,8 +2,7 @@ import os
 
 import pandas as pd
 
-from graphic_utility import PlotUtility
-from utils_results_data import filter_results, cols_to_aggregate
+from utils_results_data import filter_results, seed_columns
 from utils_experiment import dataset_names
 
 
@@ -41,5 +40,5 @@ if __name__ == '__main__':
 
             expgrad_phase_mask = all_model_df['phase'] == "expgrad_fracs"
             expgrad_df = all_model_df[expgrad_phase_mask]
-            check_df = expgrad_df.groupby(cols_to_aggregate + ['frac']).apply(check_expgrad_time).stack()
+            check_df = expgrad_df.groupby(seed_columns + ['frac']).apply(check_expgrad_time).stack()
             assert check_df.all()

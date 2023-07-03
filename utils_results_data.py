@@ -1,5 +1,6 @@
 import ast
 import itertools
+import logging
 import os
 import re
 import socket
@@ -10,19 +11,22 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 
+import utils_experiment
 from run import params_initials_map
+from utils_experiment import get_config_by_id
 
-cols_to_aggregate = ['random_seed', 'train_test_fold', 'sample_seed', 'train_test_seed', 'iterations']
-cols_to_synch = ['dataset_name', 'base_model_code', 'constraint_code', 'eps',]
+seed_columns = ['random_seed', 'train_test_fold', 'train_test_seed']
+cols_to_synch = ['dataset_name', 'base_model_code', 'constraint_code', 'eps', 'train_test_seed', 'random_seed',
+                 'train_test_fold', ]
 cols_to_index = ['dataset_name', 'base_model_code', 'constraint_code', 'eps', 'model_code', 'method', 'exp_frac',
                  'grid_frac']
 
-time_columns = ['metrics_time', 'phase', 'time', 'grid_oracle_times']
+time_columns = ['metrics_time', 'time', 'grid_oracle_times']
 numerical_cols = ['time', 'train_error', 'train_accuracy', 'test_accuracy',
                   'train_violation', 'train_di', 'train_TPRB', 'train_TNRB', 'train_f1',
                   'train_precision', 'train_recall', 'test_error', 'test_violation',
                   'test_di', 'test_TPRB', 'test_TNRB', 'test_f1', 'test_precision',
-                  'test_recall', # 'total_train_size', 'total_test_size',
+                  'test_recall',  # 'total_train_size', 'total_test_size',
                   'n_oracle_calls_', 'n_oracle_calls_dummy_returned_', ]
 non_numeric_cols = ['best_iter_', 'best_gap_', 'last_iter_',
                     'oracle_execution_times_', 'metrics_time', 'grid_oracle_times',
@@ -35,12 +39,15 @@ suffix_attr_map = {
     'gri': 'grid_frac',
 }
 
+constrain_code_to_name = {'dp': 'DemographicParity', 'eo': 'EqualizedOdds'}
+
 def get_numerical_cols(df):
     num_cols = []
     for col in df.columns:
         if pd.api.types.is_numeric_dtype(df[col]):
             num_cols.append(col)
     return num_cols
+
 
 def add_sigmod_metric(df):
     for split in ['train', 'test']:
@@ -75,9 +82,6 @@ def calculate_movign_param(path, df: pd.DataFrame):
         mask = df['moving_param'] == key
         df.loc[mask, 'frac'] = df.loc[mask, col]
     # fix_expgrad_times(df)
-    models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
-    mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac'] == 1)
-    df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
     return df
 
 
@@ -105,7 +109,9 @@ def prepare_data(df):
     if not hybrid.empty:
         hybrid = calculate_movign_param(None, hybrid)
         hybrid = take_max_for_grid_search(hybrid)
-    hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
+        hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
+        models_with_gridsearch = hybrid['model_code'].isin(hybrid.query('phase == "grid_frac"')['model_code'].unique())
+        hybrid.loc[~models_with_gridsearch, 'grid_frac'] = 0
     return pd.concat([hybrid, non_hybrid])
 
 
@@ -175,11 +181,13 @@ def load_results(dataset_path, dataset_name, prefix='last', read_files=False):
         else:
             df = load_results_single_directory(turn_dir.path, prefix=prefix)
 
+        models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
+        df.loc[~df['model_code'].isin(models_with_gridsearch), 'grid_frac'] = 0
         if 'grid_fractions' in config.keys() and config['grid_fractions'] == '1.0':
             # mask = ~df['model_code'].str.contains('|'.join(['expgrad_fracs', 'hybrid_7', 'unconstrained_']))
-            models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
             mask = df['model_code'].isin(models_with_gridsearch)
             df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
+
         for key, value in config.items():
             if key not in df.columns:
                 df[key] = value
@@ -213,15 +221,16 @@ def load_results_single_directory(base_dir, prefix='last'):
 def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
     expgrad_phase_mask = df['phase'] == "expgrad_fracs"
     expgrad_df = df[expgrad_phase_mask]
-    to_group_cols = np.intersect1d(cols_to_aggregate + ['frac'], expgrad_df.columns).tolist()
+    to_group_cols = np.intersect1d(seed_columns + ['frac'], expgrad_df.columns).tolist()
     expgrad_df = expgrad_df.groupby(to_group_cols).apply(select_set_expgrad_time)
     df[expgrad_phase_mask] = expgrad_df
 
 
 def aggregate_phase_time(df):
-    cols_to_group = np.setdiff1d(df.columns, time_columns).tolist()
+    turn_time_columns = list(set(df.columns[df.columns.str.contains('time')].tolist() + time_columns))
+    cols_to_group = np.setdiff1d(df.columns, turn_time_columns +['phase']).tolist()
     results_df = df.groupby(cols_to_group,
-                            as_index=False, dropna=False).agg({'time': 'sum'})
+                            as_index=False, dropna=False, sort=False)[turn_time_columns].agg('sum')
     return results_df
 
 
@@ -317,12 +326,24 @@ def get_combined_groupby(x, alpha=0.5):
 def load_results_experiment_id(experiment_code_list, dataset_results_path):
     df_list = []
     for experiment_code in experiment_code_list:
-        for filepath in os.scandir(os.path.join(dataset_results_path, experiment_code)):
+        cur_dir = os.path.join(dataset_results_path, experiment_code)
+        if not os.path.exists(cur_dir):
+            logging.warning(f'{cur_dir} does not exists. Skipped.')
+            continue
+        for filepath in os.scandir(cur_dir):
             if filepath.name.endswith('.csv'):
                 df = pd.read_csv(filepath)
+
+                current_config = utils_experiment.get_config_by_id(experiment_code)
+                df = prepare_data(df)
+                if 'grid_fractions' in current_config.keys() and current_config['grid_fractions'] == [1]:
+                    models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()
+                    mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac'] == 1)
+                    df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
+
                 df_list.append(df)
     all_df = pd.concat(df_list)
-    return prepare_data(all_df)
+    return all_df
 
 
 def get_error(df):
@@ -331,12 +352,48 @@ def get_error(df):
     return pd.Series({'error': err})
 
 
+column_rename_map_before_plot = {'train_violation': 'train_DemographicParity',
+                                 'test_violation': 'test_DemographicParity'}
+
+
+def add_threshold(df):
+    cols = ['dataset_name', 'base_model_code', 'constraint_code', 'eps']
+    unique_values_dict = {}
+    for col in cols:
+        unique_values_dict[col] = df[col].unique().tolist()
+
+    row_list = []
+    for values in itertools.product(*unique_values_dict.values()):
+        df_row = dict(zip(cols, values))
+        df_row['model_code'] = 'Threshold'
+        constraint_code = values[-2]
+        eps = values[-1]
+        constraint_name = constrain_code_to_name[constraint_code]
+
+        for phase in ['train', 'test']:
+            df_row[f'{phase}_{constraint_name}_mean'] = eps
+        row_list.append(df_row.copy())
+    return pd.concat([df, pd.DataFrame(row_list)])
+
+def align_seeds(df):
+    df_list = []
+    for key, group_df in df.groupby(['dataset_name', 'base_model_code', 'constraint_code', ], sort=False):
+        df_list.append(
+            group_df.groupby(seed_columns, sort=False).filter(lambda x: x.shape[0] >= x['model_code'].nunique()))
+    return pd.concat(df_list)
+
+
 def prepare_for_plot(df, grouping_col):
+    df = align_seeds(df)
     time_aggregated_df = aggregate_phase_time(df)
-    groupby_col = np.intersect1d(cols_to_index+ [grouping_col], time_aggregated_df.columns).tolist()
-    new_numerical_cols = get_numerical_cols(time_aggregated_df)
+
+    groupby_col = np.intersect1d(cols_to_index + [grouping_col], time_aggregated_df.columns).tolist()
+    time_aggregated_df = time_aggregated_df.rename(columns=column_rename_map_before_plot)
+    new_numerical_cols = list(set(get_numerical_cols(time_aggregated_df) + [grouping_col]))
     mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False, sort=False)[
         new_numerical_cols].agg(
         ['mean', ('error', get_error)]).reset_index()
     mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
     return mean_error_df.fillna(0)
+
+
