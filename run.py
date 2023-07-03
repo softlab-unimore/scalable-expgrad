@@ -1,3 +1,4 @@
+import gc
 import itertools
 import json
 import logging
@@ -23,7 +24,7 @@ import utils_prepare_data
 import inspect
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
 from metrics import default_metrics_dict
-from utils_experiment import experiment_configurations
+from utils_experiment import get_config_by_id
 from utils_prepare_data import get_constraint
 
 
@@ -62,11 +63,8 @@ def get_initials(s: str, split_char='_'):
 
 
 def launch_experiment_by_id(experiment_id: str):
-    exp_dict = None
-    for x in experiment_configurations:
-        if x['experiment_id'] == experiment_id:
-            exp_dict: dict = x
-            break
+    exp_dict = get_config_by_id(experiment_id)
+    exp_dict_orig = exp_dict.copy()
     if exp_dict is None:
         raise ValueError(f"{experiment_id} is not a valid experiment id")
     for attr in ['base_model_code', 'dataset_names', 'model_names']:
@@ -101,12 +99,13 @@ def launch_experiment_by_id(experiment_id: str):
 
     sys.excepthook = exc_handler
     logging.info(f'Parameters of experiment {experiment_id}\n' +
-                 json.dumps(exp_dict, default=list).replace(', \"', ',\n\t\"'))
+                 json.dumps(exp_dict_orig, default=list).replace(', \"', ',\n\t\"'))
     a = datetime.now()
     logging.info(f'Started logging.')
     to_iter = itertools.product(base_model_code_list, dataset_name_list, model_name_list)
     original_argv = sys.argv.copy()
     for base_model_code, dataset_name, model_name in to_iter:
+        gc.collect()
         turn_a = datetime.now()
         logging.info(f'Starting combination:'
                      f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
@@ -141,7 +140,7 @@ class ExperimentRun:
         arg_parser.add_argument("method")
 
         # For Fairlearn and Hybrids
-        arg_parser.add_argument("--eps", nargs='+', type=float)
+        arg_parser.add_argument("--eps", nargs='+', type=float, default=[None])
         arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
 
         # For synthetic data
@@ -187,6 +186,7 @@ class ExperimentRun:
         params_to_initials_map = {get_initials(key): key for key in args.__dict__.keys()}
         prm = args.__dict__.copy()
 
+
         if args.grid_fractions is not None:
             assert args.exp_grid_ratio is None, '--exp_grid_ratio must not be set if using --grid_fractions'
 
@@ -224,7 +224,9 @@ class ExperimentRun:
                 for values in itertools.product(*params_to_iterate.values()):
                     turn_params_dict = dict(zip(keys, values))
                     self.data_dict.update(**turn_params_dict)
-                    logging.info(f'Starting step: \n' + json.dumps(turn_params_dict,default=list))
+                    logging.info(f'Starting step: random_seed: {random_seed}, train_test_seed: {train_test_seed}, '
+                                 f'train_test_fold: {train_test_fold} \n'
+                                 + json.dumps(turn_params_dict,default=list))
                     a = datetime.now()
                     self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
                                    other_params=turn_params_dict)
@@ -373,7 +375,8 @@ class ExperimentRun:
             # Expgrad on sample
             self.data_dict['model_name'] = f'expgrad_fracs{run_lp_suffix}'
             expgrad_frac = ExponentiatedGradientPmf(estimator=deepcopy(base_model), run_linprog_step=run_linprog_step,
-                                                    constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6)
+                                                    constraints=deepcopy(constraint), eps=turn_eps, nu=1e-6,
+                                                    random_state=random_seed)
             metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(expgrad_frac, exp_params,
                                                                                  eval_dataset_dict)
             exp_data_dict = utils_prepare_data.get_data_from_expgrad(expgrad_frac)
@@ -408,8 +411,8 @@ class ExperimentRun:
                 #################################################################################################
                 self.data_dict['model_name'] = f'{prefix}hybrid_5{run_lp_suffix}'
                 print(f"Running {self.data_dict['model_name']}")
-                model1 = Hybrid5(turn_expgrad, eps=turn_eps, constraint=deepcopy(constraint))
-                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params,
+                model5 = Hybrid5(constraint=deepcopy(constraint), expgrad_frac=turn_expgrad, eps=turn_eps, )
+                metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model5, all_params,
                                                                                     eval_dataset_dict)
                 time_lp_dict['phase'] = 'lin_prog'
                 self.add_turn_results(metrics_res, [time_eval_dict, turn_time_exp_dict, time_lp_dict])
@@ -420,8 +423,8 @@ class ExperimentRun:
                     #################################################################################################
                     self.data_dict['model_name'] = f'{prefix}hybrid_5_U{run_lp_suffix}'
                     print(f"Running {self.data_dict['model_name']}")
-                    model1.unconstrained_model = unconstrained_model
-                    metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model1, all_params,
+                    model5.unconstrained_model = unconstrained_model
+                    metrics_res, time_lp_dict, time_eval_dict = self.fit_evaluate_model(model5, all_params,
                                                                                         eval_dataset_dict)
                     time_lp_dict['phase'] = 'lin_prog'
                     self.add_turn_results(metrics_res,
