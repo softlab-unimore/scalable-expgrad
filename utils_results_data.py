@@ -373,7 +373,7 @@ def add_threshold(df):
         for phase in ['train', 'test']:
             df_row[f'{phase}_{constraint_name}_mean'] = eps
         row_list.append(df_row.copy())
-    return pd.concat([df, pd.DataFrame(row_list)])
+    return pd.concat([pd.DataFrame(row_list), df])
 
 def align_seeds(df):
     df_list = []
@@ -384,12 +384,18 @@ def align_seeds(df):
 
 
 def prepare_for_plot(df, grouping_col):
-    df = align_seeds(df)
+    # df = align_seeds(df)
     time_aggregated_df = aggregate_phase_time(df)
 
     groupby_col = np.intersect1d(cols_to_index + [grouping_col], time_aggregated_df.columns).tolist()
     time_aggregated_df = time_aggregated_df.rename(columns=column_rename_map_before_plot)
     new_numerical_cols = list(set(get_numerical_cols(time_aggregated_df) + [grouping_col]))
+
+    # # all datasets
+    #     # Check available combinations
+    # df[['base_model_code', 'constraint_code', 'dataset_name','exp_grid_ratio','exp_frac']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
+    # df[['random_seed','train_test_seed','train_test_fold']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
+    # todo check seed values, filter older seeds.
     mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False, sort=False)[
         new_numerical_cols].agg(
         ['mean', ('error', get_error)]).reset_index()
