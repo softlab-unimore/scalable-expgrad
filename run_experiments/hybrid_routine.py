@@ -34,27 +34,50 @@ if __name__ == "__main__":
         'acs_h_gsSR_1.1',
         'acsE_h_gsSR_1.1',
         'acsE_h_gs1_1.0',
-        'f_eta0_1.0',
-        'f_eta0_2.0',
+
         's_h_EO_1.0',
         'acs_h_gsSR_2.1',
         'acs_h_gs1_1.1',
         'sigmod_h_exp_2.0',
-        'sigmod_h_exp_3.0',  # to update
+        'sigmod_h_exp_3.0',
         'acs_eps_EO_2.0',
         'acs_eps_EO_2.1',
         'acs_h_gs1_EO_1.0',
+        'acs_h_gs1_EO_2.0',
+        'acs_h_gsSR_2.0',
+        'acs_h_gsSR_2.1',
 
         's_tr_1.1',
         's_tr_2.0',
         's_tr_2.1',
+        'f_eta0_1.0',
+        'f_eta0_2.0',
+
+
+        's_h_1.0r',
+        's_h_EO_1.0r',
+
+        'acs_eps_EO_1.0r',
+        'acs_h_eps_1.0r',
+
+        's_h_exp_1.0r',
+        's_h_exp_EO_1.0r',
+        's_h_exp_2.0r',
+        's_h_exp_EO_2.0r',
+        'acs_h_gs1_1.0r',
+        'acs_h_gs1_EO_1.0r',
+        'acs_h_gsSR_1.0r',
+        'acs_h_gsSR_EO_1.0r',
+        # to update
     ]
 
     conf_todo = [
         # 'acs_h_gs1_1.test',
-        'acs_h_gs1_EO_2.0',
-        'acs_h_gsSR_2.0',
-        'acs_h_gsSR_2.1',
+        #'f_eta0_1.0.test',
+
+
+        's_zDI_1.1',
+
 
     ]
 
