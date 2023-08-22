@@ -12,6 +12,8 @@ from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
 import utils_results_data
+from graphic import style_utility
+from graphic.style_utility import StyleUtility
 from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
     aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constrain_code_to_name
 import matplotlib as mpl
@@ -20,10 +22,12 @@ sns.set()  # for plot styling
 # sns.set(rc={'figure.figsize':(8,6)})
 # sns.set_context('notebook')
 sns.set_style('whitegrid')
-plt.rcParams.update({'font.size': 16, "figure.dpi": 200, 'savefig.dpi': 600,
+plt.rcParams.update({'font.size': 16, "figure.dpi": 200, 'savefig.dpi': 300,
                      # 'figure.figsize': (16 * 2 / 3, 9 * 2 / 3)
                      })
 plt.rcParams['figure.constrained_layout.use'] = True
+# make matplotlib pdf-s text readable by illustrator
+plt.rcParams['pdf.fonttype'] = 42
 sns.set_context(rc={"legend.fontsize": 7})
 
 restricted_list = [
@@ -51,59 +55,9 @@ restricted_list = [
 ]
 
 
-def generate_map_df():
-    values_dict = {}
-    model_names = ['hybrid_1', 'hybrid_2', 'hybrid_3', 'hybrid_4', 'hybrid_5', 'hybrid_6']
-    unconstrained = [True, False]
-    active_sampling = [True, False]
-    run_linprog = [True, False]
-    grid_mode = ['sqrt', 'gf_1']
-    to_iter = itertools.product(model_names, unconstrained, active_sampling, grid_mode)
-
-    for t_varing in ['exp', 'gri', 'eps']:
-        for t_run_lp in run_linprog:
-            for t_model_name, t_unconstrained, t_active_sampling, t_grid_mode in deepcopy(to_iter):
-                name = 'sub_' if t_active_sampling else ''
-                name += t_model_name + ('_U' if t_unconstrained else '')
-                name += '_LP_off' if t_run_lp else ''
-                name += f'_{t_varing}'
-                if t_grid_mode == 'gf_1':
-                    name += f'_gf_1'
-                    t_grid_mode = '1'
-
-                label = f'EXPGRAD=' + ('adaptive' if t_active_sampling else 'static')
-                label += ' GS=' + (
-                    t_grid_mode if any('_' + x in t_model_name for x in ['1', '2', '3', '4', '6']) else 'No  ')
-                label += ' LP=Yes'
-                label += ' +U' if t_unconstrained else ''
-                if 'hybrid_6' in t_model_name:
-                    label += ' *e&g'
-                label += ' run_linprog=F' if t_run_lp else ''
-                values_dict[name] = label
-
-            rlp_name = "_LP_off" if t_run_lp else ""
-            rlp_label = ' run_linprog=F' if t_run_lp else ''
-            values_dict[f'hybrid_7{rlp_name}_{t_varing}'] = 'EXPGRAD=adaptive GS=No LP=Yes' + rlp_label
-            values_dict[f'expgrad_fracs{rlp_name}_{t_varing}'] = 'EXPGRAD=static GS=No LP=No' + rlp_label
-        values_dict[f'unconstrained_{t_varing}'] = 'UNMITIGATED full'
-        values_dict[f'unconstrained_frac_{t_varing}'] = 'UNMITIGATED=static'
-
-    return pd.DataFrame.from_dict(values_dict, orient='index', columns=['label'])
-
 
 class PlotUtility():
-    map_df = generate_map_df()
-    other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
-    map_df = pd.concat([map_df,
-                        pd.DataFrame.from_dict({x: x for x in other_models},
-                                               orient='index', columns=['label'])
-                        ])
 
-    def get_label(self, model_code):
-        if model_code in self.map_df.index:
-            return self.map_df.loc[model_code, 'label']
-        else:
-            return model_code
 
     to_plot_models = [
                          # 'expgrad_fracs_gri',
@@ -161,14 +115,14 @@ class PlotUtility():
                          # 'hybrid_6_eps',
                          # 'fairlearn_full_eps',
 
-                     ] + other_models
+                     ] # + other_models # todo remove other models commented
 
     color_list = mpl.colormaps['tab20'].colors
 
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
     def __init__(self, save: bool = True, show: bool = True, suffix: str = '',
-                 base_plot_dir=os.path.join('results', 'plots')):
+                 base_plot_dir=os.path.join('results', 'plots'), annotate_mode='first-last'):
         '''
 
         :param save: bool. whether to save the chart
@@ -176,12 +130,11 @@ class PlotUtility():
         :param suffix: str to add at saving directory. Identify feature/config of thecharts
         :param base_plot_dir:
         '''
-        self.markersize = 8
-        self.linewidth = 0.5
         self.show = show
         self.suffix = suffix
         self.save_flag = save
         self.base_plot_dir = base_plot_dir
+        self.annotate_mode = annotate_mode
         # plt.rcParams['lines.markersize'] = self.markersize
         # plt.rcParams['lines.linewidth'] = self.linewidth
         # self.label_map = {} # todo label map to change label names
@@ -225,8 +178,8 @@ class PlotUtility():
         self.n_models = len(self.to_plot_models)
         for model_code, turn_df in to_iter:
             self.curr_index = self.to_plot_models.index(model_code)
-            errorbar_params = self.get_line_params(self.curr_index)
-            errorbar_params.update(self.get_all_params(self.curr_index, model_code))
+            errorbar_params = self.get_line_params(self.curr_index, model_code)
+            errorbar_params.update(StyleUtility.get_style(model_code))
             if x_axis == 'frac':
                 x_offset = (((self.curr_index / self.n_models) - 0.5) * 20 / 100) + 1
             else:
@@ -269,26 +222,27 @@ class PlotUtility():
         #     ax.plot(x_values, y_values, color=color, label=label, marker="x", linestyle='--', markersize=self.markersize)
 
     def add_line_errorbar(self, value_dict, grouping_values, model_code, i, n_lines, label_suffix=''):
+        if pd.isna(list(value_dict.values())).all():
+            return
         x, xerr, y, yerr = value_dict.values()
-        line_params = self.get_line_params(i)
-        markers_params = self.get_marker_params(i, total=n_lines, grouping_values=grouping_values)
-        label_params = self.get_all_params(index=i, model_code=model_code)
+
+        line_params = self.get_line_params(i, model_code=model_code)
+        markers_params = self.get_marker_params(i, total=n_lines, grouping_values=grouping_values,
+                                                model_code=model_code)
+        label_params = self.get_all_params(model_code)
         label_params['label'] += label_suffix
 
         if len(set(x)) == 1:
-            line_params.update(linestyle="-.")
             line_params['linewidth'] *= 1.5
             for key in ['fmt', 'elinewidth']:
                 try:
                     line_params.pop(key)
                 except:
                     pass
-
             self.ax.axhline(y[-1], zorder=10, **line_params)
-            if x[0] != 0:
-                self.ax.scatter(x, y, **markers_params)
-            else:
-                label_params.pop('marker')
+
+        if len(set(x)) == 1 and (x[0] == 0 or pd.isna(x).all()):
+            label_params.pop('marker')
         else:
             self.ax.errorbar(**value_dict, **line_params)
             self.ax.scatter(x, y, **markers_params)
@@ -298,9 +252,10 @@ class PlotUtility():
     def add_multiple_lines(self, df, grouping_col, model_list, increasing_marker_size, annotate_col=None):
         n_lines = len(model_list)
         df_groups = df.groupby('model_code', sort=False)
+        # df['model_code'].drop_duplicates().apply(StyleUtility.get_label).tolist() # to get missing labels
         for i, (model_code, turn_df) in enumerate(df_groups):
             turn_df = turn_df.sort_values(grouping_col)
-            index = model_list.index(model_code)
+            index = list(model_list).index(model_code)
             value_dict = turn_df[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
             grouping_values = None
             if increasing_marker_size:
@@ -313,7 +268,16 @@ class PlotUtility():
 
     def add_annotation(self, x, y, annotate_values, annotation_fontize=10):
         to_annotate = list(zip(x, y, annotate_values))
-        for tx, ty, tt in [to_annotate[0], to_annotate[-1]]:
+        if self.annotate_mode == 'first-last':
+            to_iter = [to_annotate[0], to_annotate[-1]]
+        elif self.annotate_mode == 'all':
+            to_iter = to_annotate
+        elif self.annotate_mode == 'last':
+            to_iter = [to_annotate[-1]]
+        elif self.annotate_mode == 'first':
+            to_iter = [to_annotate[0]]
+
+        for tx, ty, tt in to_iter:
             self.ax.annotate(text=f' {tt:.3g}', xy=(tx, ty), xycoords='data',
                              fontsize=annotation_fontize)
 
@@ -326,23 +290,30 @@ class PlotUtility():
         rot = Affine2D().rotate_deg(index / total * 120)  # rotation for markers
         return MarkerStyle('1', 'left', rot)
 
-    def get_line_params(self, index):
-        return dict(color=self.get_color(index),
-                    fmt='--', linewidth=self.linewidth, elinewidth=self.linewidth / 2)
+    def get_line_params(self, index, model_code=None):
 
-    def get_marker_params(self, index, total, grouping_values=None):
-        marker_size = self.markersize ** 2
-        if grouping_values is not None:
-            n = len(grouping_values)
-            marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(1, n + 1) / n)
-            # dimension between start-stop original marker size
-        return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
+        return {key: value for key, value in StyleUtility.get_style(model_code).items() if
+                key in StyleUtility.line_keys}
+        # return dict(color=self.get_color(index),
+        #             fmt='--', linewidth=self.linewidth, elinewidth=self.linewidth / 2)
 
-    def get_all_params(self, index, model_code, total=None):
-        tmp_dict = self.get_line_params(index)
-        tmp_dict.update(label=self.get_label(model_code=model_code),
-                        marker=self.get_marker(index, total), fmt='--', markersize=self.markersize)
-        return tmp_dict
+    def get_marker_params(self, index, total, grouping_values=None, model_code=None):
+        return {key: value for key, value in StyleUtility.get_style(model_code).items() if
+                key in StyleUtility.marker_keys}
+        # marker_size = self.markersize ** 2
+        # if grouping_values is not None:
+        #     n = len(grouping_values)
+        #     marker_size = (self.markersize ** 2) * (0.3 + 6 * np.arange(1, n + 1) / n)
+        #     # dimension between start-stop original marker size
+        # return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
+
+    def get_all_params(self, model_code,index=None, total=None):
+        return {key: value for key, value in StyleUtility.get_style(model_code).items() if
+                key in StyleUtility.label_keys}
+        # tmp_dict = self.get_line_params(index)
+        # tmp_dict.update(label=self.get_label(model_code=model_code),
+        #                 marker=self.get_marker(index, total), fmt='--', markersize=self.markersize)
+        # return tmp_dict
 
     def save_figure(self, additional_dir_path, name, fig=None):
         if self.save_flag:
@@ -351,40 +322,52 @@ class PlotUtility():
             self.save_figure_static(self.base_plot_dir, additional_dir_path, name, fig, suffix=self.suffix)
 
     @staticmethod
-    def save_figure_static(base_dir, dataset_name, name, fig, suffix='', svg=False):
+    def save_figure_static(base_dir, additional_dir_path, name, fig, suffix='', svg=False):
         host_name, current_time_str = get_info()
-        dir_path = os.path.join(base_dir, dataset_name, host_name + suffix)
+        dir_path = os.path.join(base_dir, host_name + suffix, additional_dir_path)
         for t_dir in [dir_path]:
             for t_name in [
                 # f'{current_time_str}_{name}',
                 f'{name}']:
                 t_full_path = os.path.join(t_dir, t_name)
                 os.makedirs(t_dir, exist_ok=True)
-                fig.savefig(t_full_path + '.png', bbox_inches="tight")
+                fig.savefig(t_full_path + '.pdf', bbox_inches="tight")
                 if svg:
                     t_full_path_svg = os.path.join(t_dir + '_svg', t_name)
                     os.makedirs(t_dir + '_svg', exist_ok=True)
                     fig.savefig(t_full_path_svg + '.svg', format='svg', bbox_inches="tight")
 
-    def apply_plot_function_and_save(self, df, plot_name, plot_function, dataset_name):
+    def apply_plot_function_and_save(self, df, additional_dir_path, plot_function, name):
         plt.close('all')
         fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig)
-        self.save_figure(additional_dir_path=dataset_name, name=plot_name, fig=fig)
+        ax.set_title(name)
         if self.show:
             plt.show()
+        self.save_figure(additional_dir_path=additional_dir_path, name=name, fig=fig)
 
 
-def time_stacked_by_phase(df, ax, fig: plt.figure):
+def time_stacked_by_phase(df, ax, fig: plt.figure, name_col='label'):
     fig.set_figheight(8)
     fig.set_figwidth(20)
-    to_plot = df.groupby(['frac', 'model_code', 'phase']).agg(
-        {'time': ['mean', ('error', get_confidence_error)]}).unstack(['phase'])
-    yerr = to_plot.loc[:, ('time', 'error', slice(None))]
-    to_plot.plot.bar(stacked=True, y=('time', 'mean'), yerr=yerr.values.T, rot=45, ax=ax)
+    old = plt.rcParams.get('savefig.dpi')
+    plt.rcParams.update({'savefig.dpi': 400})
+
+    df = df.query('model_code == "hybrid_7_exp"')
+    extracted_oracle_times = df['oracle_execution_times_'].agg(lambda x: pd.DataFrame(ast.literal_eval(x)).agg(sum))
+    df = df.join(extracted_oracle_times)
+    to_index = extracted_oracle_times.columns.tolist()
+    to_plot = df.groupby(['frac', 'phase'], as_index=False).agg(
+        {x: ['mean', ('error', get_confidence_error)] for x in to_index})
+    to_plot.columns = to_plot.columns.map('_'.join).str.strip('_')
+    to_plot = to_plot.query('phase == "expgrad_fracs"')
+    yerr = to_plot.loc[:, [x + '_error'for x in to_index]]
+    to_plot.plot.bar(x='frac', stacked=True, y=[x+'_mean' for x in to_index], yerr=yerr.values.T, rot=45, ax=ax)
+    # todo fix replicated legend labels
     xticklabels = ax.xaxis.get_ticklabels()
     for label in xticklabels:
         label.set_ha('right')
+    plt.rcParams.update({'savefig.dpi': old})
 
 
 def phase_time_vs_frac(df, ax, fig, y_log=True):
@@ -442,33 +425,28 @@ def plot_cycle(all_model_df, dataset_name, model_list, set_name, pl_util):
                             name=f'{set_name}{x_axis}_vs_{y_axis}')
 
 
-def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=''):
-    pl_util = PlotUtility(save=save, show=show, suffix=suffix)
+def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix='', annotate_mode='all'):
+    pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode=annotate_mode)
     df = all_model_df
     df = df[df['model_code'].isin(pl_util.to_plot_models)]
-    df.loc[:, 'model_code'] = PlotUtility.map_df.loc[df['model_code'], 'label'].values
-    split_name_value = re.compile("(?P<name>[a-zA-Z\_]+)\=(?P<value>[a-zA-Z]+)")
-    model_code_map = {}
-    for name in df['model_code'].unique():
-        model_code_map[name] = ' '.join([f'{x[0][0]}={x[1][0]}' for x in split_name_value.findall(name)])
-    df['model_code'] = df['model_code'].map(model_code_map)
+    df.loc[:, 'label'] = df['model_code'].apply(StyleUtility.get_label)
+    # df.loc[:, 'model_code'] = PlotUtility.map_df.loc[df['model_code'], 'label'].values
+    # split_name_value = re.compile("(?P<name>[a-zA-Z\_]+)\=(?P<value>[a-zA-Z]+)")
+    # model_code_map = {}
+    # for name in df['model_code'].unique():
+    #     model_code_map[name] = ' '.join([f'{x[0][0]}={x[1][0]}' for x in split_name_value.findall(name)])
+    # df['model_code'] = df['model_code'].map(model_code_map)
     for name, plot_f in [
-        ['metrics_time_vs_frac', plot_metrics_time],
         ['time_stacked_by_phase', time_stacked_by_phase],
+        ['metrics_time_vs_frac', plot_metrics_time],
         ['phase_time_vs_frac', phase_time_vs_frac],
-    ]:
+            ]:
+        pl_util.apply_plot_function_and_save(df=df, additional_dir_path=name, plot_function=plot_f, name=dataset_name)
 
-        if name == 'time_stacked_by_phase':
-            old = plt.rcParams.get('savefig.dpi')
-            plt.rcParams.update({'savefig.dpi': 400})
-        pl_util.apply_plot_function_and_save(df=df, plot_name=name, plot_function=plot_f, dataset_name=dataset_name)
 
-        if name == 'time_stacked_by_phase':
-            plt.rcParams.update({'savefig.dpi': old})
-
-    pl_util.plot(all_model_df, x_axis='frac', y_axis='time', dataset_name=dataset_name)
-    if save is True:
-        pl_util.save_figure(additional_dir_path=dataset_name, name=f'frac_vs_time')
+    # pl_util.plot(all_model_df, x_axis='frac', y_axis='time', dataset_name=dataset_name)
+    # if save is True:
+    #     pl_util.save_figure(additional_dir_path=name, name=dataset_name)
 
     ### train_error_vs_eps
     # pl_util = PlotUtility(show=show)
@@ -492,8 +470,8 @@ def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save,
                          sharex=True,
                          sharey='row', result_path_name='all_df', single_chart=False, xlog=False,
                          increasing_marker_size=False,
-                         subplots_by_col='dataset_name', subplots=True, annotate_col=None,
-                         ylim_list=None, add_threshold=False):
+                         subplots_by_col='dataset_name', subplots=True,
+                         ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None,):
     if annotate_col is not None:
         annotate_col += '_mean'
     if model_set_name != '':
@@ -504,9 +482,9 @@ def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save,
     mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
     if add_threshold:
         mean_error_df = utils_results_data.add_threshold(mean_error_df)
-        model_list += ['Threshold']
+        model_list = ['Threshold'] + model_list
     # mean_error_df = mean_error_df[mean_error_df['model_code']]
-    pl_util = PlotUtility(save=save, show=show, suffix='')
+    pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode=annotate_mode)
     if axis_to_plot is None:
         axis_to_plot = [[grouping_col, 'time'],
                         [grouping_col, 'test_error'],
@@ -630,19 +608,20 @@ def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name=
                                 name=name)
 
 
-def select_oracle_call_time(results_df):
+def select_oracle_call_time(results_df, name_time_oracles_col = 'time_oracles'):
     df = results_df[results_df['phase'].isin(['expgrad_fracs', 'grid_frac'])].copy()
     # Take max of oracle calls time for grid search
     grid_mask = df['phase'] == 'grid_frac'
     grid_time_series = df[grid_mask]['grid_oracle_times'].apply(
         lambda x: np.array(ast.literal_eval(x)).max())
-    df.loc[grid_mask, 'time'] = grid_time_series
-    # ONLY ORACLE CALLLS
-    extract_oracle_time(df)
+
+    df.loc[grid_mask, name_time_oracles_col] = grid_time_series
+    # Take sum of oracle calls time for expgrad
+    extract_expgrad_oracle_time(df, new_col_name=name_time_oracles_col)
     return df
 
 
-def extract_oracle_time(df, new_col_name='time', cols_to_select=['fit_sum']):
+def extract_expgrad_oracle_time(df, new_col_name='time', cols_to_select=['fit_sum']):
     df[new_col_name] = 0
     exp_mask = df['phase'] == 'expgrad_fracs'
     exp_time_df = df[exp_mask]['oracle_execution_times_'].agg(
@@ -754,9 +733,7 @@ if __name__ == '__main__':
     # plot_gs_analysis(gs_analysis_df, grouping_col='exp_frac', pl_util=pl_util)
 
     pl_util = PlotUtility(save=save, show=show, suffix='')
-    # all datasets
-    # Check available combinations
-    # df[['base_model_code', 'constraint_code', 'dataset_name','exp_grid_ratio']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
+
     selected_model = ['sub_hybrid_6_exp_gf_1']
     plot_all_df_subplots(all_results_df, model_list=selected_model, model_set_name='baselines',
                          grouping_col='exp_frac',
