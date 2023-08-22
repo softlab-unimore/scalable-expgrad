@@ -126,8 +126,8 @@ def convert_to_df_aif360(dataset, dataset_name=None):
     # y = data.iloc[:, -1] #pd.Series(dataset.labels.flatten(), name=dataset.label_names[0])
     # A = pd.Series(dataset.protected_attributes.flatten(), name=dataset.protected_attribute_names[0])
     X = pd.DataFrame(dataset.features)
-    y = dataset.labels.astype(int).ravel()
-    A = dataset.protected_attributes.astype(int).ravel()
+    y = pd.Series(dataset.labels.astype(int).ravel())
+    A = pd.Series(dataset.protected_attributes.astype(int).ravel())
     # if dataset.__class__.__name__ == 'GermanDataset':
     #     y[y == 2] = 0
     return X, y, A
@@ -288,43 +288,44 @@ def get_dataset(dataset_str, prm=None):
         raise_dataset_name_error(dataset_str)
 
 
-def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strategy):
+def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strategy, test_size):
 
-    if dataset_str in utils_experiment.sigmod_datasets + utils_experiment.sigmod_datasets_aif360:
-        logging.warning('split_strategy has no effect when using aif 360 datasets ')
-        dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
-        # if dataset_str in utils_experiment.sigmod_datasets:
-        yield dataset_dict['train_df'], dataset_dict['test_df']
-        # elif dataset_str in utils_experiment.sigmod_datasets_aif360:
-        #     dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
-        #     dataset_dict['train_df'] += tuple([dataset_dict['aif360_train']])
-        #     dataset_dict['test_df'] += tuple([dataset_dict['aif360_test']])
-        #     yield dataset_dict['train_df'], dataset_dict['test_df']
-        # train_data = dict(zip(['X', 'y', 'A'], dataset_dict['train_df']))
-        # train_data['X'] = dataset_dict['aif360_train']
-        # test_data = dict(zip(['X', 'y', 'A'], dataset_dict['train_df']))
-        # test_data['X'] = dataset_dict['aif360_test']
-        # yield list(train_data.values()), list(test_data.values())
-    elif dataset_str in utils_experiment.dataset_names:
-        if split_strategy == 'StratifiedKFold':
-            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
-            X, y, A = datasets[:3]
-            to_stratify = pd.Series(A).astype(str) + '_' + pd.Series(y).astype(str)
-            for train_index, test_index in skf.split(X, to_stratify):
-                datasets_divided = []
-                for turn_index in [train_index, test_index]:  # train test split of datasets
-                    datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
-                yield datasets_divided
-        elif split_strategy == 'stratified_train_test_split':
-            X, y, A = datasets[:3]
-            to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
-            sample_mask = np.arange(X.shape[0])
-            train_index, test_index = train_test_split(sample_mask, stratify=to_stratify,
-                                              random_state=train_test_seed, shuffle=True)
+    # if dataset_str in utils_experiment.sigmod_datasets + utils_experiment.sigmod_datasets_aif360:
+    #     convert_to_df_aif360(datasets[3])
+    #     logging.warning('split_strategy has no effect when using aif 360 datasets ')
+    #     dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
+    #     # if dataset_str in utils_experiment.sigmod_datasets:
+    #     yield dataset_dict['train_df'], dataset_dict['test_df']
+    #     # elif dataset_str in utils_experiment.sigmod_datasets_aif360:
+    #     #     dataset_dict = split_dataset_aif360(datasets[3], train_test_seed=train_test_seed)
+    #     #     dataset_dict['train_df'] += tuple([dataset_dict['aif360_train']])
+    #     #     dataset_dict['test_df'] += tuple([dataset_dict['aif360_test']])
+    #     #     yield dataset_dict['train_df'], dataset_dict['test_df']
+    #     # train_data = dict(zip(['X', 'y', 'A'], dataset_dict['train_df']))
+    #     # train_data['X'] = dataset_dict['aif360_train']
+    #     # test_data = dict(zip(['X', 'y', 'A'], dataset_dict['train_df']))
+    #     # test_data['X'] = dataset_dict['aif360_test']
+    #     # yield list(train_data.values()), list(test_data.values())
+    # elif dataset_str in utils_experiment.dataset_names:
+    if split_strategy == 'StratifiedKFold':
+        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
+        X, y, A = datasets[:3]
+        to_stratify = pd.Series(A).astype(str) + '_' + pd.Series(y).astype(str)
+        for train_index, test_index in skf.split(X, to_stratify):
             datasets_divided = []
-            for turn_index in [train_index, test_index]:
+            for turn_index in [train_index, test_index]:  # train test split of datasets
                 datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
             yield datasets_divided
+    elif split_strategy == 'stratified_train_test_split':
+        X, y, A = datasets[:3]
+        to_stratify = pd.concat([A, y], axis=1).astype('category').apply(lambda x: '_'.join(x.astype(str)), axis=1)
+        sample_mask = np.arange(X.shape[0])
+        train_index, test_index = train_test_split(sample_mask, test_size=test_size, stratify=to_stratify,
+                                          random_state=train_test_seed, shuffle=True)
+        datasets_divided = []
+        for turn_index in [train_index, test_index]:
+            datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
+        yield datasets_divided
 
 
 

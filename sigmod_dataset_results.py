@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from graphic_utility import PlotUtility, base_plot_dir
+from graphic.graphic_utility import PlotUtility, base_plot_dir
 from utils_results_data import load_results, filter_results, get_info
 
 if __name__ == '__main__':
