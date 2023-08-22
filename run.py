@@ -25,6 +25,7 @@ import inspect
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
 from metrics import default_metrics_dict
 from utils_experiment import get_config_by_id
+from utils_parser import DeprecateAction, mark_deprecated_help_strings
 from utils_prepare_data import get_constraint
 
 
@@ -64,9 +65,9 @@ def get_initials(s: str, split_char='_'):
 
 def launch_experiment_by_id(experiment_id: str):
     exp_dict = get_config_by_id(experiment_id)
-    exp_dict_orig = exp_dict.copy()
     if exp_dict is None:
         raise ValueError(f"{experiment_id} is not a valid experiment id")
+    exp_dict_orig = exp_dict.copy()
     for attr in ['base_model_code', 'dataset_names', 'model_names']:
         if attr not in exp_dict.keys():
             raise ValueError(f'You must specify some value for {attr} parameter. It\'s empty.')
@@ -162,15 +163,20 @@ class ExperimentRun:
 
         # Others
         arg_parser.add_argument("--save", default=True)
-        arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for base learner. (aka random_state)',
+        arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for everything. (aka random_state) '
+                                                             'For models it\'s summed to train_test_fold when cross validating ',
                                 default=0,
                                 nargs='+', type=int)
         arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default=None, nargs='+',
-                                type=int)
+                                type=int, action=DeprecateAction)
+        arg_parser.add_argument('--test_size',
+                                help='when splitting without cross validation train_test_split test_size', default=0.3,
+                                type=float)
         arg_parser.add_argument('--split_strategy', help='splitting strategy. default: ',
                                 choices=['StratifiedKFold', 'stratified_train_test_split', None],
                                 default='StratifiedKFold', type=str)
-        arg_parser.add_argument('--train_test_fold', help='train_test_fold to run with k-fold', default=[0,1,2], nargs='+',
+        arg_parser.add_argument('--train_test_fold', help='train_test_fold to run with k-fold', default=[0, 1, 2],
+                                nargs='+',
                                 type=int)
         arg_parser.add_argument("--no_run_linprog_step", default=True, dest='run_linprog_step', action='store_false')
         arg_parser.add_argument("--redo_tuning", action="store_true", default=False)
@@ -182,13 +188,15 @@ class ExperimentRun:
                                 help='dict with keys as name of params to add and list of values to'
                                      ' be iterated combining each value with the other combination of params ')
 
+        mark_deprecated_help_strings(arg_parser)
         args = arg_parser.parse_args()
         params_to_initials_map = {get_initials(key): key for key in args.__dict__.keys()}
         prm = args.__dict__.copy()
 
-
         if args.grid_fractions is not None:
             assert args.exp_grid_ratio is None, '--exp_grid_ratio must not be set if using --grid_fractions'
+        if prm['train_test_seeds'] is None:
+            prm['train_test_seeds'] = [None]
 
         print('Configuration:')
 
@@ -204,20 +212,24 @@ class ExperimentRun:
         self.datasets = datasets
         X, y, A = datasets[:3]
 
-        for random_seed, train_test_seed in itertools.product(prm['random_seeds'], prm['train_test_seeds']):
+        for original_random_seed, train_test_seed in itertools.product(prm['random_seeds'], prm['train_test_seeds']):
+            if train_test_seed is None:
+                train_test_seed = original_random_seed
             self.set_base_data_dict()
-            self.data_dict['random_seed'] = random_seed
-            self.data_dict['train_test_seed'] = train_test_seed
             self.tuning_step(base_model_code=prm['base_model_code'], X=X, y=y, fractions=prm['exp_fractions'],
-                             random_seed=random_seed, redo_tuning=prm['redo_tuning'])
+                             random_seed=0,
+                             redo_tuning=prm['redo_tuning'])  # TODO: random_seed=0 to simplify, may be corrected later.
 
             for train_test_fold, datasets_divided in tqdm(enumerate(
                     utils_prepare_data.split_dataset_generator(self.dataset_str, datasets, train_test_seed,
-                                                               prm['split_strategy']))):
+                                                               prm['split_strategy'], test_size=prm['test_size']))):
                 print('')
                 if train_test_fold not in prm['train_test_fold']:
                     continue
+                random_seed = original_random_seed + train_test_fold
+                self.data_dict['train_test_seed'] = train_test_seed
                 self.data_dict['train_test_fold'] = train_test_fold
+                self.data_dict['random_seed'] = random_seed
                 params_to_iterate = {'eps': self.prm['eps']}
                 params_to_iterate.update(**self.prm['other_params'])
                 keys = params_to_iterate.keys()
@@ -226,7 +238,7 @@ class ExperimentRun:
                     self.data_dict.update(**turn_params_dict)
                     logging.info(f'Starting step: random_seed: {random_seed}, train_test_seed: {train_test_seed}, '
                                  f'train_test_fold: {train_test_fold} \n'
-                                 + json.dumps(turn_params_dict,default=list))
+                                 + json.dumps(turn_params_dict, default=list))
                     a = datetime.now()
                     self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
                                    other_params=turn_params_dict)
@@ -549,7 +561,8 @@ class ExperimentRun:
     def init_fairness_model(self, base_model_code=None, random_seed=None, fraction=1, **kwargs):
         constraint_code_to_name = {'dp': 'demographic_parity',
                                    'eo': 'equalized_odds'}
-        base_model = self.load_base_model_best_param(base_model_code, random_seed, fraction=fraction)
+        base_model = self.load_base_model_best_param(base_model_code, random_state=random_seed,
+                                                     fraction=fraction)  # TODO: fix random seed. Using 0 to simplify
         constrain_name = constraint_code_to_name[self.prm['constraint_code']]
         return models.get_model(method_str=self.prm['method'], base_model=base_model, constrain_name=constrain_name,
                                 random_state=random_seed, datasets=self.datasets, **kwargs)
@@ -689,7 +702,7 @@ class ExperimentRun:
         if random_state is None:
             random_state = self.data_dict['random_seed']
         best_params = self.load_best_params(base_model_code, fraction=fraction,
-                                            random_seed=random_state)
+                                            random_seed=0) # todo change random seed. For simplicity in fine tuning it is 0.
         model = models.get_base_model(base_model_code=base_model_code, random_seed=random_state)
         model.set_params(**best_params)
         return model
