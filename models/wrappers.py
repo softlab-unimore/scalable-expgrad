@@ -151,7 +151,80 @@ class ZafarDI:
         return self
 
     def predict(self, X):
-        y_pred = (np.sign(np.dot(X.values, self.w))).astype(int)
+        y_pred = np.dot(X.values, self.w)
+        y_pred = np.where(y_pred > 0, 1, 0)
+        return y_pred
+
+
+class ZafarEO:
+    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+        seed(random_state)  # set the random seed so that the random permutations can be reproduced again
+        np.random.seed(random_state)
+        X, y, A, aif_dataset = datasets
+
+        """ Now classify such that we optimize for accuracy while achieving perfect fairness """
+        sensitive_attrs_to_cov_thresh = {"race": {0: {0: 0, 1: 0}, 1: {0: 0, 1: 0}, 2: {0: 0,
+                                                                                        1: 0}}}  # zero covariance threshold, means try to get the fairest solution
+        cons_params = {"cons_type": cons_type,
+                       "tau": tau,
+                       "mu": mu,
+                       "sensitive_attrs_to_cov_thresh": sensitive_attrs_to_cov_thresh}
+
+        """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
+
+        params = dict(
+            cons_type=1,
+            tau=5.0,
+            mu=1.2,
+            apply_fairness_constraints=0,
+            # flag for fairness constraint is set back to 0 since we want to apply the accuracy constraint now
+            apply_accuracy_constraint=1,  # now, we want to optimize fairness subject to accuracy constraints
+            # sep_constraint=1,
+            # # set the separate constraint flag to one, since in addition to accuracy constrains, we also want no misclassifications for certain points (details in demo README.md)
+            # gamma=1000.0,
+            sep_constraint=0,
+            gamma=0.001,
+            # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
+        )
+
+        def log_loss_sklearn(w, X, y, return_arr=None):
+            return sklearn.metrics.log_loss(y_true=y, y_pred=np.sign(np.dot(X, w)), normalize=return_arr)
+
+        self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,  # log_loss_sklearn,
+                               sensitive_attrs_to_cov_thresh={aif_dataset.protected_attribute_names[0]: 0},
+                               sensitive_attrs=aif_dataset.protected_attribute_names,
+                               **params
+                               )
+        key = aif_dataset.__class__.__name__
+        if key == ut_exp.sigmod_dataset_map['adult_sigmod']:
+            pass
+        elif key == ut_exp.sigmod_dataset_map['compas']:
+            pass
+        elif key == ut_exp.sigmod_dataset_map['german']:
+            pass
+        else:
+            raise ValueError(f'{key} not found in available dataset configurations')
+
+    def fit(self, X, y, sensitive_features):
+        def train_test_classifier():
+            w = fdm.train_model_disp_mist(x_train, y_train, x_control_train, loss_function, EPS, cons_params)
+
+            train_score, test_score, cov_all_train, cov_all_test, s_attr_to_fp_fn_train, s_attr_to_fp_fn_test = fdm.get_clf_stats(
+                w, x_train, y_train, x_control_train, x_test, y_test, x_control_test, sensitive_attrs)
+
+            # accuracy and FPR are for the test because we need of for plotting
+            return w, test_score, s_attr_to_fp_fn_test
+
+        self.w = fair_classification.funcs_disp_mist.train_model_disp_mist.train_model(X.values, y * 2 - 1,
+                                                                                       {self.fit_params[
+                                                                                            'sensitive_attrs'][
+                                                                                            0]: sensitive_features},
+                                                                                       **self.fit_params)
+        return self
+
+    def predict(self, X):
+        y_pred = np.dot(X.values, self.w)
+        y_pred = np.where(y_pred > 0, 1, 0)
         return y_pred
 
 
