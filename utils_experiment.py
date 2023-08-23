@@ -3,6 +3,7 @@ import json
 import pandas as pd
 
 ADULT_ACS_PUBLIC_COVERAGE_ = ['adult', 'ACSPublicCoverage']
+ACS_SELECTED_DATASETS = ['ACSPublicCoverage', 'ACSEmployment']
 
 ACS_dataset_names = [
     'ACSPublicCoverage',  # 1138289
@@ -25,7 +26,8 @@ sigmod_dataset_map = dict(zip(['compas', 'german', 'adult_sigmod'], ['CompasData
 
 sigmod_datasets_aif360 = [x + '_aif360' for x in sigmod_datasets]
 
-sample_variation = range(2)
+RANGE_v1 = range(2)
+sample_variation = RANGE_v1
 
 fixed_sample_frac = 0.1
 
@@ -84,8 +86,41 @@ experiment_configurations = [
     {'experiment_id': 's_zDI_1.1',
      'dataset_names': sigmod_datasets_aif360,
      'model_names': ['ZafarDI'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'base_model_code': ['lr'],
+     },
+    {'experiment_id': 's_c_1.0r',
+     'dataset_names': sigmod_datasets,
+     'model_names': ['Calmon'],
+     'random_seeds': RANGE_v1,
+     'base_model_code': ['lr', 'lgbm'],
+     },
+    {'experiment_id': 's_tr_1.0r',
+     'dataset_names': sigmod_datasets,
+     'model_names': ['ThresholdOptimizer'],
+     'random_seeds': RANGE_v1,
+     'base_model_code': ['lr', 'lgbm'],
+     },
+    {'experiment_id': 's_tr_1.1r',
+     'dataset_names': sigmod_datasets,
+     'model_names': ['ThresholdOptimizer'],
+     'random_seeds': RANGE_v1,
+     'base_model_code': ['lr', 'lgbm'],
+     'constraint_code': 'eo',
+     },
+    {'experiment_id': 's_tr_2.0r',
+     'dataset_names': ACS_SELECTED_DATASETS,
+     'model_names': ['ThresholdOptimizer'],
+     'base_model_code': ['lr', 'lgbm'],
+     'random_seeds': RANGE_v1,
+     'constraint_code': 'dp',
+     },
+    {'experiment_id': 's_tr_2.1r',
+     'dataset_names': ACS_SELECTED_DATASETS,
+     'model_names': ['ThresholdOptimizer'],
+     'base_model_code': ['lr', 'lgbm'],
+     'random_seeds': RANGE_v1,
+     'constraint_code': 'eo',
      },
 
     {'experiment_id': 's_tr_1.0',
@@ -109,7 +144,7 @@ experiment_configurations = [
      'model_names': ['ThresholdOptimizer'],
      'base_model_code': ['lr', 'lgbm'],
      'random_seeds': range(1),
-     'train_test_seeds': range(2),
+     'train_test_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 's_tr_2.1',
@@ -117,7 +152,7 @@ experiment_configurations = [
      'model_names': ['ThresholdOptimizer'],
      'base_model_code': ['lr', 'lgbm'],
      'random_seeds': range(1),
-     'train_test_seeds': range(2),
+     'train_test_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
     {'experiment_id': 's_tr_2.1.test',
@@ -128,7 +163,7 @@ experiment_configurations = [
      'train_test_seeds': range(1),
      'constraint_code': 'eo',
      },
-    {'experiment_id': 's_hardt_1.0',
+    {'experiment_id': 's_hardt_1.0', # not goint to do that
      'dataset_names': sigmod_datasets_aif360,
      'model_names': ['Hardt'],
      'random_seeds': range(3),
@@ -153,8 +188,8 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
-     'train_test_seeds': range(2),  # Skf 3 splits --> 2*3 = 6 different splits
+     'random_seeds': RANGE_v1,
+     'train_test_seeds': RANGE_v1,  # Skf 3 splits --> 2*3 = 6 different splits
      'constraint_code': 'dp',
      'states': ['CA', 'LA']},
 
@@ -167,8 +202,8 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', ],
-     'random_seeds': range(2),
-     'train_test_seeds': range(2),  # Skf 3 splits --> 2*3 = 6 different splits
+     'random_seeds': RANGE_v1,
+     'train_test_seeds': RANGE_v1,  # Skf 3 splits --> 2*3 = 6 different splits
      'constraint_code': 'dp',
      },
     {'experiment_id': 'acs_h_gs1_1.1',  # done
@@ -304,7 +339,7 @@ experiment_configurations = [
      'model_names': ['fairlearn_full'],
      'eps': base_eps_v1,
      'base_model_code': ['lr'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      'other_params': eta_params_v1,
      },
@@ -313,7 +348,7 @@ experiment_configurations = [
      'model_names': ['fairlearn_full'],
      'eps': base_eps_v1,
      'base_model_code': ['lr'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      'other_params': eta_params_v1,
      },
@@ -322,7 +357,7 @@ experiment_configurations = [
      'model_names': ['fairlearn_full'],
      'eps': base_eps_v1,
      'base_model_code': ['lr'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      'other_params': eta_params_v1,
      },
@@ -335,8 +370,8 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
-     'train_test_seeds': range(2),
+     'random_seeds': RANGE_v1,
+     'train_test_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 'sigmod_h_exp_2.0',  # todo
@@ -371,8 +406,8 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
-     'train_test_seeds': range(2),
+     'random_seeds': RANGE_v1,
+     'train_test_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
 
@@ -394,7 +429,7 @@ experiment_configurations = [
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 'acs_h_eps_1.E0',  # done
@@ -488,7 +523,7 @@ experiment_configurations = [
      'exp_fractions': [1],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo'
      },
     {'experiment_id': 's_h_1.0r',
@@ -499,7 +534,7 @@ experiment_configurations = [
      'exp_fractions': [1],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp'
      },
     {'experiment_id': 'acs_eps_EO_1.0r',
@@ -509,7 +544,7 @@ experiment_configurations = [
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
     {'experiment_id': 'acs_h_eps_1.0r',
@@ -519,7 +554,7 @@ experiment_configurations = [
      'exp_fractions': [0.251],
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
 
@@ -530,7 +565,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 's_h_exp_EO_1.0r',
@@ -540,7 +575,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
     {'experiment_id': 's_h_exp_2.0r',
@@ -550,7 +585,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'exp_grid_ratio': ['sqrt'],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 's_h_exp_EO_2.0r',
@@ -560,7 +595,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_SMALLER_DATASETS_v1,
      'exp_grid_ratio': ['sqrt'],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
 
@@ -571,7 +606,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 'acs_h_gs1_EO_1.0r',
@@ -581,7 +616,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'grid_fractions': [1],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
     {'experiment_id': 'acs_h_gsSR_1.0r',
@@ -591,7 +626,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'exp_grid_ratio': ['sqrt'],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'dp',
      },
     {'experiment_id': 'acs_h_gsSR_EO_1.0r',
@@ -601,7 +636,7 @@ experiment_configurations = [
      'exp_fractions': EXP_FRACTIONS_v1,
      'exp_grid_ratio': ['sqrt'],
      'base_model_code': ['lr', 'lgbm'],
-     'random_seeds': range(2),
+     'random_seeds': RANGE_v1,
      'constraint_code': 'eo',
      },
 ]
