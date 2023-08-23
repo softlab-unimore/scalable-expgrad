@@ -397,8 +397,8 @@ def prepare_for_plot(df, grouping_col):
     # df[['random_seed','train_test_seed','train_test_fold']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
     # todo check seed values, filter older seeds.
     mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False, sort=False)[
-        new_numerical_cols].agg(
-        ['mean', ('error', get_error)]).reset_index()
+        new_numerical_cols]
+    mean_error_df = mean_error_df.size().join(mean_error_df.agg(['mean', ('error', get_error)]).reset_index())
     mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
     return mean_error_df.fillna(0)
 
