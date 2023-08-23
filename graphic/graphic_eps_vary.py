@@ -28,12 +28,13 @@ if __name__ == '__main__':
         'acs_eps_EO_1.1',  # Employment
         'acs_eps_EO_2.1',  # Employment
 
-        "s_c_1.0",
+        "s_c_1.0r",
         "s_zDI_1.1",
-        "s_tr_1.0",
-        "s_tr_1.1",
-        's_tr_2.1',
-        's_tr_2.0'
+        "s_tr_1.0r",
+        "s_tr_1.1r",
+        's_tr_2.0r',
+        's_tr_2.1r',
+
     ]
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
@@ -53,7 +54,6 @@ if __name__ == '__main__':
         ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
     all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'] = pd.NA
-    plot_all_df_subplots(all_df, model_list=restricted, model_set_name='eps', grouping_col='eps', save=save, show=show)
 
     grouping_col = 'eps'
     x_axis_list = ['eps']
@@ -64,19 +64,7 @@ if __name__ == '__main__':
     y_axis_list_short = ['time'] + ['_'.join(x) for x in itertools.product(['test'], ['error', 'violation'])]
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation']
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
-        plot_all_df_subplots(all_df, model_list=restricted, model_set_name='eps' + suffix, grouping_col='eps',
-                             save=save, show=show,
-                             axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
+        plot_all_df_subplots(all_df, model_list=restricted, chart_name='eps' + suffix, grouping_col='eps',
+                                                      save=save, show=show,
+                                                      axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
 
-    filtered_df = all_df[all_df['model_code'].isin(restricted)]
-    mean_error_df = prepare_for_plot(filtered_df, 'eps')
-    mean_error_df_filtered = mean_error_df  # [mean_error_df['eps'].fillna(0.005) == 0.005]
-    mean_error_df_filtered = mean_error_df_filtered.sort_values(
-        ['dataset_name', 'base_model_code', 'model_code', 'eps'])
-    host_name, current_time_str = utils_results_data.get_info()
-    result_path_name = 'all_df'
-    dir_path = os.path.join(base_plot_dir, result_path_name, host_name)
-    mean_error_df_filtered.to_csv(os.path.join(dir_path, 'all_model_all_metrics_mean_error.csv'))
-
-    pl_util = PlotUtility(save=save, show=show)
-    # plot_by_df(pl_util, all_df, model_list=model_list, model_set_name='baselines', grouping_col='eps')

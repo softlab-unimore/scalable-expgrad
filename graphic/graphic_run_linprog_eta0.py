@@ -53,7 +53,7 @@ if __name__ == '__main__':
         'n_oracle_calls_']
     y_axis_list_short = [x for x in y_axis_list_long if 'test' not in x ]
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
-        plot_all_df_subplots(all_df, model_list=all_df['model_code'].unique(), model_set_name='eta0' + suffix,
+        plot_all_df_subplots(all_df, model_list=all_df['model_code'].unique(), chart_name='eta0' + suffix,
                              grouping_col='max_iter',
                              save=save, show=show, sharex=False, annotate_col='n_oracle_calls_',
                              sharey='row', axis_to_plot=list(itertools.product(['time'], y_axis_list)),

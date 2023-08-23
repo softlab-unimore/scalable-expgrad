@@ -55,67 +55,64 @@ restricted_list = [
 ]
 
 
-
 class PlotUtility():
-
-
     to_plot_models = [
-                         # 'expgrad_fracs_gri',
-                         # 'hybrid_5_gri',
-                         # 'hybrid_5_U_gri',
-                         # 'hybrid_1_gri',
-                         # 'hybrid_2_gri',
-                         # 'hybrid_3_gri',
-                         # 'hybrid_3_U_gri',
-                         # 'hybrid_4_gri',
-                         # 'hybrid_6_gri',
-                         # 'hybrid_6_U_gri',
-                         'expgrad_fracs_exp',
-                         'expgrad_fracs_LP_off_exp',
-                         'hybrid_5_exp',
-                         # 'hybrid_5_U_exp',
-                         # 'hybrid_1_exp',
-                         # 'hybrid_2_exp',
-                         'hybrid_3_exp',
-                         # 'hybrid_3_U_exp',
-                         # 'hybrid_4_exp',
-                         # 'hybrid_6_U_exp',
-                         'hybrid_6_exp',
-                         'hybrid_6_exp_gf_1',
-                         'hybrid_7_exp',
-                         'hybrid_7_LP_off_exp',
-                         'unconstrained_exp',
-                         # 'fairlearn_full',
-                         # 'unmitigated',
+        # 'expgrad_fracs_gri',
+        # 'hybrid_5_gri',
+        # 'hybrid_5_U_gri',
+        # 'hybrid_1_gri',
+        # 'hybrid_2_gri',
+        # 'hybrid_3_gri',
+        # 'hybrid_3_U_gri',
+        # 'hybrid_4_gri',
+        # 'hybrid_6_gri',
+        # 'hybrid_6_U_gri',
+        'expgrad_fracs_exp',
+        'expgrad_fracs_LP_off_exp',
+        'hybrid_5_exp',
+        # 'hybrid_5_U_exp',
+        # 'hybrid_1_exp',
+        # 'hybrid_2_exp',
+        'hybrid_3_exp',
+        # 'hybrid_3_U_exp',
+        # 'hybrid_4_exp',
+        # 'hybrid_6_U_exp',
+        'hybrid_6_exp',
+        'hybrid_6_exp_gf_1',
+        'hybrid_7_exp',
+        'hybrid_7_LP_off_exp',
+        'unconstrained_exp',
+        # 'fairlearn_full',
+        # 'unmitigated',
 
-                         ## exp subsample models
-                         # 'sub_hybrid_1_exp',
-                         # 'sub_hybrid_2_exp',
-                         # 'sub_hybrid_3_U_exp',
-                         'sub_hybrid_3_exp',
-                         # 'sub_hybrid_4_exp',
-                         # 'sub_hybrid_5_U_exp',
-                         # 'sub_hybrid_5_exp',
-                         # 'sub_hybrid_6_U_exp',
-                         'sub_hybrid_6_exp',
-                         'unconstrained_frac_exp',
+        ## exp subsample models
+        # 'sub_hybrid_1_exp',
+        # 'sub_hybrid_2_exp',
+        # 'sub_hybrid_3_U_exp',
+        'sub_hybrid_3_exp',
+        # 'sub_hybrid_4_exp',
+        # 'sub_hybrid_5_U_exp',
+        # 'sub_hybrid_5_exp',
+        # 'sub_hybrid_6_U_exp',
+        'sub_hybrid_6_exp',
+        'unconstrained_frac_exp',
 
-                         'sub_hybrid_6_exp_gf_1',
+        'sub_hybrid_6_exp_gf_1',
 
-                         ## eps models
-                         # 'expgrad_fracs_eps',
-                         # 'hybrid_1_eps',
-                         # 'hybrid_2_eps',
-                         # 'hybrid_3_U_eps',
-                         # 'hybrid_3_eps',
-                         # 'hybrid_4_eps',
-                         # 'hybrid_5_U_eps',
-                         # 'hybrid_5_eps',
-                         # 'hybrid_6_U_eps',
-                         # 'hybrid_6_eps',
-                         # 'fairlearn_full_eps',
+        ## eps models
+        # 'expgrad_fracs_eps',
+        # 'hybrid_1_eps',
+        # 'hybrid_2_eps',
+        # 'hybrid_3_U_eps',
+        # 'hybrid_3_eps',
+        # 'hybrid_4_eps',
+        # 'hybrid_5_U_eps',
+        # 'hybrid_5_eps',
+        # 'hybrid_6_U_eps',
+        # 'hybrid_6_eps',
+        # 'fairlearn_full_eps',
 
-                     ] # + other_models # todo remove other models commented
+    ]  # + other_models # todo remove other models commented
 
     color_list = mpl.colormaps['tab20'].colors
 
@@ -307,7 +304,7 @@ class PlotUtility():
         #     # dimension between start-stop original marker size
         # return dict(color=self.get_color(index), marker=self.get_marker(index, total), s=marker_size)
 
-    def get_all_params(self, model_code,index=None, total=None):
+    def get_all_params(self, model_code, index=None, total=None):
         return {key: value for key, value in StyleUtility.get_style(model_code).items() if
                 key in StyleUtility.label_keys}
         # tmp_dict = self.get_line_params(index)
@@ -324,7 +321,7 @@ class PlotUtility():
     @staticmethod
     def save_figure_static(base_dir, additional_dir_path, name, fig, suffix='', svg=False):
         host_name, current_time_str = get_info()
-        dir_path = os.path.join(base_dir, host_name + suffix, additional_dir_path)
+        dir_path = PlotUtility.get_base_path_static(base_dir, additional_dir_path, suffix=suffix)
         for t_dir in [dir_path]:
             for t_name in [
                 # f'{current_time_str}_{name}',
@@ -336,6 +333,14 @@ class PlotUtility():
                     t_full_path_svg = os.path.join(t_dir + '_svg', t_name)
                     os.makedirs(t_dir + '_svg', exist_ok=True)
                     fig.savefig(t_full_path_svg + '.svg', format='svg', bbox_inches="tight")
+
+    def get_base_path(self, additional_dir_path, suffix=''):
+        return self.get_base_path_static(self.base_plot_dir, additional_dir_path, suffix=suffix)
+
+    @staticmethod
+    def get_base_path_static(base_plot_dir, additional_dir_path, suffix='', ):
+        host_name, current_time_str = get_info()
+        return os.path.join(base_plot_dir, host_name + suffix, additional_dir_path)
 
     def apply_plot_function_and_save(self, df, additional_dir_path, plot_function, name):
         plt.close('all')
@@ -361,8 +366,8 @@ def time_stacked_by_phase(df, ax, fig: plt.figure, name_col='label'):
         {x: ['mean', ('error', get_confidence_error)] for x in to_index})
     to_plot.columns = to_plot.columns.map('_'.join).str.strip('_')
     to_plot = to_plot.query('phase == "expgrad_fracs"')
-    yerr = to_plot.loc[:, [x + '_error'for x in to_index]]
-    to_plot.plot.bar(x='frac', stacked=True, y=[x+'_mean' for x in to_index], yerr=yerr.values.T, rot=45, ax=ax)
+    yerr = to_plot.loc[:, [x + '_error' for x in to_index]]
+    to_plot.plot.bar(x='frac', stacked=True, y=[x + '_mean' for x in to_index], yerr=yerr.values.T, rot=45, ax=ax)
     # todo fix replicated legend labels
     xticklabels = ax.xaxis.get_ticklabels()
     for label in xticklabels:
@@ -440,9 +445,8 @@ def plot_routine_other(all_model_df, dataset_name, save=True, show=True, suffix=
         ['time_stacked_by_phase', time_stacked_by_phase],
         ['metrics_time_vs_frac', plot_metrics_time],
         ['phase_time_vs_frac', phase_time_vs_frac],
-            ]:
+    ]:
         pl_util.apply_plot_function_and_save(df=df, additional_dir_path=name, plot_function=plot_f, name=dataset_name)
-
 
     # pl_util.plot(all_model_df, x_axis='frac', y_axis='time', dataset_name=dataset_name)
     # if save is True:
@@ -466,16 +470,16 @@ def rename_columns_to_plot(df, x_axis, y_axis):
     return df
 
 
-def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save, show, axis_to_plot=None,
+def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, show, axis_to_plot=None,
                          sharex=True,
                          sharey='row', result_path_name='all_df', single_chart=False, xlog=False,
                          increasing_marker_size=False,
                          subplots_by_col='dataset_name', subplots=True,
-                         ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None,):
+                         ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None, ):
     if annotate_col is not None:
         annotate_col += '_mean'
-    if model_set_name != '':
-        model_set_name += '_'
+    if chart_name != '':
+        chart_name += '_'
     # filtered_df = utils_results_data.prepare_data(all_df)
     model_list = list(model_list)
 
@@ -566,11 +570,14 @@ def plot_all_df_subplots(all_df, model_list, model_set_name, grouping_col, save,
             if show:
                 fig.show()
             pl_util.save_figure(additional_dir_path=result_path_name,
-                                name=f'{model_set_name}all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_subplots')
+                                name=f'{chart_name}all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_subplots')
     pl_util.show = show
 
+    dir_path = pl_util.get_base_path(additional_dir_path=result_path_name)
+    mean_error_df.to_csv(os.path.join(dir_path, f'{chart_name}all_VARY_{grouping_col}_metrics_mean_error.csv'))
     # if single_chart:
     #     plot_all_df_single_chart(pl_util, grouping_col, mean_error_df, model_set_name)
+    return mean_error_df
 
 
 def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name='',
@@ -608,7 +615,7 @@ def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name=
                                 name=name)
 
 
-def select_oracle_call_time(results_df, name_time_oracles_col = 'time_oracles'):
+def select_oracle_call_time(results_df, name_time_oracles_col='time_oracles'):
     df = results_df[results_df['phase'].isin(['expgrad_fracs', 'grid_frac'])].copy()
     # Take max of oracle calls time for grid search
     grid_mask = df['phase'] == 'grid_frac'
@@ -728,14 +735,14 @@ if __name__ == '__main__':
     pl_util = PlotUtility(save=save, show=show)
     plot_by_df(pl_util, gs_analysis_df, grid_chart_models, model_set_name='oracle_calls',
                grouping_col='exp_frac')
-    plot_all_df_subplots(gs_analysis_df, model_list=grid_chart_models, model_set_name='oracle_calls',
+    plot_all_df_subplots(gs_analysis_df, model_list=grid_chart_models, chart_name='oracle_calls',
                          grouping_col='exp_frac', save=save, show=show, sharey=False, single_chart=False)
     # plot_gs_analysis(gs_analysis_df, grouping_col='exp_frac', pl_util=pl_util)
 
     pl_util = PlotUtility(save=save, show=show, suffix='')
 
     selected_model = ['sub_hybrid_6_exp_gf_1']
-    plot_all_df_subplots(all_results_df, model_list=selected_model, model_set_name='baselines',
+    plot_all_df_subplots(all_results_df, model_list=selected_model, chart_name='baselines',
                          grouping_col='exp_frac',
                          save=save, show=show)
 

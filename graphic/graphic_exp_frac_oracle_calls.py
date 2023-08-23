@@ -63,6 +63,7 @@ if __name__ == '__main__':
         'hybrid_7_exp',
         # 'sub_hybrid_5_exp',
         'sub_hybrid_3_exp_gf_1',
+        '',
     ]
     grid_sqrt_models = [
         'hybrid_3_exp',
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation', 'n_oracle_calls_', 'time_oracles']
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         plot_all_df_subplots(all_df, model_list=exp_frac_models,
-                             model_set_name='exp_frac' + suffix, grouping_col='exp_frac',
+                             chart_name='exp_frac' + suffix, grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=False,
                              ylim_list=[None, None, (0, 0.06)],
                              sharey='row', xlog=True,
@@ -136,7 +137,7 @@ if __name__ == '__main__':
     for y_axis_list, suffix in [(y_axis_list_long, ''), (y_axis_list_short, '_v2'), ]:
         y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
         plot_all_df_subplots(all_df, model_list=exp_frac_models + grid_sqrt_models,
-                             model_set_name='oracle_calls' + suffix,
+                             chart_name='oracle_calls' + suffix,
                              grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=True, xlog=True,
                              # ylim_list=y_lim_list,
