@@ -69,6 +69,11 @@ if __name__ == "__main__":
         'acs_h_gsSR_1.0r',
         'acs_h_gsSR_EO_1.0r',
         # to update
+        's_c_1.0r',
+        's_tr_1.0r',
+        's_tr_1.1r',
+        's_tr_2.0r',
+        's_tr_2.1r',
     ]
 
     conf_todo = [
@@ -76,7 +81,9 @@ if __name__ == "__main__":
         #'f_eta0_1.0.test',
 
 
-        's_zDI_1.1',
+
+        #'s_zDI_1.1',
+
 
 
     ]
