@@ -27,8 +27,8 @@ def replace_values_aif360_dataset(X, y, sensitive_features, aif360_dataset):
     aif360_dataset = aif360_dataset.copy()
     y = y if y is not None else np.zeros_like(sensitive_features)
     aif360_dataset.features = X
-    sensitive_features = sensitive_features.reshape(-1, 1)
-    y = y.reshape(-1, 1)
+    sensitive_features = np.array(sensitive_features).reshape(-1, 1)
+    y = np.array(y).reshape(-1, 1)
     # if aif360_dataset.__class__.__name__ == 'GermanDataset':
     #     y[y == 0] = 2 #reconvert to 1,2 scale of GermanDataset
     aif360_dataset.labels = y
