@@ -2,8 +2,7 @@ import os
 
 import pandas as pd
 
-import folktables
-import utils_experiment
+from run_experiments import utils_experiment
 from utils_prepare_data import load_transform_ACS
 from run import ExperimentRun
 

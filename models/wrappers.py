@@ -13,7 +13,7 @@ from fairlearn.postprocessing import ThresholdOptimizer
 
 import fair_classification.loss_funcs
 import fair_classification.utils
-import utils_experiment as ut_exp
+from run_experiments import utils_experiment as ut_exp
 import utils_prepare_data
 from fairlearn.reductions import ExponentiatedGradient
 

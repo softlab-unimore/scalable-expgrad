@@ -1,7 +1,6 @@
 import sys
-import numpy as np
 from run import execute_experiment
-import utils_experiment
+from run_experiments import utils_experiment
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()

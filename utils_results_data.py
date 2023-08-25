@@ -11,9 +11,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 
-import utils_experiment
+from run_experiments import utils_experiment
 from run import params_initials_map
-from utils_experiment import get_config_by_id
 
 seed_columns = ['random_seed', 'train_test_fold', 'train_test_seed']
 cols_to_synch = ['dataset_name', 'base_model_code', 'constraint_code', 'eps', 'train_test_seed', 'random_seed',
@@ -396,10 +395,13 @@ def prepare_for_plot(df, grouping_col):
     # df[['base_model_code', 'constraint_code', 'dataset_name','exp_grid_ratio','exp_frac']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
     # df[['random_seed','train_test_seed','train_test_fold']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
     # todo check seed values, filter older seeds.
-    mean_error_df = time_aggregated_df.groupby(groupby_col, as_index=False, dropna=False, sort=False)[
+    grouped_data = time_aggregated_df.groupby(groupby_col, as_index=True, dropna=False, sort=False)[
         new_numerical_cols]
-    mean_error_df = mean_error_df.size().join(mean_error_df.agg(['mean', ('error', get_error)]).reset_index())
+    mean_error_df = grouped_data.agg(['mean', ('error', get_error)])
     mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
+    size_series = grouped_data.size()
+    size_series.name = 'size'
+    mean_error_df = mean_error_df.join(size_series).reset_index()
     return mean_error_df.fillna(0)
 
 

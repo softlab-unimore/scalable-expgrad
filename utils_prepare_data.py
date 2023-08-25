@@ -1,7 +1,4 @@
-import logging
 import os
-from functools import partial
-from logging import warn
 
 import aif360.datasets
 import numpy as np
@@ -9,12 +6,11 @@ import pandas as pd
 import requests
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions import load_preproc_data_adult, \
     load_preproc_data_compas, load_preproc_data_german
-from aif360.datasets import AdultDataset, GermanDataset, CompasDataset
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 import folktables
-import utils_experiment
+from run_experiments import utils_experiment
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
 
@@ -173,7 +169,7 @@ def load_convert_dataset_aif360(dataset_name='compas'):
 
 def split_dataset_aif360(aif360_dataset: aif360.datasets.StandardDataset, train_test_seed):
     ret_dict = {}
-    if train_test_seed is 0:
+    if train_test_seed == 0:
         dataset_orig_train, dataset_orig_test = aif360_dataset.split([0.7], shuffle=False)
     else:
         dataset_orig_train, dataset_orig_test = aif360_dataset.split([0.7], shuffle=True, seed=train_test_seed)
