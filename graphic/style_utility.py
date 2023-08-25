@@ -69,24 +69,33 @@ class StyleUtility:
                         ])
 
     graphic_style_map = {
-        'RLP=F': {'color': 'tab:red', 'marker': 's', 'linestyle': '-.', },
         'EXPGRAD': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=F eta0==1.0': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=F eta0==2.0': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==1.0': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==2.0': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==3.0': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
-        'Threshold': {'color': 'black', 'linestyle': 'solid', 'linewidth': linewidth * .5},
         'EXPGRAD=adaptive GS=No LP=Yes': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
-        'UNMITIGATED full': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
-        'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
-        'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
-        'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=static GS=No LP=Yes': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=adaptive GS=sqrt LP=Yes': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=adaptive GS=1 LP=Yes': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=static GS=1 LP=Yes': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
+
+        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-'},
+        'UNMITIGATED=static': {'color': 'tab:pink', 'marker': 'o', 'linestyle': '-.'},
+
+        'Threshold': {'color': 'black', 'linestyle': 'solid', 'linewidth': linewidth * .5},
+
+        'RLP=F': {'color': 'tab:red', 'marker': 's', 'linestyle': '-.', },
+        'RLP=F eta0==1.0': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-.'},
+        'RLP=F eta0==2.0': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
+        'RLP=T eta0==1.0': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
+        'RLP=T eta0==2.0': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
+        'RLP=T eta0==3.0': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
+
+
+
+        'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
+        'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '--'},
+        'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': 'dotted'},
+
+
     }
 
     graphic_style_map = {key: dict(base_config, label=key, **value) for key, value in graphic_style_map.items()}
