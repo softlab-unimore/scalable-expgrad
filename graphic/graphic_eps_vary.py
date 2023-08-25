@@ -36,6 +36,10 @@ if __name__ == '__main__':
         's_tr_2.1r',
 
     ]
+    rlp_false_conf_list = [
+        'f_eta0_eps.1',
+        'f_eta0_eps.2',
+    ]
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
     base_plot_dir = os.path.join('results', 'plots')

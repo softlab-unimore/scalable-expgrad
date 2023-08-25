@@ -1,8 +1,4 @@
-import itertools
-import sys
-import numpy as np
 import run
-import utils_experiment
 
 if __name__ == "__main__":
     # run.launch_experiment_by_id('s_h_1.0.TEST')
@@ -74,6 +70,8 @@ if __name__ == "__main__":
         's_tr_1.1r',
         's_tr_2.0r',
         's_tr_2.1r',
+        'f_eta0_eps.1',
+        'f_eta0_eps.2',
     ]
 
     conf_todo = [
