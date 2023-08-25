@@ -72,15 +72,19 @@ if __name__ == '__main__':
         'sub_hybrid_3_exp_gf_1',
     ]
     exp_frac_models = [
-        'hybrid_5_exp',
         'hybrid_7_exp',
+        'hybrid_5_exp',
+
+        'unconstrained_exp'
+        'unconstrained_frac_exp',
     ]
 
     sort_map = {name: i for i, name in enumerate(grid_chart_models)}
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
 
-    all_df = utils_results_data.load_results_experiment_id(gf_1_conf, dataset_results_path)
+    all_df = utils_results_data.load_results_experiment_id(gf_1_conf, dataset_results_path).query(
+        'dataset_name != "ACSEmployment"')
 
     employment_df = utils_results_data.load_results_experiment_id(employment_conf, dataset_results_path)
     employment_df = employment_df.query('dataset_name == "ACSEmployment"')
