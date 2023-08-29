@@ -44,6 +44,13 @@ if __name__ == '__main__':
     dataset_results_path = os.path.join("results", "fairlearn-2")
     base_plot_dir = os.path.join('results', 'plots')
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
+
+    rlp_df = utils_results_data.load_results_experiment_id(rlp_false_conf_list, dataset_results_path)
+    model_code = 'RLP=' + rlp_df['run_linprog_step'].map({True: 'T', False: 'F'})  + ' max_iter=' + rlp_df['max_iter'].astype(str)
+    rlp_df['model_code'] = model_code
+    rlp_df = utils_results_data.best_gap_filter_on_eta0(rlp_df)
+
+    all_df = pd.concat([all_df, rlp_df])
     # check results
     # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
     # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str).values),axis=1).unique()
@@ -51,7 +58,7 @@ if __name__ == '__main__':
 
     restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
     restricted = [x.replace('_exp', '_eps') for x in restricted]
-    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer']
+    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer' ] + rlp_df['model_code'].unique().tolist()
 
     sort_map = {name: i for i, name in enumerate(restricted)}
     all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
