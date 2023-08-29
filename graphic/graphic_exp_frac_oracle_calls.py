@@ -75,7 +75,7 @@ if __name__ == '__main__':
         'hybrid_7_exp',
         'hybrid_5_exp',
 
-        'unconstrained_exp'
+        'unconstrained_exp',
         'unconstrained_frac_exp',
     ]
 

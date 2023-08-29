@@ -47,6 +47,7 @@ def generate_map_df():
 
 linewidth = 0.5
 markersize = 8
+rlp_false_markersize = markersize ** .5
 base_config = dict(linewidth=linewidth, elinewidth=linewidth / 2,
                    marker=MarkerStyle('1', 'left', 0, ), s=markersize, markevery=1,  # mew=linewidth / 2,
                    )
@@ -68,6 +69,7 @@ class StyleUtility:
                                                orient='index', columns=['label'])
                         ])
 
+
     graphic_style_map = {
         'EXPGRAD': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
         'EXPGRAD=adaptive GS=No LP=Yes': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
@@ -82,19 +84,16 @@ class StyleUtility:
 
         'Threshold': {'color': 'black', 'linestyle': 'solid', 'linewidth': linewidth * .5},
 
-        'RLP=F': {'color': 'tab:red', 'marker': 's', 'linestyle': '-.', },
-        'RLP=F eta0==1.0': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=F eta0==2.0': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==1.0': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==2.0': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
-        'RLP=T eta0==3.0': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
-
-
+        'RLP=F': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=5': {'color': 'tab:brown', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=10': {'color': 'tab:gray', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=20': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
 
         'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
         'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '--'},
         'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': 'dotted'},
-
 
     }
 

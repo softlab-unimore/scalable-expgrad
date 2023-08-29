@@ -1,14 +1,11 @@
-import ast
 import itertools
 import os
-from copy import deepcopy
 
-import numpy as np
 import pandas as pd
 
 import utils_results_data
-from graphic_utility import plot_routine_performance_violation, PlotUtility, restricted_list, plot_all_df_subplots, \
-    plot_by_df
+from graphic_utility import PlotUtility, plot_all_df_subplots
+from utils_results_data import best_gap_filter_on_eta0
 
 if __name__ == '__main__':
     save = True
@@ -43,8 +40,7 @@ if __name__ == '__main__':
         normal_expgrad = normal_expgrad[normal_expgrad[col].isin(all_df[col].unique())]
 
     normal_expgrad['max_iter'] = 50
-    f = lambda x: x[x['eta0'] == x.loc[x['best_gap_'].idxmin(), 'eta0']]
-    all_df = all_df.groupby(utils_results_data.cols_to_synch + ['max_iter']).apply(f).reset_index(drop=True)
+    all_df = best_gap_filter_on_eta0(all_df)
     normal_expgrad['model_code'] = 'EXPGRAD'
     all_df = pd.concat([all_df, normal_expgrad  # , non_selected_df
                         ])

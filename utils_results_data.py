@@ -405,3 +405,7 @@ def prepare_for_plot(df, grouping_col):
     return mean_error_df.fillna(0)
 
 
+def best_gap_filter_on_eta0(all_df):
+    f = lambda x: x[x['eta0'] == x.loc[x['best_gap_'].idxmin(), 'eta0']]
+    all_df = all_df.groupby(cols_to_synch + ['max_iter']).apply(f).reset_index(drop=True)
+    return all_df
