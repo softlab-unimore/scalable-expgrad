@@ -657,6 +657,13 @@ experiment_configurations = [
      'random_seeds': RANDOM_SEEDS_v1,
      'constraint_code': 'eo',
      },
+    {'experiment_id': 'most_frequent_sig.0r',
+     'dataset_names': sigmod_datasets,
+     'model_names': ['most_frequent'],
+     'random_seeds': RANDOM_SEEDS_v1,
+     'constraint_code': 'dp',
+     },
+
 ]
 
 config_values_dict = {
