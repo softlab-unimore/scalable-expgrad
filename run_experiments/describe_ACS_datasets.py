@@ -12,7 +12,7 @@ if __name__ == '__main__':
     os.makedirs(descriptions_dir, exist_ok=True)
     dict_list = []
     t_dict = {}
-    for dataset_str in set(utils_experiment.dataset_names) - set('adult'):
+    for dataset_str in set(utils_experiment.dataset_names) - set(['adult']):
         X, y, A, acs_data = load_transform_ACS(dataset_str, return_acs_data=True)
         # acs_data.iloc[:1000].to_csv(f'results/fairlearn-2/ACSDataset_descriptions/ACSPublicCoverage_h1000.csv')
         # acs_data.iloc[:1000].loc[:, ['HISP', 'RAC1P', 'PUBCOV']].to_csv(f'results/fairlearn-2/ACSDataset_descriptions/ACSPublicCoverage_h1000_race.csv')
