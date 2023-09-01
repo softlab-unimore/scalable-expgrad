@@ -16,11 +16,23 @@ import fair_classification.utils
 from run_experiments import utils_experiment as ut_exp
 import utils_prepare_data
 from fairlearn.reductions import ExponentiatedGradient
+from functools import partial
 
 
 class GeneralAifModel():
     def __init__(self, datasets):
+        # def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+        # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+        # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         self.aif_dataset = copy.deepcopy(datasets[3])
+
+    def fit(self, X, y, sensitive_features):
+        pass
+
+    # predict(self, X, sensitive_features):
+
+    def predict(self, X):
+        pass
 
 
 def replace_values_aif360_dataset(X, y, sensitive_features, aif360_dataset):
@@ -295,7 +307,7 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
                          run_linprog_step=run_linprog_step, random_state=random_state, eta0=eta0, **kwargs)
 
     def fit(self, X, y, sensitive_features, **kwargs):
-        super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
+        return super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
 
     def predict(self, X, random_state=None):
         return self._pmf_predict(X)[:, 1]
@@ -308,3 +320,23 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
                     'n_oracle_calls_dummy_returned_', 'oracle_execution_times_', ]:
             res_dict[key] = getattr(self, key)
         return res_dict
+
+method_str_to_class = dict(
+    most_frequent=partial(sklearn.dummy.DummyClassifier, strategy="most_frequent"),
+)
+
+def create_wrapper(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+    model_class = method_str_to_class.get(method_str)
+    class PersonalizedWrapper:
+        def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+            self.method_str = method_str
+            self.model = model_class(random_state=random_state, **kwargs)
+
+        def fit(self, X, y, sensitive_features):
+            self.model.fit(X, y)
+            return self
+
+        def predict(self, X):
+            return self.model.predict(X)
+
+    return PersonalizedWrapper(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs)
