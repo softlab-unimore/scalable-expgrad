@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import aif360.datasets
 import numpy as np
@@ -13,6 +14,7 @@ import folktables
 from run_experiments import utils_experiment
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
+from utils import Singleton
 
 try:
     from urllib.request import urlretrieve
@@ -283,6 +285,15 @@ def get_dataset(dataset_str, prm=None):
     else:
         raise_dataset_name_error(dataset_str)
 
+def preprocess_dataset(datasets, prm):
+    if prm['preprocessing'] == 'conversion_to_binary_sensitive_attribute':
+        data_values = DataValuesSingleton()
+        data_values.original_sensitive_attr = deepcopy(datasets[2])
+
+        datasets[2] = datasets[2].map({1:1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0})
+    return datasets
+
+
 
 def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strategy, test_size):
 
@@ -303,6 +314,7 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
     #     # test_data['X'] = dataset_dict['aif360_test']
     #     # yield list(train_data.values()), list(test_data.values())
     # elif dataset_str in utils_experiment.dataset_names:
+    data_values = DataValuesSingleton()
     if split_strategy == 'StratifiedKFold':
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
         X, y, A = datasets[:3]
@@ -311,6 +323,8 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
             datasets_divided = []
             for turn_index in [train_index, test_index]:  # train test split of datasets
                 datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
+            data_values.train_index = train_index
+            data_values.test_index = test_index
             yield datasets_divided
     elif split_strategy == 'stratified_train_test_split':
         X, y, A = datasets[:3]
@@ -318,9 +332,12 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
         sample_mask = np.arange(X.shape[0])
         train_index, test_index = train_test_split(sample_mask, test_size=test_size, stratify=to_stratify,
                                           random_state=train_test_seed, shuffle=True)
+
         datasets_divided = []
         for turn_index in [train_index, test_index]:
             datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
+        data_values.train_index = train_index
+        data_values.test_index = test_index
         yield datasets_divided
 
 
@@ -339,3 +356,27 @@ def get_constraint(constraint_code, eps):
         assert False, f'available constraint_code are: {list(code_to_constraint.keys())}'
     constraint: UtilityParity = code_to_constraint[constraint_code]
     return constraint(difference_bound=eps)
+
+
+class DataValuesSingleton(metaclass=Singleton):
+    original_sensitive_attr = None
+    train_index = None
+    test_index = None
+    phase = None
+
+    def set_phase(self, phase):
+        if phase not in ['train', 'test']:
+            raise Exception(f'phase {phase} not allowed.')
+        self.phase = phase
+
+    def set_train_test_index(self, train_index, test_index):
+        self.train_index = train_index
+        self.test_index = test_index
+
+    def get_original_sensitive_attr(self):
+        if self.phase == 'train':
+            return self.original_sensitive_attr[self.train_index]
+        elif self.phase == 'test':
+            return self.original_sensitive_attr[self.test_index]
+        else:
+            raise Exception(f'phase {self.phase} not allowed.')

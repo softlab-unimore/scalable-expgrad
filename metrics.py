@@ -1,4 +1,6 @@
 import numpy as np
+
+import utils_prepare_data
 from fairlearn.reductions import DemographicParity, ErrorRate, EqualizedOdds
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -15,6 +17,12 @@ def get_metric_function(metric_f):
         return metric_f(y_true=Y, y_pred=y_pred >= .5, zero_division=0)
 
     return f
+
+def convert_metric_to_use_original_sensitive(metric_f):
+    def f(X, Y, S, predict_method):
+        data_values= utils_prepare_data.DataValuesSingleton()
+        s_orig = data_values.get_original_sensitive_values()
+        return metric_f(X, Y, s_orig, predict_method)
 
 
 def getViolation(X, Y, S, predict_method):
@@ -81,9 +89,26 @@ default_metrics_dict = {'error': getError,
                         'precision': get_metric_function(precision_score),
                         'recall': get_metric_function(recall_score)
                         }
+
+metrics_code_map = dict(
+    default=default_metrics_dict,
+    conversion_to_binary_sensitive_attribute=default_metrics_dict | {
+        'violation_orig': convert_metric_to_use_original_sensitive(getViolation),
+        'EqualizedOdds_orig': convert_metric_to_use_original_sensitive(getEO),
+        'di_orig': convert_metric_to_use_original_sensitive(di),
+        'TPRB_orig': convert_metric_to_use_original_sensitive(TPRB),
+        'TNRB_orig': convert_metric_to_use_original_sensitive(TNRB),
+    }
+)
 # Metrics function may follow one of these 2 interfaces.
 # f(X, Y, S, predict_method)
 # or
 # f(X, Y, S, y_pred)
 # if the metric function takes f(y_true,y_pred) parameters only
 # then you may simply wrap the function with get_metric_function
+
+
+def get_metrics_dict(metrics_code):
+    if metrics_code not in metrics_code_map.keys():
+        raise ValueError(f'metric {metrics_code} is not supported')
+    return metrics_code_map.get(metrics_code)
