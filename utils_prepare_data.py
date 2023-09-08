@@ -289,7 +289,7 @@ def preprocess_dataset(datasets, prm):
     if prm['preprocessing'] == 'conversion_to_binary_sensitive_attribute':
         data_values = DataValuesSingleton()
         data_values.original_sensitive_attr = deepcopy(datasets[2])
-
+        datasets = list(datasets)
         datasets[2] = datasets[2].map({1:1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0})
     return datasets
 
@@ -373,7 +373,7 @@ class DataValuesSingleton(metaclass=Singleton):
         self.train_index = train_index
         self.test_index = test_index
 
-    def get_original_sensitive_attr(self):
+    def get_current_original_sensitive_attr(self):
         if self.phase == 'train':
             return self.original_sensitive_attr[self.train_index]
         elif self.phase == 'test':
