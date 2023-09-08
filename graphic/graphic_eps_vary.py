@@ -22,11 +22,10 @@ if __name__ == '__main__':
         "acs_h_eps_1.0r",  # PublicC
         'acs_eps_EO_1.0r',  # PublicC
 
-        "acs_h_eps_1.LGBM0",  # Employment + PublicC
-        'acs_eps_EO_1.0',  # Employment + PublicC
-        "acs_h_eps_1.E0",  # Employment
-        'acs_eps_EO_1.1',  # Employment
-        'acs_eps_EO_2.1',  # Employment
+        "acs_h_eps_1.LGBM0",  # Employment + PublicC lgbm DP
+        "acs_h_eps_1.E0",  # Employment LR DP
+        'acs_eps_EO_1.1',  # Employment LR EO
+        'acs_eps_EO_2.1',  # Employment lgbm EO
 
         "s_c_1.0r",
         "s_zDI_1.1",
@@ -34,6 +33,8 @@ if __name__ == '__main__':
         "s_tr_1.1r",
         's_tr_2.0r',
         's_tr_2.1r',
+
+        'most_frequent_sig.0r',
 
     ]
     rlp_false_conf_list = [
@@ -46,9 +47,11 @@ if __name__ == '__main__':
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
 
     rlp_df = utils_results_data.load_results_experiment_id(rlp_false_conf_list, dataset_results_path)
-    model_code = 'RLP=' + rlp_df['run_linprog_step'].map({True: 'T', False: 'F'})  + ' max_iter=' + rlp_df['max_iter'].astype(str)
+    model_code = 'RLP=' + rlp_df['run_linprog_step'].map({True: 'T', False: 'F'}) + ' max_iter=' + rlp_df[
+        'max_iter'].astype(str)
     rlp_df['model_code'] = model_code
     rlp_df = utils_results_data.best_gap_filter_on_eta0(rlp_df)
+    rlp_df = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
 
     all_df = pd.concat([all_df, rlp_df])
     # check results
@@ -58,7 +61,8 @@ if __name__ == '__main__':
 
     restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
     restricted = [x.replace('_exp', '_eps') for x in restricted]
-    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer' ] + rlp_df['model_code'].unique().tolist()
+    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer'] + rlp_df['model_code'].unique().tolist()
+    # todo add most_frequent
 
     sort_map = {name: i for i, name in enumerate(restricted)}
     all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
@@ -76,6 +80,5 @@ if __name__ == '__main__':
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation']
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         plot_all_df_subplots(all_df, model_list=restricted, chart_name='eps' + suffix, grouping_col='eps',
-                                                      save=save, show=show,
-                                                      axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
-
+                             save=save, show=show,
+                             axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
