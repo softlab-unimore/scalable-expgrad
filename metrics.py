@@ -1,3 +1,5 @@
+import inspect
+
 import numpy as np
 
 import utils_prepare_data
@@ -15,14 +17,18 @@ def divide_non_0(a, b):
 def get_metric_function(metric_f):
     def f(X, Y, S, y_pred):
         return metric_f(y_true=Y, y_pred=y_pred >= .5, zero_division=0)
-
     return f
 
 def convert_metric_to_use_original_sensitive(metric_f):
     def f(X, Y, S, predict_method):
         data_values= utils_prepare_data.DataValuesSingleton()
-        s_orig = data_values.get_original_sensitive_values()
-        return metric_f(X, Y, s_orig, predict_method)
+        s_orig = data_values.get_current_original_sensitive_attr()
+        params = inspect.signature(metric_f).parameters.keys()
+        if 'predict_method' in params:
+            return metric_f(X, Y, s_orig, predict_method=predict_method)
+        elif 'y_pred' in params:
+            return metric_f(X, Y, s_orig, y_pred=predict_method(X))
+    return f
 
 
 def getViolation(X, Y, S, predict_method):
