@@ -155,7 +155,7 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
         # For hybrid methods
         arg_parser.add_argument("--exp_fractions", nargs='+', type=float, default=[1])
-        arg_parser.add_argument("--grid_fractions", nargs='+', type=float)
+        arg_parser.add_argument("--grid_fractions", nargs='+', type=float, default=[None])
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None, nargs='+')
         arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
         # Others
@@ -371,17 +371,18 @@ class ExperimentRun(metaclass=Singleton):
             # self.data_dict['grid_size'] = int(n_data * grid_f)
             constraint = get_constraint(constraint_code=constraint_code, eps=turn_eps)
 
-            print(f"Processing: fraction {exp_f: <5}, sample {random_seed: ^10} GridSearch fraction={grid_f:0<5}"
-                  f"turn_eps: {turn_eps: ^3}")
+            print(f"Processing: fraction {exp_f: <5}, sample {random_seed: ^10} turn_eps: {turn_eps: ^3}")
 
             # GridSearch data fraction
-            grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
-            grid_sample = grid_sample.reset_index(drop=True)
-            grid_params = dict(X=grid_sample.iloc[:, :-2],
-                               y=grid_sample.iloc[:, -2],
-                               sensitive_features=grid_sample.iloc[:, -1])
+            if grid_f is not None:
+                print(f"GridSearch fraction={grid_f:0<5}")
+                grid_sample = train_all_X_y_A.sample(frac=grid_f, random_state=random_seed + 60, replace=False)
+                grid_sample = grid_sample.reset_index(drop=True)
+                grid_params = dict(X=grid_sample.iloc[:, :-2],
+                                   y=grid_sample.iloc[:, -2],
+                                   sensitive_features=grid_sample.iloc[:, -1])
 
-            if exp_subset:
+            if exp_subset and grid_f is not None:
                 exp_sample = grid_sample.sample(frac=exp_f / grid_f, random_state=random_seed + 20, replace=False)
             else:
                 exp_sample = train_all_X_y_A.sample(frac=exp_f, random_state=random_seed + 20, replace=False)
@@ -456,6 +457,8 @@ class ExperimentRun(metaclass=Singleton):
                     self.add_turn_results(metrics_res,
                                           [time_eval_dict, turn_time_exp_dict, time_unconstrained_dict, time_lp_dict,
                                            ])
+                if grid_f is None:
+                    continue
 
                 #################################################################################################
                 # Hybrid 1: Just Grid Search -> expgrad partial + grid search
