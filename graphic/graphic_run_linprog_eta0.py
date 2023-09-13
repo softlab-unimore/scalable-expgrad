@@ -46,8 +46,9 @@ if __name__ == '__main__':
                         ])
 
     y_axis_list_long = ['_'.join(x) for x in itertools.product(['train', 'test'], ['error', 'violation'])] + [
-        'n_oracle_calls_']
-    y_axis_list_short = [x for x in y_axis_list_long if 'test' not in x ]
+        'n_oracle_calls_'
+    ]
+    y_axis_list_short = [x for x in y_axis_list_long if 'test' not in (x + ['n_oracle_calls_']) ]
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         plot_all_df_subplots(all_df, model_list=all_df['model_code'].unique(), chart_name='eta0' + suffix,
                              grouping_col='max_iter',
