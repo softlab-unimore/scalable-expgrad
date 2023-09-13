@@ -236,14 +236,16 @@ class PlotUtility():
                     line_params.pop(key)
                 except:
                     pass
-            self.ax.axhline(y[-1], zorder=10, **line_params)
+            if x[0] == 0 or pd.isna(x).all():
+                label_params.pop('marker')
+                label_params.pop('elinewidth')
+                self.ax.axhline(y[-1], zorder=10, **(line_params | label_params))
+                return
+            else:
+                self.ax.axhline(y[-1], zorder=10, **line_params)
 
-        if len(set(x)) == 1 and (x[0] == 0 or pd.isna(x).all()):
-            label_params.pop('marker')
-        else:
-            self.ax.errorbar(**value_dict, **line_params)
-            self.ax.scatter(x, y, **markers_params)
-
+        self.ax.errorbar(**value_dict, **line_params)
+        self.ax.scatter(x, y, **markers_params)
         self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
 
     def add_multiple_lines(self, df, grouping_col, model_list, increasing_marker_size, annotate_col=None):
@@ -549,17 +551,15 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                     for r, lim in enumerate(ylim_list):
                         if lim is not None:
                             axes_array[r, 0].set_ylim(lim)
-            for ax in axes_array.flat[::-1]:
-                handles, labels = ax.get_legend_handles_labels()
-                if len(labels) == len(model_list):
-                    break
+            tmp_dict = [ax.get_legend_handles_labels() for ax in axes_array.flat[::-1]]
+            handles, labels = max(tmp_dict, key=lambda x: len(x[1]))
             if len(labels) != len(model_list):
                 logging.warning('Some model are not displayed.')
-            fig.legend(handles, labels, ncol=min(4, len(model_list)),
+            fig.legend(handles, labels, ncol=min(6, len(model_list)),
                        loc='lower center',
-                       bbox_to_anchor=(0.5, 0.01),
+                       bbox_to_anchor=(0.5, 0.0),
                        bbox_transform=fig.transFigure,
-                       borderaxespad=-1.1,
+                       borderaxespad=-2,
                        fontsize=10,
                        )
             for ax in axes_array[1:].flat:

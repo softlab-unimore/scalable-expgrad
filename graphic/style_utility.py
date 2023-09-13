@@ -60,7 +60,7 @@ class StyleUtility:
     common_keys = ['color']
     line_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth']
     marker_keys = common_keys + ['marker', 's']
-    label_keys = common_keys + ['fmt', 'linewidth', 'elinewidth', 'marker', 'label']
+    label_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth', 'marker', 'label', 'marker',]
 
     map_df = generate_map_df()
     other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
@@ -85,11 +85,11 @@ class StyleUtility:
         'Threshold': {'color': 'black', 'linestyle': 'solid', 'linewidth': linewidth * .5},
 
         'RLP=F': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
-        'RLP=F max_iter=5': {'color': 'tab:brown', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
-        'RLP=F max_iter=10': {'color': 'tab:gray', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
-        'RLP=F max_iter=20': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
-        'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
-        'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=5': {'color': 'tab:brown', 'marker': 'v', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=10': {'color': 'tab:gray', 'marker': '^', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=20': {'color': 'tab:orange', 'marker': '<', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': '>', 'linestyle': '-.', 's': rlp_false_markersize},
+        'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 'd', 'linestyle': '-.', 's': rlp_false_markersize},
 
         'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
         'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '--'},
