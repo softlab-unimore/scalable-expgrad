@@ -72,15 +72,30 @@ if __name__ == "__main__":
         's_tr_2.1r',
         'f_eta0_eps.1',
         'f_eta0_eps.2',
+        'most_frequent_sig.0r',
+
+        'most_frequent_ACS.0r',
+        'acs_to_binary1.0r',
+        'acs_to_binaryEO1.0r',
+        # doing
+        'acsE_eps_EO_1.0r',
+        'acsE_h_eps_1.0r',
     ]
 
     conf_todo = [
         # 'acs_h_gs1_1.test',
         #'f_eta0_1.0.test',
 
-
-
         #'s_zDI_1.1',
+
+
+
+        # to run after previous ends
+        'f_eta0_1.1',
+        'f_eta0_2.1',
+        'acs_to_binary1.1r',
+        'acsE_h_gs1_1.0r',
+        'acsE_h_gs1_EO_1.0r',
 
 
 

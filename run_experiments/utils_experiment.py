@@ -102,6 +102,7 @@ experiment_configurations = [
      'model_names': ['ThresholdOptimizer'],
      'random_seeds': RANDOM_SEEDS_v1,
      'base_model_code': ['lr', 'lgbm'],
+     'constraint_code': 'dp',
      },
     {'experiment_id': 's_tr_1.1r',
      'dataset_names': sigmod_datasets,

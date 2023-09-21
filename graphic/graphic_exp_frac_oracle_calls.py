@@ -74,7 +74,6 @@ if __name__ == '__main__':
     exp_frac_models = [
         'hybrid_7_exp',
         'hybrid_5_exp',
-
         'unconstrained_exp',
         'unconstrained_frac_exp',
     ]
@@ -88,8 +87,8 @@ if __name__ == '__main__':
 
     employment_df = utils_results_data.load_results_experiment_id(employment_conf, dataset_results_path)
     employment_df = employment_df.query('dataset_name == "ACSEmployment"')
-    employment_df = employment_df.query(
-        'train_test_fold == 0 and random_seed == 0 and train_test_seed == 0')  # remove replications in ACSEmployment
+    # employment_df = employment_df.query(
+    #     'train_test_fold == 0 and random_seed == 0 and train_test_seed == 0')  # remove replications in ACSEmployment
     # employment_df = employment_df[employment_df['model_code'].isin(grid_chart_models)]
     # employment_df.query('model_name == "hybrid_5" & base_model_code == "lr" & constraint_code== "eo" & dataset_name == "ACSEmployment"')
 
@@ -100,14 +99,21 @@ if __name__ == '__main__':
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
 
     extract_expgrad_oracle_time(all_df, new_col_name='time_oracles', cols_to_select='all')
+    all_df['avg_time_oracles'] = all_df['time_oracles'] / all_df['n_oracle_calls_']
+
     y_axis_list_short = ['time', 'test_error', 'test_violation']
-    y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation', 'n_oracle_calls_', 'time_oracles']
-    for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
+    y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation', 'avg_time_oracles', 'n_oracle_calls_',
+                                            'time_oracles']
+
+    y_lim_map = {'test_error': None, 'test_violation': (-0.01, 0.1), 'train_violation': (-0.01, 0.1),
+                 'test_EqualizedOdds': (-0.01, 0.15)}
+    for y_axis_list, suffix in [(y_axis_list_long, ''), (y_axis_list_short, '_v2'), ]:
+        y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
         plot_all_df_subplots(all_df, model_list=exp_frac_models,
                              chart_name='exp_frac' + suffix, grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=False,
-                             ylim_list=[None, None, (0, 0.06)],
                              sharey='row', xlog=True,
+                             ylim_list=y_lim_list,
                              axis_to_plot=list(itertools.product(['exp_frac'], y_axis_list)))
 
     gf_1_df = all_df
@@ -137,14 +143,14 @@ if __name__ == '__main__':
     y_axis_list_short = ['_'.join(x) for x in itertools.product(['test'], ['error', 'violation'])]
     y_axis_list_long = y_axis_list_short + ['train_violation', 'train_error', 'n_oracle_calls_']
     # y_axis_list = ['test_error','train_violation']
-    y_lim_map = {'test_error': None, 'test_violation': (0, 0.1), 'train_violation': (0, 0.1)}
+
     for y_axis_list, suffix in [(y_axis_list_long, ''), (y_axis_list_short, '_v2'), ]:
         y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
         plot_all_df_subplots(all_df, model_list=exp_frac_models + grid_sqrt_models,
                              chart_name='oracle_calls' + suffix,
                              grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=True, xlog=True,
-                             # ylim_list=y_lim_list,
+                             ylim_list=y_lim_list,
                              sharey='row', axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
 
     # plot_by_df(pl_util, all_df, grid_chart_models, model_set_name='oracle_calls',
