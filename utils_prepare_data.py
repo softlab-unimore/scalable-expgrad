@@ -288,7 +288,7 @@ def get_dataset(dataset_str, prm=None):
 def preprocess_dataset(datasets, prm):
     if prm['preprocessing'] == 'conversion_to_binary_sensitive_attribute':
         data_values = DataValuesSingleton()
-        data_values.original_sensitive_attr = deepcopy(datasets[2])
+        data_values.set_original_sensitive_attr(datasets[2])
         datasets = list(datasets)
         datasets[2] = datasets[2].map({1:1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0})
     return datasets
@@ -380,3 +380,6 @@ class DataValuesSingleton(metaclass=Singleton):
             return self.original_sensitive_attr[self.test_index]
         else:
             raise Exception(f'phase {self.phase} not allowed.')
+
+    def set_original_sensitive_attr(self, original_sensitive_attr):
+        self.original_sensitive_attr = deepcopy(original_sensitive_attr)

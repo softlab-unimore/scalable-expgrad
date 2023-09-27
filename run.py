@@ -581,8 +581,8 @@ class ExperimentRun(metaclass=Singleton):
         base_model = self.load_base_model_with_best_param(base_model_code, random_state=random_seed,
                                                           fraction=fraction)  # TODO: fix random seed. Using 0 to simplify
         constrain_name = constraint_code_to_name[self.prm['constraint_code']]
-        return models.init_model(method_str=self.prm['method'], base_model=base_model, constrain_name=constrain_name,
-                                 random_state=random_seed, datasets=self.datasets, **kwargs)
+        return models.get_model(method_str=self.prm['method'], base_model=base_model, constrain_name=constrain_name,
+                                random_state=random_seed, datasets=self.datasets, **kwargs)
 
     def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all,
                         base_model_code, random_seed=0):

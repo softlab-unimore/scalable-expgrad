@@ -754,7 +754,7 @@ experiment_configurations = [
      },
     {'experiment_id': 'acs_to_binary1.1r',
      'dataset_names': ['ACSPublicCoverage'],
-     'model_names': ['ThresholdOptimizer', 'Calmon', 'ZafarDI'],
+     'model_names': ['Calmon', 'ThresholdOptimizer',  'ZafarDI'],
      'eps': BASE_EPS_V1,
      'exp_fractions': [0.251],
      'base_model_code': ['lr'],

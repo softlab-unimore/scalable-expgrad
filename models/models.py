@@ -67,7 +67,7 @@ def finetune_model(base_model_code, X, y, random_seed=0):
     return clf
 
 
-def init_model(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+def get_model(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
     param_dict = dict(method_str=method_str, base_model=base_model, constrain_name=constrain_name, eps=eps,
                       random_state=random_state, datasets=datasets)
     methods_name_dict = {'hybrids': 'hybrids',
