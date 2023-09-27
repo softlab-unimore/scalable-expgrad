@@ -3,8 +3,8 @@ import os
 
 import pandas as pd
 
-import utils_results_data
-from graphic.graphic_utility import select_oracle_call_time, PlotUtility, plot_by_df, plot_all_df_subplots, \
+from graphic import utils_results_data
+from graphic.graphic_utility import select_oracle_call_time, PlotUtility, plot_all_df_subplots, \
     extract_expgrad_oracle_time
 
 if __name__ == '__main__':

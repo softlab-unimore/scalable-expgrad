@@ -21,13 +21,13 @@ from sklearn.model_selection import train_test_split
 
 import metrics
 from models import models
-import utils_prepare_data
+from run_experiments import utils_prepare_data
 import inspect
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
 
 from run_experiments.utils_experiment import get_config_by_id
 from utils import DeprecateAction, mark_deprecated_help_strings, Singleton
-from utils_prepare_data import get_constraint
+from run_experiments.utils_prepare_data import get_constraint
 
 
 def to_arg(list_p, dict_p, original_argv):

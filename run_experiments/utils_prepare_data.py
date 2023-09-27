@@ -34,7 +34,7 @@ def raise_dataset_name_error(x):
 def cache(url, file_name=None):
     if file_name is None:
         file_name = os.path.basename(url)
-    data_dir = os.path.join(os.path.dirname("."), "cached_data")
+    data_dir = os.path.join(os.path.dirname(".."), "cached_data")
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
     file_path = os.path.join(data_dir, file_name)

@@ -1,14 +1,10 @@
-import ast
 import itertools
 import os
-from copy import deepcopy
 
 import pandas as pd
 
-import utils_results_data
-from graphic_utility import plot_routine_performance_violation, PlotUtility, restricted_list, plot_all_df_subplots, \
-    plot_by_df
-from utils_results_data import prepare_for_plot
+from graphic import utils_results_data
+from graphic_utility import plot_all_df_subplots
 
 if __name__ == '__main__':
     save = True
@@ -22,10 +18,12 @@ if __name__ == '__main__':
         "acs_h_eps_1.0r",  # PublicC
         'acs_eps_EO_1.0r',  # PublicC
 
-        "acs_h_eps_1.LGBM0",  # Employment + PublicC lgbm DP
-        "acs_h_eps_1.E0",  # Employment LR DP
-        'acs_eps_EO_1.1',  # Employment LR EO
-        'acs_eps_EO_2.1',  # Employment lgbm EO
+        'acsE_eps_EO_1.0r',
+        'acsE_h_eps_1.0r',
+        # "acs_h_eps_1.LGBM0",  # Employment + PublicC lgbm DP
+        # "acs_h_eps_1.E0",  # Employment LR DP
+        # 'acs_eps_EO_1.1',  # Employment LR EO
+        # 'acs_eps_EO_2.1',  # Employment lgbm EO
 
         "s_c_1.0r",
         "s_zDI_1.1",

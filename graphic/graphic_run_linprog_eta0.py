@@ -3,9 +3,9 @@ import os
 
 import pandas as pd
 
-import utils_results_data
+from graphic import utils_results_data
 from graphic_utility import PlotUtility, plot_all_df_subplots
-from utils_results_data import best_gap_filter_on_eta0
+from graphic.utils_results_data import best_gap_filter_on_eta0
 
 if __name__ == '__main__':
     save = True
@@ -14,6 +14,8 @@ if __name__ == '__main__':
     experiment_code_list = [
         'f_eta0_1.0',
         'f_eta0_2.0',
+        'f_eta0_1.1',
+        'f_eta0_2.1',
     ]
 
     dataset_results_path = os.path.join("results", "fairlearn-2")
@@ -46,9 +48,8 @@ if __name__ == '__main__':
                         ])
 
     y_axis_list_long = ['_'.join(x) for x in itertools.product(['train', 'test'], ['error', 'violation'])] + [
-        'n_oracle_calls_'
-    ]
-    y_axis_list_short = [x for x in y_axis_list_long if 'test' not in (x + ['n_oracle_calls_']) ]
+        'n_oracle_calls_']
+    y_axis_list_short = [x for x in y_axis_list_long if 'test' not in x ]
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         plot_all_df_subplots(all_df, model_list=all_df['model_code'].unique(), chart_name='eta0' + suffix,
                              grouping_col='max_iter',

@@ -2,8 +2,8 @@ import os
 
 import pandas as pd
 
-from graphic.graphic_utility import PlotUtility, base_plot_dir
-from utils_results_data import load_results, filter_results, get_info
+from graphic.graphic_utility import PlotUtility
+from graphic.utils_results_data import load_results, filter_results, get_info
 
 if __name__ == '__main__':
     save = True
@@ -34,12 +34,13 @@ if __name__ == '__main__':
                                                              as_index=False).agg('mean')
     df = df[df['frac'].isin([0.251, 1])]
     df = df[df['model_code'].isin(PlotUtility.to_plot_models)]
+    pl_util = PlotUtility()
 
 
     host_name, current_time_str = get_info()
 
     for dataset_name in datasets:
-        dataset_plot_path = os.path.join(base_plot_dir, dataset_name, host_name)
+        dataset_plot_path = os.path.join(pl_util.base_plot_dir, host_name, dataset_name)
         os.makedirs(dataset_plot_path, exist_ok=True)
         turn_df = df.query(f'dataset_name == "{dataset_name}"').loc[:, [
                         'model_code', 'frac', 'eps',

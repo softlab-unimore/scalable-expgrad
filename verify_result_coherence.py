@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from utils_results_data import filter_results, seed_columns
+from graphic.utils_results_data import filter_results, seed_columns
 from run_experiments.utils_experiment import dataset_names
 
 

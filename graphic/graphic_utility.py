@@ -4,17 +4,16 @@ import logging
 from copy import deepcopy
 
 import numpy as np
-import os, re
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
-import utils_results_data
-from graphic import style_utility
+from graphic import utils_results_data
 from graphic.style_utility import StyleUtility
-from utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
+from graphic.utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
     aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constrain_code_to_name
 import matplotlib as mpl
 
