@@ -40,6 +40,7 @@ suffix_attr_map = {
 
 constrain_code_to_name = {'dp': 'DemographicParity', 'eo': 'EqualizedOdds'}
 
+
 def get_numerical_cols(df):
     num_cols = []
     for col in df.columns:
@@ -227,9 +228,9 @@ def fix_expgrad_times(df: pd.DataFrame) -> pd.DataFrame:
 
 def aggregate_phase_time(df):
     turn_time_columns = list(set(df.columns[df.columns.str.contains('time')].tolist() + time_columns))
-    cols_to_group = np.setdiff1d(df.columns, turn_time_columns +['phase']).tolist()
+    cols_to_group = np.setdiff1d(df.columns, turn_time_columns + ['phase']).tolist()
     results_df = df.groupby(cols_to_group,
-                            as_index=False, dropna=False, sort=False)[turn_time_columns].agg('sum')
+                            as_index=False, dropna=False, sort=False)[turn_time_columns].sum(min_count=1)
     return results_df
 
 
@@ -340,6 +341,12 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                     mask = df['model_code'].isin(models_with_gridsearch) & (df['grid_frac'] == 1)
                     df.loc[mask, 'model_code'] = df.loc[mask, 'model_code'].str.replace('_gf_1', '') + '_gf_1'
 
+                df.loc[df['model_code'].str.contains('unconstrained'), ['n_oracle_calls_',
+                                                                        'n_oracle_calls_dummy_returned_',
+                                                                        'oracle_execution_times_', 'grid_oracle_times',
+                                                                        'last_iter_', 'best_gap_', 'best_iter_',
+                                                                        'grid_frac'
+                                                                        'time_oracles']] = np.nan
                 df_list.append(df)
     all_df = pd.concat(df_list)
     return all_df
@@ -374,6 +381,7 @@ def add_threshold(df):
         row_list.append(df_row.copy())
     return pd.concat([pd.DataFrame(row_list), df])
 
+
 def align_seeds(df):
     df_list = []
     for key, group_df in df.groupby(['dataset_name', 'base_model_code', 'constraint_code', ], sort=False):
@@ -398,11 +406,12 @@ def prepare_for_plot(df, grouping_col):
     grouped_data = time_aggregated_df.groupby(groupby_col, as_index=True, dropna=False, sort=False)[
         new_numerical_cols]
     mean_error_df = grouped_data.agg(['mean', ('error', get_error)])
+    mean_error_df.loc[:, (slice(None), 'error')] = mean_error_df.loc[:, (slice(None), 'error')].fillna(0)
     mean_error_df.columns = mean_error_df.columns.map('_'.join).str.strip('_')
     size_series = grouped_data.size()
     size_series.name = 'size'
     mean_error_df = mean_error_df.join(size_series).reset_index()
-    return mean_error_df.fillna(0)
+    return mean_error_df
 
 
 def best_gap_filter_on_eta0(all_df):

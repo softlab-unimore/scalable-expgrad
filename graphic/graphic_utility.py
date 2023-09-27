@@ -629,7 +629,7 @@ def select_oracle_call_time(results_df, name_time_oracles_col='time_oracles'):
 
 
 def extract_expgrad_oracle_time(df, new_col_name='time', cols_to_select=['fit_sum']):
-    df[new_col_name] = 0
+    df[new_col_name] = np.nan
     exp_mask = df['phase'] == 'expgrad_fracs'
     exp_time_df = df[exp_mask]['oracle_execution_times_'].agg(
         lambda x: pd.DataFrame(ast.literal_eval(x)).sum())
