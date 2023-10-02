@@ -123,9 +123,9 @@ def convert_from_aif360_to_df(dataset, dataset_name=None):
     # X = data.iloc[:, :-1]
     # y = data.iloc[:, -1] #pd.Series(dataset.labels.flatten(), name=dataset.label_names[0])
     # A = pd.Series(dataset.protected_attributes.flatten(), name=dataset.protected_attribute_names[0])
-    X = pd.DataFrame(dataset.features)
-    y = pd.Series(dataset.labels.astype(int).ravel())
-    A = pd.Series(dataset.protected_attributes.astype(int).ravel())
+    X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+    y = pd.Series(dataset.labels.astype(int).ravel(), name=dataset.label_names[0])
+    A = pd.Series(dataset.protected_attributes.astype(int).ravel(), name=dataset.protected_attribute_names[0])
     # if dataset.__class__.__name__ == 'GermanDataset':
     #     y[y == 2] = 0
     return X, y, A

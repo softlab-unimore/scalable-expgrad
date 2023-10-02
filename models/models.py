@@ -63,18 +63,9 @@ def finetune_model(base_model_code, X, y, random_seed=0):
 def get_model(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
     param_dict = dict(method_str=method_str, base_model=base_model, constrain_name=constrain_name, eps=eps,
                       random_state=random_state, datasets=datasets)
-    methods_name_dict = {'hybrids': 'hybrids',
-                         'unmitigated': 'unmitigated',
-                         'fairlearn': 'fairlearn',
-                         'ThresholdOptimizer': 'ThresholdOptimizer',
-                         'MetaFairClassifier': 'MetaFairClassifier',
-                         'AdversarialDebiasing': 'AdversarialDebiasing',
-                         'Kearns': 'Kearns',
-                         'Calmon': 'Calmon',
-                         'ZafarDI': 'ZafarDI',
-                         'Hardt': 'Hardt',
-                         'fairlearn_full': 'fairlearn_full',
-                         }
+    model_list = ['hybrids', 'unmitigated', 'fairlearn', 'ThresholdOptimizer', 'MetaFairClassifier',
+                  'AdversarialDebiasing', 'Kearns', 'Calmon', 'ZafarDI', 'Hardt', 'fairlearn_full', 'ZafarEO']
+    methods_name_dict = {x:x for x in model_list}
     if method_str == methods_name_dict['ThresholdOptimizer']:
         model = wrappers.ThresholdOptimizerWrapper(
             estimator=base_model,
@@ -101,6 +92,8 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
         model = wrappers.CalmonWrapper(**param_dict, **kwargs)
     elif method_str == methods_name_dict['ZafarDI']:
         model = wrappers.ZafarDI(**param_dict, **kwargs)
+    elif method_str == methods_name_dict['ZafarEO']:
+        model = wrappers.ZafarEO(**param_dict, **kwargs)
     elif method_str == methods_name_dict['Hardt']:
         model = wrappers.Hardt(**param_dict, **kwargs)
     elif method_str == methods_name_dict['fairlearn_full']:

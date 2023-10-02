@@ -2,6 +2,7 @@ import copy
 from random import seed
 
 import numpy as np
+import pandas as pd
 import sklearn
 from aif360.algorithms.inprocessing import GerryFairClassifier
 from aif360.algorithms.postprocessing import EqOddsPostprocessing
@@ -9,10 +10,13 @@ from aif360.algorithms.preprocessing.optim_preproc_helpers.distortion_functions 
     import get_distortion_adult, get_distortion_german, get_distortion_compas
 from aif360.algorithms.preprocessing.optim_preproc import OptimPreproc
 from aif360.algorithms.preprocessing.optim_preproc_helpers.opt_tools import OptTools
+from aif360.datasets import StandardDataset
+
 from fairlearn.postprocessing import ThresholdOptimizer
 
-import fair_classification.loss_funcs
 import fair_classification.utils
+import fair_classification.funcs_disp_mist
+import fair_classification.loss_funcs
 from run_experiments import utils_experiment as ut_exp, utils_prepare_data
 from fairlearn.reductions import ExponentiatedGradient
 from functools import partial
@@ -23,7 +27,30 @@ class GeneralAifModel():
         # def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
         # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
-        self.aif_dataset = copy.deepcopy(datasets[3])
+
+        if len(datasets) >= 4:
+            self.aif_dataset = copy.deepcopy(datasets[3])
+        else:
+            self.aif_dataset = GeneralAifModel.get_aif_dataset(datasets=datasets)
+
+    @staticmethod
+    def get_aif_dataset(datasets):
+        X, Y, A = datasets[:3]
+        priviliged_class = [Y.groupby(A).mean().sort_values(ascending=False).index.tolist()[0]]
+        protected_name = A.name
+        return StandardDataset(df=pd.concat([X,Y,A], axis=1),
+            label_name=Y.name,
+             favorable_classes=[1],
+             protected_attribute_names=[protected_name],
+             privileged_classes=[priviliged_class],
+             instance_weights_name=None,
+             categorical_features=[],
+             features_to_keep=X.columns.tolist() + [Y.name, protected_name],
+             na_values=[np.nan],
+             metadata=dict(label_maps= [{1: 1, 0: 0}],
+                       protected_attribute_maps= [{x:x for x in A.unique()}]
+                           ),
+             custom_preprocessing=None)
 
     def fit(self, X, y, sensitive_features):
         pass
@@ -51,8 +78,8 @@ def replace_values_aif360_dataset(X, y, sensitive_features, aif360_dataset):
 class CalmonWrapper(GeneralAifModel):
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         super().__init__(datasets)
-        X, y, A, aif_dataset = datasets
-        self.op = OptimPreproc(OptTools, self.get_option(aif_dataset),
+        X, y, A = datasets[:3]
+        self.op = OptimPreproc(OptTools, self.get_option(self.aif_dataset),
                                # unprivileged_groups=datasets[3]['unprivileged_groups'],
                                # privileged_groups=datasets[3]['privileged_groups'],
                                seed=random_state)
@@ -95,12 +122,12 @@ class CalmonWrapper(GeneralAifModel):
 class Hardt(GeneralAifModel):
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         super().__init__(datasets)
-        X, y, A, aif_dataset = datasets
+        X, y, A = datasets
         self.base_model = base_model
         self.postprocess_model = EqOddsPostprocessing(
-            privileged_groups=[{aif_dataset.protected_attribute_names[0]: aif_dataset.privileged_protected_attributes}],
+            privileged_groups=[{self.aif_dataset.protected_attribute_names[0]: self.aif_dataset.privileged_protected_attributes}],
             unprivileged_groups=[
-                {aif_dataset.protected_attribute_names[0]: aif_dataset.unprivileged_protected_attributes}],
+                {self.aif_dataset.protected_attribute_names[0]: self.aif_dataset.unprivileged_protected_attributes}],
             seed=random_state)
 
     def fit(self, X, y, sensitive_features):
@@ -120,9 +147,10 @@ class Hardt(GeneralAifModel):
 
 class ZafarDI:
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+
         seed(random_state)  # set the random seed so that the random permutations can be reproduced again
         np.random.seed(random_state)
-        X, y, A, aif_dataset = datasets
+        X, y, A = datasets
 
         """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
         params = dict(
@@ -141,19 +169,10 @@ class ZafarDI:
             return sklearn.metrics.log_loss(y_true=y, y_pred=np.sign(np.dot(X, w)), normalize=return_arr)
 
         self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,  # log_loss_sklearn,
-                               sensitive_attrs_to_cov_thresh={aif_dataset.protected_attribute_names[0]: 0},
-                               sensitive_attrs=aif_dataset.protected_attribute_names,
+                               sensitive_attrs_to_cov_thresh={A.name: 0},
+                               sensitive_attrs=[A.name],
                                **params
                                )
-        key = aif_dataset.__class__.__name__
-        if key == ut_exp.sigmod_dataset_map['adult_sigmod']:
-            pass
-        elif key == ut_exp.sigmod_dataset_map['compas']:
-            pass
-        elif key == ut_exp.sigmod_dataset_map['german']:
-            pass
-        else:
-            raise ValueError(f'{key} not found in available dataset configurations')
 
     def fit(self, X, y, sensitive_features):
         self.w = fair_classification.utils.train_model(X.values, y * 2 - 1,
@@ -171,61 +190,41 @@ class ZafarEO:
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         seed(random_state)  # set the random seed so that the random permutations can be reproduced again
         np.random.seed(random_state)
-        X, y, A, aif_dataset = datasets
+        X, y, A = datasets[:3] # todo fix name of A to race
 
         """ Now classify such that we optimize for accuracy while achieving perfect fairness """
-        sensitive_attrs_to_cov_thresh = {"race": {0: {0: 0, 1: 0}, 1: {0: 0, 1: 0}, 2: {0: 0,
-                                                                                        1: 0}}}  # zero covariance threshold, means try to get the fairest solution
-        cons_params = {"cons_type": cons_type,
-                       "tau": tau,
-                       "mu": mu,
-                       "sensitive_attrs_to_cov_thresh": sensitive_attrs_to_cov_thresh}
+        # sensitive_attrs_to_cov_thresh = {A.name: {group: {0: 0, 1: 0} for group in A.unique()}}  # zero covariance threshold, means try to get the fairest solution
+        sensitive_attrs_to_cov_thresh = {"race": {0:{0:0, 1:0}, 1:{0:0, 1:0}, 2:{0:0, 1:0}}} # zero covariance threshold, means try to get the fairest solution
 
-        """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
-
-        params = dict(
-            cons_type=1,
+        cons_params = dict(
+            cons_type=4, # both FPR as well as FNR constraints
             tau=5.0,
             mu=1.2,
-            apply_fairness_constraints=0,
+            sensitive_attrs_to_cov_thresh= sensitive_attrs_to_cov_thresh,
+
+            # apply_fairness_constraints=0,
             # flag for fairness constraint is set back to 0 since we want to apply the accuracy constraint now
-            apply_accuracy_constraint=1,  # now, we want to optimize fairness subject to accuracy constraints
+            # apply_accuracy_constraint=1,  # now, we want to optimize fairness subject to accuracy constraints
             # sep_constraint=1,
             # # set the separate constraint flag to one, since in addition to accuracy constrains, we also want no misclassifications for certain points (details in demo README.md)
             # gamma=1000.0,
-            sep_constraint=0,
-            gamma=0.001,
+            # sep_constraint=0,
+            # gamma=0.001,
             # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
         )
+        self.sensitive_attrs = [A.name]
 
-        def log_loss_sklearn(w, X, y, return_arr=None):
-            return sklearn.metrics.log_loss(y_true=y, y_pred=np.sign(np.dot(X, w)), normalize=return_arr)
+        self.fit_params = dict(loss_function="logreg",  # log_loss_sklearn,
 
-        self.fit_params = dict(loss_function=fair_classification.loss_funcs._logistic_loss,  # log_loss_sklearn,
-                               sensitive_attrs_to_cov_thresh={aif_dataset.protected_attribute_names[0]: 0},
-                               sensitive_attrs=aif_dataset.protected_attribute_names,
-                               **params
+                               EPS=1e-6,
+                               cons_params= cons_params,
                                )
-        key = aif_dataset.__class__.__name__
-        if key == ut_exp.sigmod_dataset_map['adult_sigmod']:
-            pass
-        elif key == ut_exp.sigmod_dataset_map['compas']:
-            pass
-        elif key == ut_exp.sigmod_dataset_map['german']:
-            pass
-        else:
-            raise ValueError(f'{key} not found in available dataset configurations')
+
 
     def fit(self, X, y, sensitive_features):
-        def train_test_classifier():
-            w = fdm.train_model_disp_mist(x_train, y_train, x_control_train, loss_function, EPS, cons_params)
-
-            train_score, test_score, cov_all_train, cov_all_test, s_attr_to_fp_fn_train, s_attr_to_fp_fn_test = fdm.get_clf_stats(
-                w, x_train, y_train, x_control_train, x_test, y_test, x_control_test, sensitive_attrs)
-
-            # accuracy and FPR are for the test because we need of for plotting
-            return w, test_score, s_attr_to_fp_fn_test
-
+        self.w = fair_classification.funcs_disp_mist.train_model_disp_mist(X.values, y * 2 - 1,
+                        {self.sensitive_attrs[0]: sensitive_features},
+                        **self.fit_params)
         self.w = fair_classification.funcs_disp_mist.train_model_disp_mist.train_model(X.values, y * 2 - 1,
                                                                                        {self.fit_params[
                                                                                             'sensitive_attrs'][
@@ -243,13 +242,13 @@ class Kearns(GeneralAifModel):
     # todo to complete. Not working
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
         super().__init__(datasets)
-        X, y, A, aif_dataset = datasets
+        X, y, A = datasets
         self.base_model = base_model
-        self.init_kearns(aif_dataset)
+        self.init_kearns()
         self.method_str = method_str
         self.threshold = 0.5
 
-    def init_kearns(self, aif_dataset):
+    def init_kearns(self, ):
         base_conf = dict(
             max_iters=100,
             C=100,
@@ -260,7 +259,7 @@ class Kearns(GeneralAifModel):
         )
         self.fit_params = dict(early_termination=True)
         self.predict_params = dict(threshold=0.5)
-        key = aif_dataset.__class__.__name__
+        key = self.aif_dataset.__class__.__name__
         if key == ut_exp.sigmod_dataset_map['adult_sigmod']:
             base_conf['fairness_def'] = 'FN'
             self.predict_params['threshold'] = 0.5
