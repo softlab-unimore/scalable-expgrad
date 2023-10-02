@@ -26,7 +26,7 @@ import inspect
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
 
 from run_experiments.utils_experiment import get_config_by_id
-from utils import DeprecateAction, mark_deprecated_help_strings, Singleton
+from utils_general import DeprecateAction, mark_deprecated_help_strings, Singleton
 from run_experiments.utils_prepare_data import get_constraint
 
 

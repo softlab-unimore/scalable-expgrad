@@ -122,7 +122,7 @@ class Hybrid5(BaseEstimator):
 
 class Hybrid1(Hybrid5):
 
-    def __init__(self,  eps, constraint,base_model=None, expgrad=None, grid_search_frac=None,
+    def __init__(self,  eps, constraint, base_model=None, expgrad=None, grid_search_frac=None,
                  unconstrained_model=None, grid_subsample=None, random_state=None):
         super().__init__(eps=eps, constraint=constraint, unconstrained_model=unconstrained_model)
         self.expgrad_logistic_frac = expgrad

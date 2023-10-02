@@ -14,7 +14,7 @@ import folktables
 from run_experiments import utils_experiment
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
-from utils import Singleton
+from utils_general import Singleton
 
 try:
     from urllib.request import urlretrieve
@@ -117,7 +117,7 @@ def check_download_dataset(dataset_name='compas'):
             open(turn_path, "wb").write(response.content)
 
 
-def convert_to_df_aif360(dataset, dataset_name=None):
+def convert_from_aif360_to_df(dataset, dataset_name=None):
     # X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
     # data, _ = dataset.convert_to_dataframe()
     # X = data.iloc[:, :-1]
@@ -164,7 +164,7 @@ def load_convert_dataset_aif360(dataset_name='compas'):
     else:
         raise_dataset_name_error(dataset_name)
     # ret_dict['aif360_dataset'] = dataset_orig
-    X, y, A = convert_to_df_aif360(dataset_orig, dataset_name)
+    X, y, A = convert_from_aif360_to_df(dataset_orig, dataset_name)
     ret_dict['df'] = dict(zip(['X', 'y', 'A'], [X, y, A]))
     return X, y, A, dataset_orig
 
@@ -177,8 +177,8 @@ def split_dataset_aif360(aif360_dataset: aif360.datasets.StandardDataset, train_
         dataset_orig_train, dataset_orig_test = aif360_dataset.split([0.7], shuffle=True, seed=train_test_seed)
     ret_dict['aif360_train'] = dataset_orig_train
     ret_dict['aif360_test'] = dataset_orig_test
-    ret_dict['train_df'] = convert_to_df_aif360(dataset_orig_train)
-    ret_dict['test_df'] = convert_to_df_aif360(dataset_orig_test)
+    ret_dict['train_df'] = convert_from_aif360_to_df(dataset_orig_train)
+    ret_dict['test_df'] = convert_from_aif360_to_df(dataset_orig_test)
     return ret_dict
 
 
