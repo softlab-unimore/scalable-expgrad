@@ -694,6 +694,7 @@ class ExperimentRun(metaclass=Singleton):
         # a = datetime.now()
         # model.fit(*train_dataset)
         # b = datetime.now()
+        logging.info(f'Starting fit...')
         if isinstance(train_dataset, dict):
             a = datetime.now()
             model.fit(**train_dataset)
@@ -703,6 +704,7 @@ class ExperimentRun(metaclass=Singleton):
             model.fit(*train_dataset)
             b = datetime.now()
 
+        logging.info(f'Ended fit:  in: {b - a} ||| Starting evaluation...')
         time_fit_dict = {'time': (b - a).total_seconds(), 'phase': 'train'}
 
         exp_run = ExperimentRun()
@@ -712,6 +714,7 @@ class ExperimentRun(metaclass=Singleton):
                                                               metrics_dict=exp_run.metrics_dict,
                                                               return_times=True)
         b = datetime.now()
+        logging.info(f'Ended evaluation:  in: {b - a}')
         time_eval_dict = {'time': (b - a).total_seconds(), 'phase': 'evaluation', 'metrics_time': metrics_time}
         return metrics_res, time_fit_dict, time_eval_dict
 
