@@ -4,8 +4,11 @@ from random import seed
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.preprocessing import StandardScaler
+
 from aif360.algorithms.inprocessing import GerryFairClassifier
 from aif360.algorithms.postprocessing import EqOddsPostprocessing
+from aif360.algorithms.preprocessing import DisparateImpactRemover
 from aif360.algorithms.preprocessing.optim_preproc_helpers.distortion_functions \
     import get_distortion_adult, get_distortion_german, get_distortion_compas
 from aif360.algorithms.preprocessing.optim_preproc import OptimPreproc
@@ -64,7 +67,7 @@ class GeneralAifModel():
 def replace_values_aif360_dataset(X, y, sensitive_features, aif360_dataset):
     aif360_dataset = aif360_dataset.copy()
     y = y if y is not None else np.zeros_like(sensitive_features)
-    aif360_dataset.features = X
+    aif360_dataset.features = pd.concat([X, sensitive_features], axis=1)
     sensitive_features = np.array(sensitive_features).reshape(-1, 1)
     y = np.array(y).reshape(-1, 1)
     # if aif360_dataset.__class__.__name__ == 'GermanDataset':
@@ -118,6 +121,44 @@ class CalmonWrapper(GeneralAifModel):
             raise ValueError(f'{key} not found in available dataset configurations')
         return base_conf
 
+class FeldWrapper(GeneralAifModel):
+    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+        super().__init__(datasets)
+        X, y, A = datasets[:3]
+        self.preprocess_model = DisparateImpactRemover(sensitive_attribute=A.name)
+        self.base_model = base_model
+        self.method_str = method_str
+
+    def fit(self, X, y, sensitive_features):
+        aif_dataset = replace_values_aif360_dataset(X, y, sensitive_features, self.aif_dataset)
+        self.sensitive_attribute = aif_dataset.protected_attribute_names[0]
+        features = aif_dataset.features.to_numpy().tolist()
+        index = aif_dataset.feature_names.index(self.sensitive_attribute)
+        self.repairer = self.preprocess_model.Repairer(features, index, self.preprocess_model.repair_level, False)
+
+        repaired_ds = self.transform(aif_dataset)
+        train = repaired_ds.features
+        self.base_model.fit(train, repaired_ds.labels)
+
+    def transform(self, aif_dataset):
+        # Code took from original aif360 code and modified to save fitted model
+        features = aif_dataset.features.to_numpy().tolist()
+        index = aif_dataset.feature_names.index(self.sensitive_attribute)
+        repaired_ds = aif_dataset.copy()
+        repaired_features = self.repairer.repair(features)
+        repaired_ds.features = np.array(repaired_features, dtype=np.float64)
+        # protected attribute shouldn't change
+        repaired_ds.features[:, index] = repaired_ds.protected_attributes[:,
+                                         repaired_ds.protected_attribute_names.index(self.sensitive_attribute)]
+        return repaired_ds
+
+    def predict(self, X, sensitive_features):
+        aif_dataset = replace_values_aif360_dataset(X, None, sensitive_features, self.aif_dataset)
+        # (self.aif360_dataset.convert_to_dataframe()[0].iloc[:,:-1].values == aif_dataset.convert_to_dataframe()[0].iloc[:,:-1].values).all()
+        df_transformed = self.transform(aif_dataset)
+        X = df_transformed.features
+        return self.base_model.predict(X)
+
 
 class Hardt(GeneralAifModel):
     def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
@@ -150,7 +191,7 @@ class ZafarDI:
 
         seed(random_state)  # set the random seed so that the random permutations can be reproduced again
         np.random.seed(random_state)
-        X, y, A = datasets
+        X, y, A = datasets[:3]
 
         """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
         params = dict(
@@ -194,23 +235,14 @@ class ZafarEO:
 
         """ Now classify such that we optimize for accuracy while achieving perfect fairness """
         # sensitive_attrs_to_cov_thresh = {A.name: {group: {0: 0, 1: 0} for group in A.unique()}}  # zero covariance threshold, means try to get the fairest solution
-        sensitive_attrs_to_cov_thresh = {"race": {0:{0:0, 1:0}, 1:{0:0, 1:0}, 2:{0:0, 1:0}}} # zero covariance threshold, means try to get the fairest solution
+        sensitive_attrs_to_cov_thresh = {A.name: {0:{0:0, 1:0}, 1:{0:0, 1:0}, 2:{0:0, 1:0}}} # zero covariance threshold, means try to get the fairest solution
 
         cons_params = dict(
-            cons_type=4, # both FPR as well as FNR constraints
+            cons_type=1, # see cons_type in fair_classification.funcs_disp_mist.get_constraint_list_cov line 198
             tau=5.0,
             mu=1.2,
-            sensitive_attrs_to_cov_thresh= sensitive_attrs_to_cov_thresh,
+            sensitive_attrs_to_cov_thresh=sensitive_attrs_to_cov_thresh,
 
-            # apply_fairness_constraints=0,
-            # flag for fairness constraint is set back to 0 since we want to apply the accuracy constraint now
-            # apply_accuracy_constraint=1,  # now, we want to optimize fairness subject to accuracy constraints
-            # sep_constraint=1,
-            # # set the separate constraint flag to one, since in addition to accuracy constrains, we also want no misclassifications for certain points (details in demo README.md)
-            # gamma=1000.0,
-            # sep_constraint=0,
-            # gamma=0.001,
-            # gamma controls how much loss in accuracy we are willing to incur to achieve fairness -- increase gamme to allow more loss in accuracy
         )
         self.sensitive_attrs = [A.name]
 
@@ -222,18 +254,17 @@ class ZafarEO:
 
 
     def fit(self, X, y, sensitive_features):
-        self.w = fair_classification.funcs_disp_mist.train_model_disp_mist(X.values, y * 2 - 1,
+        self.scaler = StandardScaler()
+        self.scaler.fit(X)
+        X = self.scaler.transform(X)
+        self.w = fair_classification.funcs_disp_mist.train_model_disp_mist(X, y * 2 - 1,
                         {self.sensitive_attrs[0]: sensitive_features},
                         **self.fit_params)
-        self.w = fair_classification.funcs_disp_mist.train_model_disp_mist.train_model(X.values, y * 2 - 1,
-                                                                                       {self.fit_params[
-                                                                                            'sensitive_attrs'][
-                                                                                            0]: sensitive_features},
-                                                                                       **self.fit_params)
         return self
 
     def predict(self, X):
-        y_pred = np.dot(X.values, self.w)
+        X = self.scaler.transform(X)
+        y_pred = np.dot(X, self.w)
         y_pred = np.where(y_pred > 0, 1, 0)
         return y_pred
 

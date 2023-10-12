@@ -49,7 +49,7 @@ linewidth = 0.5
 markersize = 8
 rlp_false_markersize = markersize ** .5
 base_config = dict(linewidth=linewidth, elinewidth=linewidth / 2,
-                   marker=MarkerStyle('1', 'left', 0, ), s=markersize, markevery=1,  # mew=linewidth / 2,
+                   marker=MarkerStyle('1', 'left', 0), s=markersize, markevery=1,  # mew=linewidth / 2,
                    )
 
 
@@ -60,7 +60,7 @@ class StyleUtility:
     common_keys = ['color']
     line_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth']
     marker_keys = common_keys + ['marker', 's']
-    label_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth', 'marker', 'label', 'marker',]
+    label_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth', 'marker', 'label', 'marker', ]
 
     map_df = generate_map_df()
     other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
@@ -68,7 +68,6 @@ class StyleUtility:
                         pd.DataFrame.from_dict({x: x for x in other_models},
                                                orient='index', columns=['label'])
                         ])
-
 
     graphic_style_map = {
         'EXPGRAD': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
@@ -93,7 +92,9 @@ class StyleUtility:
 
         'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
         'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '--'},
-        'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': 'dotted'},
+        'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'ZafarEO': {'color': 'tab:purple', 'marker': 'o', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'Feld': {'color': 'tab:orange', 'marker': 'o', 'linestyle': (5, (10, 3))},
 
     }
 
