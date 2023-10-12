@@ -31,6 +31,11 @@ if __name__ == '__main__':
         "s_tr_1.1r",
         's_tr_2.0r',
         's_tr_2.1r',
+        's_zDI_1.2',
+        's_zDI_1.22',
+        's_f_1.0r',
+        's_f_1.1r',
+        's_zEO_1.1',
 
         'most_frequent_sig.0r',
 
@@ -40,9 +45,14 @@ if __name__ == '__main__':
         'f_eta0_eps.2',
     ]
 
-    dataset_results_path = os.path.join("results", "fairlearn-2")
+    dataset_results_path = os.path.join("results")
     base_plot_dir = os.path.join('results', 'plots')
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
+    # Check number of replication
+    # all_df.loc[all_df['model_name'] == 'ZafarDI', ['train_test_fold', 'random_seed', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)), 1).nunique()
+    # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
+    # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)),axis=1).unique()
+    # a.query('dataset_name == "ACSEmployment"')[np.intersect1d(x.columns, utils_results_data.cols_to_aggregate)].apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
 
     rlp_df = utils_results_data.load_results_experiment_id(rlp_false_conf_list, dataset_results_path)
     model_code = 'RLP=' + rlp_df['run_linprog_step'].map({True: 'T', False: 'F'}) + ' max_iter=' + rlp_df[
@@ -52,14 +62,10 @@ if __name__ == '__main__':
     rlp_df = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
 
     all_df = pd.concat([all_df, rlp_df])
-    # check results
-    # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
-    # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str).values),axis=1).unique()
-    # a.query('dataset_name == "ACSEmployment"')[np.intersect1d(x.columns, utils_results_data.cols_to_aggregate)].apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
 
     restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
     restricted = [x.replace('_exp', '_eps') for x in restricted]
-    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer'] + rlp_df['model_code'].unique().tolist()
+    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df['model_code'].unique().tolist()
     # todo add most_frequent
 
     sort_map = {name: i for i, name in enumerate(restricted)}
