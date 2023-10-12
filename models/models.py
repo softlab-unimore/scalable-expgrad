@@ -1,5 +1,4 @@
 import logging
-import tensorflow as tf
 from aif360.algorithms.inprocessing import AdversarialDebiasing
 from run_experiments import utils_prepare_data
 from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
@@ -64,8 +63,9 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
     param_dict = dict(method_str=method_str, base_model=base_model, constrain_name=constrain_name, eps=eps,
                       random_state=random_state, datasets=datasets)
     model_list = ['hybrids', 'unmitigated', 'fairlearn', 'ThresholdOptimizer', 'MetaFairClassifier',
-                  'AdversarialDebiasing', 'Kearns', 'Calmon', 'ZafarDI', 'Hardt', 'fairlearn_full', 'ZafarEO']
-    methods_name_dict = {x:x for x in model_list}
+                  'AdversarialDebiasing', 'Kearns', 'Calmon', 'ZafarDI', 'Hardt', 'fairlearn_full', 'ZafarEO',
+                  'Feld']
+    methods_name_dict = {x: x for x in model_list}
     if method_str == methods_name_dict['ThresholdOptimizer']:
         model = wrappers.ThresholdOptimizerWrapper(
             estimator=base_model,
@@ -77,19 +77,21 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
         if eps is not None:
             logging.warning(f"eps has no effect with {method_str} methos")
     elif method_str == methods_name_dict['AdversarialDebiasing']:
-
-        privileged_groups, unprivileged_groups = utils_prepare_data.find_privileged_unprivileged(**datasets)
-        sess = tf.Session()
-        # Learn parameters with debias set to True
-        model = AdversarialDebiasing(privileged_groups=privileged_groups,
-                                     unprivileged_groups=unprivileged_groups,
-                                     scope_name='debiased_classifier',
-                                     debias=True,
-                                     sess=sess)
+        pass
+        # privileged_groups, unprivileged_groups = utils_prepare_data.find_privileged_unprivileged(**datasets)
+        # sess = tf.Session()
+        # # Learn parameters with debias set to True
+        # model = AdversarialDebiasing(privileged_groups=privileged_groups,
+        #                              unprivileged_groups=unprivileged_groups,
+        #                              scope_name='debiased_classifier',
+        #                              debias=True,
+        #                              sess=sess)
     elif method_str == methods_name_dict['Kearns']:
         model = wrappers.Kearns(**param_dict, **kwargs)
     elif method_str == methods_name_dict['Calmon']:
         model = wrappers.CalmonWrapper(**param_dict, **kwargs)
+    elif method_str == methods_name_dict['Feld']:
+        model = wrappers.FeldWrapper(**param_dict, **kwargs)
     elif method_str == methods_name_dict['ZafarDI']:
         model = wrappers.ZafarDI(**param_dict, **kwargs)
     elif method_str == methods_name_dict['ZafarEO']:
