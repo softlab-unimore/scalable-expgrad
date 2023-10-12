@@ -126,7 +126,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/notebook_import_utility_env.py
+/old_to_delete/notebook_import_utility_env.py
 
 /.idea/
 /results/

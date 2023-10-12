@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 import folktables
-from run_experiments import utils_experiment
+import utils_experiment
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
 from utils_general import Singleton
@@ -34,7 +34,7 @@ def raise_dataset_name_error(x):
 def cache(url, file_name=None):
     if file_name is None:
         file_name = os.path.basename(url)
-    data_dir = os.path.join(os.path.dirname(".."), "cached_data")
+    data_dir = os.path.join(os.path.dirname(""), "cached_data")
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
     file_path = os.path.join(data_dir, file_name)

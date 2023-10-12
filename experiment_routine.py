@@ -95,7 +95,6 @@ if __name__ == "__main__":
         's_f_1.0r',
         's_f_1.1r',
         # to update on fairlearn-3
-        'acsER_bin1.0r',
 
 
         # doing on fairlearn-3
@@ -111,6 +110,7 @@ if __name__ == "__main__":
 
         # next on fairlearn-3
 
+        'acsER_bin1.0r',
         # 's_f_1.1r',
         # testing
 

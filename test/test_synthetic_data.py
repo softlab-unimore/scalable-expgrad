@@ -1,4 +1,4 @@
-from synthetic_data import *
+from old_to_delete.synthetic_data import *
 
 
 def test_get_miro_synthetic_data():

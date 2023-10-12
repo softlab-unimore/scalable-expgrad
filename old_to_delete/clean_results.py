@@ -2,7 +2,7 @@ import os
 
 import send2trash
 
-base_plot_dir = os.path.join('..','results', 'plots')
+base_plot_dir = os.path.join('..', 'results', 'plots')
 
 
 for f in os.scandir(base_plot_dir):

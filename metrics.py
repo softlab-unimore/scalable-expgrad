@@ -2,7 +2,7 @@ import inspect
 
 import numpy as np
 
-from run_experiments import utils_prepare_data
+import utils_prepare_data
 from fairlearn.reductions import DemographicParity, ErrorRate, EqualizedOdds
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import f1_score, precision_score, recall_score

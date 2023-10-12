@@ -1,6 +1,6 @@
 import sys
 from run import execute_experiment
-from run_experiments.utils_experiment import fractions, sample_variation, eps, dataset_names
+from utils_experiment import fractions, sample_variation, eps, dataset_names
 
 
 if __name__ == "__main__":

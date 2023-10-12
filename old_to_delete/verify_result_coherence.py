@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 from graphic.utils_results_data import filter_results, seed_columns
-from run_experiments.utils_experiment import dataset_names
+from utils_experiment import dataset_names
 
 
 def check_expgrad_time(df:pd.DataFrame)-> pd.DataFrame:
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     df_list = []
     for base_model_code in ['lr', 'lgbm']:
         for dataset_name in dataset_names:
-            base_dir = os.path.join("results", "fairlearn-2", dataset_name)
+            base_dir = os.path.join("../results", "fairlearn-2", dataset_name)
             all_model_df = filter_results(base_dir, conf=dict(exp_grid_ratio='sqrt', states='', exp_subset='True',
                                                               base_model_code=base_model_code, ))
 

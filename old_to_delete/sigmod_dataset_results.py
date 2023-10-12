@@ -16,7 +16,7 @@ if __name__ == '__main__':
         'adult'
     ]
 
-    dataset_results_path = os.path.join("results", "fairlearn-2")
+    dataset_results_path = os.path.join("../results", "fairlearn-2")
     for dataset_name in datasets:
         dirs_df = load_results(dataset_results_path, dataset_name, read_files=True)
         df_list.append(dirs_df)
