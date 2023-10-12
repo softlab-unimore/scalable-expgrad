@@ -326,10 +326,16 @@ def get_combined_groupby(x, alpha=0.5):
 def load_results_experiment_id(experiment_code_list, dataset_results_path):
     df_list = []
     for experiment_code in experiment_code_list:
-        cur_dir = os.path.join(dataset_results_path, experiment_code)
-        if not os.path.exists(cur_dir):
+        cur_dir = None
+        for host_dir in os.scandir(dataset_results_path):
+            tmp_dir = os.path.join(host_dir, experiment_code)
+            if os.path.isdir(host_dir) and os.path.exists(tmp_dir):
+                cur_dir = tmp_dir
+                break
+        if cur_dir is None or not os.path.exists(cur_dir):
             logging.warning(f'{cur_dir} does not exists. Skipped.')
             continue
+
         for filepath in os.scandir(cur_dir):
             if filepath.name.endswith('.csv'):
                 df = pd.read_csv(filepath)
