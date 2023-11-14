@@ -77,6 +77,7 @@ def calculate_movign_param(path, df: pd.DataFrame):
                 break
     df['moving_param'] = suffix
     df['model_code'] = df['model_name'] + '_' + df['moving_param']
+    # np.where(df['moving_param'] != '', '_' + df['moving_param'], '')
 
     for key, col in suffix_attr_map.items():
         mask = df['moving_param'] == key
@@ -107,11 +108,14 @@ def prepare_data(df):
     hybrid = df[expgrad_mask].copy()
     non_hybrid = df[~expgrad_mask]
     if not hybrid.empty:
+        hybrid['exp_frac'].fillna(1, inplace=True)
         hybrid = calculate_movign_param(None, hybrid)
-        hybrid = take_max_for_grid_search(hybrid)
-        hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
-        models_with_gridsearch = hybrid['model_code'].isin(hybrid.query('phase == "grid_frac"')['model_code'].unique())
-        hybrid.loc[~models_with_gridsearch, 'grid_frac'] = 0
+        if not df[df['phase'] == 'grid_frac'].empty:
+            hybrid = take_max_for_grid_search(hybrid)
+            hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
+            models_with_gridsearch = hybrid['model_code'].isin(
+                hybrid.query('phase == "grid_frac"')['model_code'].unique())
+            hybrid.loc[~models_with_gridsearch, 'grid_frac'] = 0
     return pd.concat([hybrid, non_hybrid])
 
 
@@ -333,7 +337,7 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                 cur_dir = tmp_dir
                 break
         if cur_dir is None or not os.path.exists(cur_dir):
-            logging.warning(f'{cur_dir} does not exists. Skipped.')
+            logging.warning(f'{tmp_dir} does not exists. Skipped.')
             continue
 
         for filepath in os.scandir(cur_dir):
@@ -365,7 +369,8 @@ def get_error(df):
 
 
 column_rename_map_before_plot = {'train_violation': 'train_DemographicParity',
-                                 'test_violation': 'test_DemographicParity'}
+                                 'test_violation': 'test_DemographicParity',
+                                 }
 
 
 def add_threshold(df):
@@ -401,6 +406,7 @@ def prepare_for_plot(df, grouping_col):
     time_aggregated_df = aggregate_phase_time(df)
 
     groupby_col = np.intersect1d(cols_to_index + [grouping_col], time_aggregated_df.columns).tolist()
+    time_aggregated_df.columns = time_aggregated_df.columns.str.replace('violation', 'DemographicParity')
     time_aggregated_df = time_aggregated_df.rename(columns=column_rename_map_before_plot)
     new_numerical_cols = list(set(get_numerical_cols(time_aggregated_df) + [grouping_col]))
 
