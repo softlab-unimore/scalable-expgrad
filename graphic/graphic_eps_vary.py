@@ -47,11 +47,11 @@ if __name__ == '__main__':
 
     dataset_results_path = os.path.join("results")
     base_plot_dir = os.path.join('results', 'plots')
-    all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
+    results_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
     # Check number of replication
     # all_df.loc[all_df['model_name'] == 'ZafarDI', ['train_test_fold', 'random_seed', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)), 1).nunique()
     # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
-    # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)),axis=1).unique()
+    # a[a['dataset_name'].str.startswith('ACS')][['random_seed','train_test_fold', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)),axis=1).unique() # value_counts()
     # a.query('dataset_name == "ACSEmployment"')[np.intersect1d(x.columns, utils_results_data.cols_to_aggregate)].apply(lambda x: '_'.join(x.astype(str)), axis=1).unique().tolist()
 
     rlp_df = utils_results_data.load_results_experiment_id(rlp_false_conf_list, dataset_results_path)
@@ -59,16 +59,17 @@ if __name__ == '__main__':
         'max_iter'].astype(str)
     rlp_df['model_code'] = model_code
     rlp_df = utils_results_data.best_gap_filter_on_eta0(rlp_df)
-    rlp_df = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
+    rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
 
-    all_df = pd.concat([all_df, rlp_df])
+    all_df = pd.concat([results_df, rlp_df_filtered])
 
     restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
     restricted = [x.replace('_exp', '_eps') for x in restricted]
-    restricted += ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df['model_code'].unique().tolist()
+    restricted_v1 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered[
+        'model_code'].unique().tolist()
     # todo add most_frequent
 
-    sort_map = {name: i for i, name in enumerate(restricted)}
+    sort_map = {name: i for i, name in enumerate(restricted_v1)}
     all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
         ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
@@ -76,13 +77,19 @@ if __name__ == '__main__':
 
     grouping_col = 'eps'
     x_axis_list = ['eps']
-    axis_to_plot = [[grouping_col, 'time'],
-                    [grouping_col, 'test_error'],
-                    [grouping_col, 'test_violation'],
-                    ]
+
+    rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
+    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
+        'model_code'].unique().tolist()
+    plot_all_df_subplots(all_df, model_list=restricted_v2, chart_name='eps_v3', grouping_col='eps',
+                         save=save, show=show, sharex=False, sharey=False,
+                         axis_to_plot=[['test_violation', 'test_error'],
+                                       ['test_violation', 'time'],
+                                       ])
+
     y_axis_list_short = ['time'] + ['_'.join(x) for x in itertools.product(['test'], ['error', 'violation'])]
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation']
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
-        plot_all_df_subplots(all_df, model_list=restricted, chart_name='eps' + suffix, grouping_col='eps',
+        plot_all_df_subplots(all_df, model_list=restricted_v1, chart_name='eps' + suffix, grouping_col='eps',
                              save=save, show=show,
                              axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))

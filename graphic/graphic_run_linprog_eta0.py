@@ -18,7 +18,7 @@ if __name__ == '__main__':
         'f_eta0_2.1',
     ]
 
-    dataset_results_path = os.path.join("results", "fairlearn-2")
+    dataset_results_path = os.path.join("results")
     all_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
     str_map = {True: 'T', False: 'F'}
     model_code = 'RLP=' + all_df['run_linprog_step'].map(str_map)  # + ' max_iter==' + all_df['max_iter'].astype(str)
