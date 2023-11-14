@@ -128,6 +128,13 @@ def launch_experiment_by_id(experiment_id: str):
     logging.info(f'Ended experiment. It took: {b - a}')
 
 
+def set_general_random_seed(random_seed):
+    np.random.seed(random_seed)
+    joblib.parallel.PRNG = np.random.RandomState(random_seed)
+    
+
+
+
 class ExperimentRun(metaclass=Singleton):
 
     def __init__(self):
@@ -144,18 +151,16 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser.add_argument("dataset")
         arg_parser.add_argument("method")
 
-        arg_parser.add_argument("--metrics", choices=['default',
-                                                      'conversion_to_binary_sensitive_attribute'
-                                                      ], default='default')
-        arg_parser.add_argument("--preprocessing", choices=['default',
-                                                            'conversion_to_binary_sensitive_attribute'
-                                                            ], default='default')
+        arg_parser.add_argument("--metrics", choices=['default', 'conversion_to_binary_sensitive_attribute'],
+                                default='default')
+        arg_parser.add_argument("--preprocessing", choices=utils_prepare_data.preprocessing_function_map.keys(),
+                                default='default')
         # For Fairlearn and Hybrids
         arg_parser.add_argument("--eps", nargs='+', type=float, default=[None])
         arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
         # For hybrid methods
         arg_parser.add_argument("--exp_fractions", nargs='+', type=float, default=[1])
-        arg_parser.add_argument("--grid_fractions", nargs='+', type=float, default=[None])
+        arg_parser.add_argument("--grid_fractions", nargs='+', type=float, default=None)
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None, nargs='+')
         arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
         # Others
@@ -220,7 +225,6 @@ class ExperimentRun(metaclass=Singleton):
         datasets = utils_prepare_data.get_dataset(self.dataset_str, prm=self.prm)
         datasets = utils_prepare_data.preprocess_dataset(datasets, prm=self.prm)
 
-
         self.datasets = datasets
         X, y, A = datasets[:3]
 
@@ -261,6 +265,7 @@ class ExperimentRun(metaclass=Singleton):
 
     def run_model(self, datasets_divided, random_seed, other_params):
         results_list = []
+        set_general_random_seed(random_seed)
         if 'hybrids' == self.prm['method']:
             print(
                 f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "

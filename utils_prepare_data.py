@@ -285,14 +285,35 @@ def get_dataset(dataset_str, prm=None):
     else:
         raise_dataset_name_error(dataset_str)
 
-def preprocess_dataset(datasets, prm):
-    if prm['preprocessing'] == 'conversion_to_binary_sensitive_attribute':
-        data_values = DataValuesSingleton()
-        data_values.set_original_sensitive_attr(datasets[2])
-        datasets = list(datasets)
-        datasets[2] = datasets[2].map({1:1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0})
+
+
+
+def white_alone(datasets):
+    data_values = DataValuesSingleton()
+    data_values.set_original_sensitive_attr(datasets[2])
+    datasets = list(datasets)
+    datasets[2] = datasets[2].map({1: 1, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0})
     return datasets
 
+def binary_split_by_mean_y(datasets):
+    data_values = DataValuesSingleton()
+    data_values.set_original_sensitive_attr(datasets[2])
+    _, y, A = datasets[:3]
+    mean_y = y.mean()
+    mean_by_group = y.groupby(A).mean()
+    priviliged = mean_by_group[mean_by_group > mean_y].index
+    group_map = {x:1 if x in priviliged else 0 for x in mean_by_group.index}
+    datasets = list(datasets)
+    datasets[2] = datasets[2].map(group_map)
+    return datasets
+
+preprocessing_function_map = dict(conversion_to_binary_sensitive_attribute=white_alone,
+                                  binary_split_by_mean_y=binary_split_by_mean_y,
+                                  default=lambda x: x)
+
+
+def preprocess_dataset(datasets, prm):
+    return preprocessing_function_map[prm['preprocessing']](datasets)
 
 
 def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strategy, test_size):
