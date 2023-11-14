@@ -12,43 +12,54 @@ if __name__ == '__main__':
     show = False
 
     experiment_code_list = set(list([
-        # 'sigmod_h_exp_1.0',
-        # 'acs_h_gs1_1.0',
+        # 'sigmod_h_exp_1.0',       # not replicated
+        # 'sigmod_h_exp_2.0',       # not replicated
+        # 'sigmod_h_exp_3.0',       # not replicated
+        # 's_h_exp_EO_1.0',         # not replicated
 
-        # 's_h_exp_EO_1.0',
-        # 'acs_h_gs1_EO_1.0',
-        # 'acs_h_gs1_EO_2.0',
+        # 'acs_h_gs1_1.0', # different random seeds applied
+
         #
-        # 'sigmod_h_exp_2.0',
-        # 'sigmod_h_exp_3.0',
-        # 'acs_h_gsSR_1.1',
+        # 'acs_h_gsSR_1.1', # not replicated
 
-        # 'acs_h_gsSR_2.0',
-        # 'acs_h_gsSR_2.1',
+        # 'acs_h_gsSR_2.0', # not replicated
+        # 'acs_h_gsSR_2.1', # not replicated
 
-        's_h_exp_1.0r',
-        's_h_exp_EO_1.0r',
-        's_h_exp_2.0r',
-        's_h_exp_EO_2.0r',
+        's_h_exp_1.0r',     # DP    |   lr, lgbm    |   german, compas | gs1
+        's_h_exp_EO_1.0r',  # EO    |   lr, lgbm    |   german, compas | gs1
+        's_h_exp_2.0r',     # DP    |   lr, lgbm    |   german, compas | sqrt
+        's_h_exp_EO_2.0r',  # EO    |   lr, lgbm    |   german, compas | sqrt
 
-        'acs_h_gs1_1.0r',
-        'acs_h_gs1_EO_1.0r',
-        'acs_h_gsSR_1.0r',
-        'acs_h_gsSR_EO_1.0r',
+        'acs_h_gs1_1.0r',       # DP  |   lr, lgbm    |   adult ACSPublic | gs1
+        'acs_h_gs1_EO_1.0r',    # EO  |   lr, lgbm    |   adult ACSPublic | gs1
+        'acs_h_gsSR_1.0r',      # DP  |   lr, lgbm    |   adult ACSPublic | sqrt
+        'acs_h_gsSR_EO_1.0r',   # EO  |   lr, lgbm    |   adult ACSPublic | sqrt
+
+
 
     ]))
 
     employment_conf = [
-        'acsE_h_gs1_1.0',
-        'acs_h_gs1_EO_1.0',
-        'acs_h_gs1_EO_2.0',
-        'acs_h_gs1_1.1',
+        # 'acsE_h_gs1_1.0',     # DP |   lr  |   Employment not replicated
+        # 'acs_h_gs1_EO_1.0',   # EO |   lr  |   Employment not replicated
+
+        'acsE_h_gs1_1.0r',      # DP |   lr  |   Employment
+        'acsE_h_gs1_EO_1.0r',   # EO |   lr  |   Employment
+        'acs_h_gs1_EO_2.0',     # EO | lgbm  |   Employment not replicated
+
+        'acsE_h_gs1_1.1r',      # DP | lgbm  |   Employment not replicated
+        'acsE_h_gs1_1.2r',      # DP | lgbm  |   Employment not replicated
+        # 'acs_h_gs1_1.1',        # DP | lgbm  |   Employment not replicated
     ]
     employment_sqrt_conf = [
-        'acs_h_gsSR_1.0',
-        'acs_h_gsSR_2.0',
-        'acsE_h_gsSR_1.1',
-        'acs_h_gsSR_2.1',
+
+        'acsE_h_gsSR_1.0r',     # DP |lr,lgbm|   Employment replicated          | sqrt
+        'acsE_h_gsSR_1.1r',     # EO |lr,lgbm|   Employment replicated          | sqrt
+
+        # 'acs_h_gsSR_1.0',       # DP | lr   |   bigger not replicated     | sqrt
+        # 'acsE_h_gsSR_1.1',      # DP | lgbm |   Employment not replicated | sqrt
+        # 'acs_h_gsSR_2.0',  # EO | lr   |   bigger not replicated     | sqrt
+        # 'acs_h_gsSR_2.1',  # EO | lgbm |   Employment not replicated | sqrt
     ]
 
     sqrt_conf = [x for x in experiment_code_list if 'SR' in x] + ['s_h_exp_2.0r', 's_h_exp_EO_2.0r']
@@ -80,7 +91,7 @@ if __name__ == '__main__':
 
     sort_map = {name: i for i, name in enumerate(grid_chart_models)}
 
-    dataset_results_path = os.path.join("results", "fairlearn-2")
+    dataset_results_path = os.path.join("results")
 
     all_df = utils_results_data.load_results_experiment_id(gf_1_conf, dataset_results_path).query(
         'dataset_name != "ACSEmployment"')
@@ -125,8 +136,8 @@ if __name__ == '__main__':
     sqrt_df = sqrt_df[sqrt_df['model_code'].isin(grid_sqrt_models)]
     employment_sqrt_df = utils_results_data.load_results_experiment_id(employment_sqrt_conf, dataset_results_path)
     employment_sqrt_df = employment_sqrt_df[employment_sqrt_df['model_code'].isin(grid_sqrt_models)]
-    employment_sqrt_df = employment_sqrt_df.query(
-        'dataset_name == "ACSEmployment" and train_test_fold == 0 and random_seed == 0 and train_test_seed == 0')
+    employment_sqrt_df = employment_sqrt_df.query('dataset_name == "ACSEmployment"')
+                                                  # ' and train_test_fold == 0 and random_seed == 0 and train_test_seed == 0')
 
     # gf_1_df = gf_1_df[gf_1_df['model_code'].isin(['sub_hybrid_3_exp_gf_1'])] # todo delete
     all_df = pd.concat([sqrt_df, gf_1_df, employment_sqrt_df]).reset_index(drop=True)
