@@ -14,7 +14,7 @@ def generate_map_df():
     grid_mode = ['sqrt', 'gf_1']
     to_iter = itertools.product(model_names, unconstrained, active_sampling, grid_mode)
 
-    for t_varing in ['exp', 'gri', 'eps']:
+    for t_varing in ['exp', 'gri', 'eps', '']:
         for t_run_lp in run_linprog:
             for t_model_name, t_unconstrained, t_active_sampling, t_grid_mode in deepcopy(to_iter):
                 name = 'sub_' if t_active_sampling else ''
@@ -45,8 +45,8 @@ def generate_map_df():
     return pd.DataFrame.from_dict(values_dict, orient='index', columns=['label'])
 
 
-linewidth = 0.5
-markersize = 8
+linewidth = 1.5 # 0.5
+markersize = 30 # 8
 rlp_false_markersize = markersize ** .5
 base_config = dict(linewidth=linewidth, elinewidth=linewidth / 2,
                    marker=MarkerStyle('1', 'left', 0), s=markersize, markevery=1,  # mew=linewidth / 2,
@@ -60,7 +60,9 @@ class StyleUtility:
     common_keys = ['color']
     line_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth']
     marker_keys = common_keys + ['marker', 's']
+    bar_keys = common_keys + ['label']
     label_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth', 'marker', 'label', 'marker', ]
+
 
     map_df = generate_map_df()
     other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
@@ -70,18 +72,18 @@ class StyleUtility:
                         ])
 
     graphic_style_map = {
-        'EXPGRAD': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=adaptive GS=No LP=Yes': {'color': 'tab:blue', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=static GS=No LP=Yes': {'color': 'tab:orange', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=adaptive GS=sqrt LP=Yes': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=adaptive GS=1 LP=Yes': {'color': 'tab:red', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=static GS=1 LP=Yes': {'color': 'tab:purple', 'marker': 'o', 'linestyle': '-.'},
-        'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
+        'EXPGRAD': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
+        'EXPGRAD=adaptive GS=No LP=Yes': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
+        'EXPGRAD=static GS=No LP=Yes': {'color': 'tab:orange', 'marker': '.', 'linestyle': '-.'},
+        'EXPGRAD=adaptive GS=sqrt LP=Yes': {'color': 'tab:brown', 'marker': '.', 'linestyle': '-.'},
+        'EXPGRAD=adaptive GS=1 LP=Yes': {'color': 'tab:red', 'marker': '.', 'linestyle': '-.'},
+        'EXPGRAD=static GS=1 LP=Yes': {'color': 'tab:purple', 'marker': '.', 'linestyle': '-.'},
+        'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': '.', 'linestyle': '-.'},
 
-        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'o', 'linestyle': '-'},
-        'UNMITIGATED=static': {'color': 'tab:pink', 'marker': 'o', 'linestyle': '-.'},
+        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-'},
+        'UNMITIGATED=static': {'color': 'tab:pink', 'marker': 'X', 'linestyle': '-.'},
 
-        'Threshold': {'color': 'black', 'linestyle': 'solid', 'linewidth': linewidth * .5},
+        'Threshold': {'color': 'black', 'marker': 'P', 'linestyle': 'solid', 'linewidth': linewidth * .5},
 
         'RLP=F': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
         'RLP=F max_iter=5': {'color': 'tab:brown', 'marker': 'v', 'linestyle': '-.', 's': rlp_false_markersize},
@@ -90,11 +92,11 @@ class StyleUtility:
         'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': '>', 'linestyle': '-.', 's': rlp_false_markersize},
         'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 'd', 'linestyle': '-.', 's': rlp_false_markersize},
 
-        'ThresholdOptimizer': {'color': 'tab:green', 'marker': 'o', 'linestyle': '-.'},
-        'Calmon': {'color': 'tab:red', 'marker': 'o', 'linestyle': '--'},
-        'ZafarDI': {'color': 'tab:purple', 'marker': 'o', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
-        'ZafarEO': {'color': 'tab:purple', 'marker': 'o', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
-        'Feld': {'color': 'tab:orange', 'marker': 'o', 'linestyle': (5, (10, 3))},
+        'ThresholdOptimizer': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
+        'Calmon': {'color': 'tab:red', 'marker': '^', 'linestyle': '--'},
+        'ZafarDI': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'ZafarEO': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
 
     }
 
