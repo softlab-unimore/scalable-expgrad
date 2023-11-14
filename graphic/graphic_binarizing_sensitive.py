@@ -74,8 +74,8 @@ if __name__ == '__main__':
         y_axis_list = [x.replace('DemographicParity', t_constraint) for x in y_axis_list]
 
         pl_util.apply_plot_function_and_save(df=mean_error_df.query(f'constraint_code == "{cc}"'), additional_dir_path='all_df',
-                                             plot_function=graphic_utility.bar_plot_function,
-                                             name=f'binary_{t_constraint}' + suffix,
+                                             plot_function=graphic_utility.bar_plot_function_by_model_code,
+                                             name=f'binary_{cc}' + suffix,
                                              y_axis_list=y_axis_list)
 
         # plt.figure(figsize=(10, 6))

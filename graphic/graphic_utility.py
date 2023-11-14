@@ -401,7 +401,16 @@ def time_stacked_by_phase(df, ax, fig: plt.figure, name_col='label'):
     plt.rcParams.update({'savefig.dpi': old})
 
 
-def bar_plot_function(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
+def bar_plot_function_by_model_code(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
+    to_plot = df.pivot_table(values=['time_mean', 'time_error'], index=['dataset_name'], columns=['model_code'], )
+    yerr = to_plot.loc[:, (['time_error'], slice(None))]
+    yerr.columns = yerr.columns.get_level_values(1)
+    tmp = to_plot.loc[:, (['time_mean'], slice(None))]
+    tmp.columns = tmp.columns.get_level_values(1)
+    tmp.plot.bar(logy=True, yerr=yerr, rot=0, ax=ax, fontsize=8, )
+
+
+def bar_plot_function_by_dataset(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
     y_axis_list = pd.Series(list(y_axis_list))
     # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
     df = df.set_index('model_code')
@@ -604,7 +613,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
             for ax in axes_array[1:].flat:
                 ax.set_title('')
             # Remove axis labels from inner plots
-            for ax in axes_array[:,1:].flat:
+            for ax in axes_array[:, 1:].flat:
                 ax.set_ylabel('')
                 # ax.label_outer()
             for ax in axes_array[:-1, :].flat:

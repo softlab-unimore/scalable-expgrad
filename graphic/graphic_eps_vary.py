@@ -3,8 +3,10 @@ import os
 
 import pandas as pd
 
-from graphic import utils_results_data
-from graphic_utility import plot_all_df_subplots
+from graphic import utils_results_data, graphic_utility
+from graphic.style_utility import StyleUtility
+from graphic.utils_results_data import prepare_for_plot
+from graphic_utility import plot_all_df_subplots, PlotUtility
 
 if __name__ == '__main__':
     save = True
@@ -59,12 +61,53 @@ if __name__ == '__main__':
         'max_iter'].astype(str)
     rlp_df['model_code'] = model_code
     rlp_df = utils_results_data.best_gap_filter_on_eta0(rlp_df)
-    rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
-
-    all_df = pd.concat([results_df, rlp_df_filtered])
 
     restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
     restricted = [x.replace('_exp', '_eps') for x in restricted]
+
+    grouping_col = 'eps'
+    x_axis_list = ['eps']
+
+    rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
+    all_df = pd.concat([results_df, rlp_df_filtered_v2])
+    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
+        'model_code'].unique().tolist()
+    sort_map = {name: i for i, name in enumerate(restricted_v2)}
+    all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
+        ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
+        ascending=[True, False, True, True]).drop(columns=['model_sort'])
+    all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'] = pd.NA
+
+    # version v4
+    model_list = list(restricted_v2)
+    mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
+    mean_error_df['model_code'] = mean_error_df['model_code'].map(StyleUtility.get_label)
+    mean_error_df['model_code'] = mean_error_df['model_code'].str.replace('EXPGRAD=adaptive GS=No LP=Yes',
+                                                                          'EXPGRAD=adaptive')
+
+    pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all')
+    for base_model_code, (t_constraint, cc) in itertools.product(mean_error_df['base_model_code'].unique(),[('DemographicParity', 'dp'), ('EqualizedOdds', 'eo')]):
+        y_axis_list = ['time']
+
+        pl_util.apply_plot_function_and_save(df=mean_error_df.query(f'constraint_code == "{cc}" & base_model_code =="{base_model_code}"'),
+                                             additional_dir_path='all_df',
+                                             plot_function=graphic_utility.bar_plot_function_by_model_code,
+                                             name=f'eps_v3_time_{base_model_code}_{t_constraint}',
+                                             y_axis_list=y_axis_list)
+
+
+    # version v3
+    plot_all_df_subplots(all_df, model_list=restricted_v2, chart_name='eps_v3', grouping_col='eps',
+                         save=save, show=show, sharex=False, sharey=False,
+                         axis_to_plot=[['test_violation', 'test_error'],
+                                       ['test_violation', 'time'],
+                                       ],
+                         )
+
+
+    # Version v1 nad v2
+    rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
+    all_df = pd.concat([results_df, rlp_df_filtered])
     restricted_v1 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered[
         'model_code'].unique().tolist()
     # todo add most_frequent
@@ -74,18 +117,6 @@ if __name__ == '__main__':
         ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
     all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'] = pd.NA
-
-    grouping_col = 'eps'
-    x_axis_list = ['eps']
-
-    rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
-    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
-        'model_code'].unique().tolist()
-    plot_all_df_subplots(all_df, model_list=restricted_v2, chart_name='eps_v3', grouping_col='eps',
-                         save=save, show=show, sharex=False, sharey=False,
-                         axis_to_plot=[['test_violation', 'test_error'],
-                                       ['test_violation', 'time'],
-                                       ])
 
     y_axis_list_short = ['time'] + ['_'.join(x) for x in itertools.product(['test'], ['error', 'violation'])]
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation']

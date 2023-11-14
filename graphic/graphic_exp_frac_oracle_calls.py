@@ -108,6 +108,7 @@ if __name__ == '__main__':
     all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
         ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
+    all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'] = pd.NA
 
     extract_expgrad_oracle_time(all_df, new_col_name='time_oracles', cols_to_select='all')
     all_df['avg_time_oracles'] = all_df['time_oracles'] / all_df['n_oracle_calls_']
