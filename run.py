@@ -362,6 +362,8 @@ class ExperimentRun(metaclass=Singleton):
         self.add_turn_results(metrics_res, [time_eval_dict, time_unconstrained_dict])
         if not hasattr(eps, '__iter__'):
             eps = [eps]
+        if not hasattr(grid_fractions, '__iter__'):
+            grid_fractions = [grid_fractions]
         to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
         # Iterations on difference fractions
         for i, (turn_eps, exp_f, grid_f) in tqdm(list(enumerate(to_iter))):
