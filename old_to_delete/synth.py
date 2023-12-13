@@ -1,6 +1,6 @@
 import sys
 import run
-import utils_experiment
+import utils_experiment_parameters
 
 if __name__ == "__main__":
     run.launch_experiment_by_id('acs_h_gs1_1.0')

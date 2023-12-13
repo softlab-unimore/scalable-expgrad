@@ -340,6 +340,9 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
         X, y, A = datasets[:3]
         to_stratify = pd.Series(A).astype(str) + '_' + pd.Series(y).astype(str)
+        if data_values.original_sensitive_attr is not None:
+            A_orig = data_values.original_sensitive_attr
+            to_stratify = pd.Series(A_orig).astype(str) + '_' + pd.Series(y).astype(str)
         for train_index, test_index in skf.split(X, to_stratify):
             datasets_divided = []
             for turn_index in [train_index, test_index]:  # train test split of datasets

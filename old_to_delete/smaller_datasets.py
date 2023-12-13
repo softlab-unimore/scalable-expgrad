@@ -1,6 +1,6 @@
 import sys
 from run import execute_experiment
-import utils_experiment
+import utils_experiment_parameters
 
 if __name__ == "__main__":
     original_argv = sys.argv.copy()
