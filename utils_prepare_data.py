@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 import folktables
-import utils_experiment
+import utils_experiment_parameters
 from fairlearn.reductions import DemographicParity, EqualizedOdds, UtilityParity
 from folktables import ACSDataSource, generate_categories
 from utils_general import Singleton

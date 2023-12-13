@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import sem, t
 
-import utils_experiment
+import utils_experiment_parameters
 from run import params_initials_map
 
 seed_columns = ['random_seed', 'train_test_fold', 'train_test_seed']

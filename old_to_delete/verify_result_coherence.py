@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 from graphic.utils_results_data import filter_results, seed_columns
-from utils_experiment import dataset_names
+from utils_experiment_parameters import dataset_names
 
 
 def check_expgrad_time(df:pd.DataFrame)-> pd.DataFrame:
