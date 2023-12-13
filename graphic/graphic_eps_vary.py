@@ -22,6 +22,7 @@ if __name__ == '__main__':
 
         'acsE_eps_EO_1.0r',
         'acsE_h_eps_1.0r',
+        'acs_h_eps_1.2r',
         # "acs_h_eps_1.LGBM0",  # Employment + PublicC lgbm DP
         # "acs_h_eps_1.E0",  # Employment LR DP
         # 'acs_eps_EO_1.1',  # Employment LR EO

@@ -40,16 +40,19 @@ if __name__ == '__main__':
     ]))
 
     employment_conf = [
+
+
+        'acsE_h_gs1_1.0r',      # DP |   lr  |   Employment replicated
+        'acsE_h_gs1_1.1r',      # DP | lgbm  |   Employment seed 0
+        'acsE_h_gs1_1.2r',      # DP | lgbm  |   Employment seed 1
+
+        'acsE_h_gs1_EO_1.0r',   # EO |   lr  |   Employment replicated
+        'acsE_h_gs1_EO_1.1r'    # EO | lgbm  |   Employment replicated
+
+        # 'acs_h_gs1_1.1',        # DP | lgbm  |   Employment not replicated
+        # 'acs_h_gs1_EO_2.0',     # EO | lgbm  |   Employment not replicated
         # 'acsE_h_gs1_1.0',     # DP |   lr  |   Employment not replicated
         # 'acs_h_gs1_EO_1.0',   # EO |   lr  |   Employment not replicated
-
-        'acsE_h_gs1_1.0r',      # DP |   lr  |   Employment
-        'acsE_h_gs1_EO_1.0r',   # EO |   lr  |   Employment
-        'acs_h_gs1_EO_2.0',     # EO | lgbm  |   Employment not replicated
-
-        'acsE_h_gs1_1.1r',      # DP | lgbm  |   Employment not replicated
-        'acsE_h_gs1_1.2r',      # DP | lgbm  |   Employment not replicated
-        # 'acs_h_gs1_1.1',        # DP | lgbm  |   Employment not replicated
     ]
     employment_sqrt_conf = [
 
@@ -117,14 +120,14 @@ if __name__ == '__main__':
     y_axis_list_long = y_axis_list_short + ['train_error', 'train_violation', 'avg_time_oracles', 'n_oracle_calls_',
                                             'time_oracles']
 
-    y_lim_map = {'test_error': None, 'test_violation': (-0.01, 0.1), 'train_violation': (-0.01, 0.1),
-                 'test_EqualizedOdds': (-0.01, 0.15)}
+    y_lim_map = {'test_error': None, 'test_violation': (-0.01, 0.2), 'train_violation': (-0.01, 0.2),
+                 'test_EqualizedOdds': (-0.01, 0.2)}
     for y_axis_list, suffix in [(y_axis_list_long, ''), (y_axis_list_short, '_v2'), ]:
         y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
-        plot_all_df_subplots(all_df, model_list=exp_frac_models,
+        plot_all_df_subplots(all_df[all_df['phase']!='evaluation'], model_list=exp_frac_models,
                              chart_name='exp_frac' + suffix, grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=False,
-                             sharey='row', xlog=True,
+                             sharey=False, xlog=True,
                              ylim_list=y_lim_list,
                              axis_to_plot=list(itertools.product(['exp_frac'], y_axis_list)))
 
@@ -149,7 +152,7 @@ if __name__ == '__main__':
         ascending=[True, False, True, True]).drop(columns=['model_sort'])
 
     pl_util = PlotUtility(save=save, show=show)
-    # Align random seed values --> check sqrt time is at least equal to adaptive or greater.
+
 
     x_axis_list = ['time_oracles']
     y_axis_list_short = ['_'.join(x) for x in itertools.product(['test'], ['error', 'violation'])]
@@ -163,7 +166,7 @@ if __name__ == '__main__':
                              grouping_col='exp_frac',
                              save=save, show=show, sharex=False, increasing_marker_size=True, xlog=True,
                              ylim_list=y_lim_list,
-                             sharey='row', axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
+                             sharey=False, axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
 
     # plot_by_df(pl_util, all_df, grid_chart_models, model_set_name='oracle_calls',
     #            grouping_col='exp_frac')
