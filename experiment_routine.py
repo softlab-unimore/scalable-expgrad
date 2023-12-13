@@ -63,10 +63,13 @@ if __name__ == "__main__":
         'acsE_h_gs1_EO_1.0r',
         'acsE_h_gsSR_1.0r',
         'acsE_h_gsSR_1.1r',
+        'acsE_h_gs1_EO_1.1r',
+        'acs_h_eps_1.2r',
+        'f_eta0_1.2',
 
 
         # doing in fairlearn-2
-        'acsE_h_gs1_EO_1.1r',
+        'f_eta0_2.2',
 
 
         # done on fairlearn-3
@@ -83,7 +86,10 @@ if __name__ == "__main__":
         'acsER_bin3.1r',
         'acsE_h_gs1_1.1r',
         'acsE_h_gs1_1.2r',
-
+        'acsER_bin2.0r',
+        'acsER_bin2.1r',
+        'acsER_bin3.0r',
+        'acsER_bin4.0r',
         # to update on fairlearn-3
 
 
@@ -95,8 +101,15 @@ if __name__ == "__main__":
 
     conf_todo = [
         # next on fairlearn-2
+        'f_eta0_eps.1',
+        'f_eta0_eps.2',
+        'f_eta0_eps.3P',
+        'f_eta0_eps.4P',
+        'f_eta0_eps.3E',
+        'f_eta0_eps.4E',
         # 'acsER_bin3.0rtest',
         # next on fairlearn-3
+
 
 
 
