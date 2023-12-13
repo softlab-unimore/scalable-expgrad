@@ -109,7 +109,7 @@ def prepare_data(df):
     non_hybrid = df[~expgrad_mask]
     if not hybrid.empty:
         hybrid['exp_frac'].fillna(1, inplace=True)
-        hybrid = calculate_movign_param(None, hybrid)
+        # hybrid = calculate_movign_param(None, hybrid)
         if not df[df['phase'] == 'grid_frac'].empty:
             hybrid = take_max_for_grid_search(hybrid)
             hybrid['eps'] = pd.to_numeric(hybrid['eps'], errors='coerce')
@@ -261,11 +261,17 @@ def get_last_results_datetime(base_dir):
 
 
 def get_confidence_error(data, confidence: float = 0.95):
+    if data is None:
+        return [np.nan, np.nan, np.nan]
+
     a = np.asarray(data).astype(float)
     n = len(a)
-    se = sem(a, nan_policy="omit", ddof=1)
+    m, se = np.nanmean(a, 0), sem(a, nan_policy="omit", ddof=1)
     t_value = t.ppf((1.0 + confidence) / 2., n - 1)
-    return 2 * se * t_value
+    h1 = m - se * t_value
+    h2 = m + se * t_value
+
+    return (h2 - h1) /2
 
 
 def mean_confidence_interval(data, confidence: float = 0.95):
@@ -356,7 +362,7 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                                                                         'oracle_execution_times_', 'grid_oracle_times',
                                                                         'last_iter_', 'best_gap_', 'best_iter_',
                                                                         'grid_frac'
-                                                                        'time_oracles']] = np.nan
+                                                                        'time_oracles','eps']] = np.nan
                 df_list.append(df)
     all_df = pd.concat(df_list)
     return all_df
