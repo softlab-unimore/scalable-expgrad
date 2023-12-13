@@ -46,11 +46,16 @@ if __name__ == '__main__':
     rlp_false_conf_list = [
         'f_eta0_eps.1',
         'f_eta0_eps.2',
+        'f_eta0_1.2',
     ]
 
     dataset_results_path = os.path.join("results")
     base_plot_dir = os.path.join('results', 'plots')
     results_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
+
+    results_df = results_df[~((results_df['model_code'] == "unconstrained") & (results_df['exp_frac'] == 0.251))]
+
+
     # Check number of replication
     # all_df.loc[all_df['model_name'] == 'ZafarDI', ['train_test_fold', 'random_seed', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)), 1).nunique()
     # a = utils_results_data.load_results_experiment_id(['acs_h_gs1_1.0'], dataset_results_path)
@@ -63,51 +68,14 @@ if __name__ == '__main__':
     rlp_df['model_code'] = model_code
     rlp_df = utils_results_data.best_gap_filter_on_eta0(rlp_df)
 
-    restricted = ['hybrid_7_exp', 'unconstrained_exp', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
-    restricted = [x.replace('_exp', '_eps') for x in restricted]
+    restricted = ['hybrid_7', 'unconstrained', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
+
 
     grouping_col = 'eps'
     x_axis_list = ['eps']
 
-    rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
-    all_df = pd.concat([results_df, rlp_df_filtered_v2])
-    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
-        'model_code'].unique().tolist()
-    sort_map = {name: i for i, name in enumerate(restricted_v2)}
-    all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
-        ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
-        ascending=[True, False, True, True]).drop(columns=['model_sort'])
-    all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'] = pd.NA
-
-    # version v4
-    model_list = list(restricted_v2)
-    mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
-    mean_error_df['model_code'] = mean_error_df['model_code'].map(StyleUtility.get_label)
-    mean_error_df['model_code'] = mean_error_df['model_code'].str.replace('EXPGRAD=adaptive GS=No LP=Yes',
-                                                                          'EXPGRAD=adaptive')
-
-    pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all')
-    for base_model_code, (t_constraint, cc) in itertools.product(mean_error_df['base_model_code'].unique(),[('DemographicParity', 'dp'), ('EqualizedOdds', 'eo')]):
-        y_axis_list = ['time']
-
-        pl_util.apply_plot_function_and_save(df=mean_error_df.query(f'constraint_code == "{cc}" & base_model_code =="{base_model_code}"'),
-                                             additional_dir_path='all_df',
-                                             plot_function=graphic_utility.bar_plot_function_by_model_code,
-                                             name=f'eps_v3_time_{base_model_code}_{t_constraint}',
-                                             y_axis_list=y_axis_list)
-
-
-    # version v3
-    plot_all_df_subplots(all_df, model_list=restricted_v2, chart_name='eps_v3', grouping_col='eps',
-                         save=save, show=show, sharex=False, sharey=False,
-                         axis_to_plot=[['test_violation', 'test_error'],
-                                       ['test_violation', 'time'],
-                                       ],
-                         )
-
-
     # Version v1 nad v2
-    rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 100])]
+    rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 50, 100])]
     all_df = pd.concat([results_df, rlp_df_filtered])
     restricted_v1 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered[
         'model_code'].unique().tolist()
@@ -125,3 +93,41 @@ if __name__ == '__main__':
         plot_all_df_subplots(all_df, model_list=restricted_v1, chart_name='eps' + suffix, grouping_col='eps',
                              save=save, show=show,
                              axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
+
+
+    rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
+    all_df = pd.concat([results_df, rlp_df_filtered_v2])
+    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
+        'model_code'].unique().tolist()
+    sort_map = {name: i for i, name in enumerate(restricted_v2)}
+    all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(
+        ['dataset_name', 'base_model_code', 'constraint_code', 'model_sort'],
+        ascending=[True, False, True, True]).drop(columns=['model_sort'])
+    # all_df.loc[all_df['model_code'].str.contains('unconstrained'), 'eps'].unique()
+    all_df = all_df[all_df['phase'] != 'evaluation']
+
+    # version v3 time bar plot
+    # model_list = list(restricted_v2)
+    # mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
+    # mean_error_df['model_code'] = mean_error_df['model_code'].map(StyleUtility.get_label)
+    # mean_error_df['model_code'] = mean_error_df['model_code'].str.replace('EXPGRAD=adaptive GS=No LP=Yes',
+    #                                                                       'EXPGRAD=adaptive')
+    #
+    # pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all')
+    # for base_model_code, (t_constraint, cc) in itertools.product(mean_error_df['base_model_code'].unique(),[('DemographicParity', 'dp'), ('EqualizedOdds', 'eo')]):
+    #     y_axis_list = ['time']
+    #
+    #     pl_util.apply_plot_function_and_save(df=mean_error_df.query(f'constraint_code == "{cc}" & base_model_code =="{base_model_code}"'),
+    #                                          additional_dir_path='all_df',
+    #                                          plot_function=graphic_utility.bar_plot_function_by_model_code,
+    #                                          name=f'eps_v3_time_{base_model_code}_{t_constraint}',
+    #                                          y_axis_list=y_axis_list)
+
+    # version v3
+    plot_all_df_subplots(all_df, model_list=restricted_v2, chart_name='eps_v3', grouping_col='eps',
+                         save=save, show=show, sharex=False, sharey=False,
+                         axis_to_plot=[['test_violation', 'test_error'],
+                                       ['test_violation', 'time'],
+                                       ],
+                         params=dict(no_errorbar=True)
+                         )
