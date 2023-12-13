@@ -120,7 +120,7 @@ class PlotUtility():
     # sns.color_palette("hls", len(self.to_plot_models))
     # color_list = list(mcolors.TABLEAU_COLORS.keys())
     def __init__(self, save: bool = True, show: bool = True, suffix: str = '',
-                 base_plot_dir=os.path.join('results', 'plots'), annotate_mode='first-last',
+                 base_plot_dir=os.path.join('results', 'plots'), annotate_mode='all',
                  custom_add_graphic_object=None):
         '''
 
@@ -134,6 +134,7 @@ class PlotUtility():
         self.save_flag = save
         self.base_plot_dir = base_plot_dir
         self.annotate_mode = annotate_mode
+        self.params = dict(no_errorbar=False)
         if custom_add_graphic_object == 'bar':
             self.custom_add_graphic_object = self.add_bar
         else:
@@ -153,15 +154,11 @@ class PlotUtility():
         self.ax.set_title(f'{title} - {x_axis} v.s. {y_axis}')
         if x_axis == 'time':
             self.ax.set_xscale("log")
-            self.ax.set_xlabel(f'{x_axis} (log scale)')
         else:
             self.ax.set_xlabel(f'{x_axis}')
-            # ax.set_xscale("log")
-            # ax.set_xlabel(f'{x_axis} (log scale)')
         if y_axis == 'time':
             self.ax.set_yscale("log")
             ylabel = self.ax.get_ylabel()
-            self.ax.set_ylabel(f'{ylabel} (log)')
         self.ax.legend()
         if self.show:
             self.fig.show()
@@ -227,6 +224,8 @@ class PlotUtility():
     def add_line_errorbar(self, value_dict, grouping_values, model_code, index, n_lines, label_suffix=''):
         if pd.isna(list(value_dict.values())).all():
             return
+        if self.params.get('no_errorbar'):
+            value_dict['xerr'], value_dict['yerr'] = None, None
         x, xerr, y, yerr = value_dict.values()
 
         line_params = self.get_line_params(index, model_code=model_code)
@@ -250,9 +249,14 @@ class PlotUtility():
             else:
                 self.ax.axhline(y[-1], zorder=10, **line_params)
 
-        self.ax.errorbar(**value_dict, **line_params)
-        self.ax.scatter(x, y, **markers_params)
-        self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
+
+        markers_params['markersize'] = markers_params.pop('s') ** .5
+        params = markers_params | label_params
+        if len(set(x)) > 1:
+            params = params | line_params
+        self.ax.errorbar(**value_dict, **params)
+        # self.ax.scatter(x, y, **markers_params)
+        # self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
 
     def add_bar(self, value_dict, grouping_values, model_code, index, n_lines, label_suffix=''):
         if pd.isna(list(value_dict.values())).all():
@@ -292,10 +296,10 @@ class PlotUtility():
                                                index=index, n_lines=n_lines)
             if annotate_col is not None:
                 annotate_values = turn_df[annotate_col]
-                self.add_annotation(value_dict['x'], value_dict['y'], annotate_values)
+                self.add_annotation(value_dict['x'], value_dict['y'], annotate_values, model_code=model_code)
 
-    def add_annotation(self, x, y, annotate_values, annotation_fontize=10):
-        to_annotate = list(zip(x, y, annotate_values))
+    def add_annotation(self, x, y, annotate_values, annotation_fontize=10, model_code=None):
+        to_annotate = self.custom_annotation_hook(x, y, annotate_values, model_code=model_code, col=self.col, row=self.row)
         if self.annotate_mode == 'first-last':
             to_iter = [to_annotate[0], to_annotate[-1]]
         elif self.annotate_mode == 'all':
@@ -305,9 +309,13 @@ class PlotUtility():
         elif self.annotate_mode == 'first':
             to_iter = [to_annotate[0]]
 
-        for tx, ty, tt in to_iter:
-            self.ax.annotate(text=f' {tt:.3g}', xy=(tx, ty), xycoords='data',
+        for kwargs in to_iter:
+            self.ax.annotate(**kwargs,
                              fontsize=annotation_fontize)
+
+    @staticmethod
+    def custom_annotation_hook(x, y, annotate_values, model_code=None, **kwargs):
+        return [dict(text=f'{tt: >3g}', xy=(tx, ty), xycoords='data') for tx, ty, tt in zip(x, y, annotate_values)]
 
     def get_color(self, index):
         return self.color_list[index % len(self.color_list)]
@@ -401,7 +409,7 @@ def time_stacked_by_phase(df, ax, fig: plt.figure, name_col='label'):
     plt.rcParams.update({'savefig.dpi': old})
 
 
-def bar_plot_function_by_model_code(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
+def bar_plot_function_by_dataset(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
     to_plot = df.pivot_table(values=['time_mean', 'time_error'], index=['dataset_name'], columns=['model_code'], )
     yerr = to_plot.loc[:, (['time_error'], slice(None))]
     yerr.columns = yerr.columns.get_level_values(1)
@@ -410,7 +418,7 @@ def bar_plot_function_by_model_code(df, ax, fig: plt.figure, name_col='label', y
     tmp.plot.bar(logy=True, yerr=yerr, rot=0, ax=ax, fontsize=8, )
 
 
-def bar_plot_function_by_dataset(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
+def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
     y_axis_list = pd.Series(list(y_axis_list))
     # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
     df = df.set_index('model_code')
@@ -425,7 +433,6 @@ def phase_time_vs_frac(df, ax, fig, y_log=True):
     to_plot.plot(y=('time', 'mean'), yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
     if y_log:
         ax.set_yscale("log")
-        ax.set_ylabel('time (log)')
 
 
 def plot_metrics_time(df, ax, fig):
@@ -521,7 +528,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                          increasing_marker_size=False,
                          subplots_by_col='dataset_name', subplots=True,
                          ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None,
-                         custom_add_graphic_object=None):
+                         custom_add_graphic_object=None, pl_util=None, params=None):
     if annotate_col is not None:
         annotate_col += '_mean'
     if chart_name != '':
@@ -534,8 +541,11 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
         mean_error_df = utils_results_data.add_threshold(mean_error_df)
         model_list = ['Threshold'] + model_list
     # mean_error_df = mean_error_df[mean_error_df['model_code']]
-    pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode=annotate_mode,
-                          custom_add_graphic_object=custom_add_graphic_object)
+    if pl_util is None:
+        pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode=annotate_mode,
+                              custom_add_graphic_object=custom_add_graphic_object)
+    if params is not None:
+        pl_util.params = params
     if axis_to_plot is None:
         axis_to_plot = [[grouping_col, 'time'],
                         [grouping_col, 'test_error'],
@@ -552,13 +562,16 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
         if subplots:
             pl_util.show = False
             figsize = np.array([14.4, 2.4 * len(list(turn_axis_list))])
+            if len(list(turn_axis_list)) == 1:
+                figsize = np.array([5, 5])
             fig, axes_array = plt.subplots(nrows=len(turn_axis_list), ncols=df_to_plot[subplots_by_col].nunique(),
                                            sharex=sharex,
                                            sharey=sharey, figsize=figsize,
                                            tight_layout=True)  # todo fix sharey not showing multiple axis labels
-            axes_array = axes_array.reshape(len(turn_axis_list), -1)
+            axes_array = np.array(axes_array).reshape(len(turn_axis_list), -1)
             pl_util.fig = fig
         for row, (x_axis, y_axis) in enumerate(turn_axis_list):
+            pl_util.row = row
             if 'violation' in y_axis:
                 y_axis = y_axis.replace('violation', constrain_code_to_name[constraint_code])
             check_axis_validity(df_to_plot, x_axis, y_axis)
@@ -570,6 +583,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
             df_subplot = df_to_plot.groupby([subplots_by_col], sort=False, )[col_to_use]
 
             for col, (subplot_value, turn_df) in enumerate(df_subplot):
+                pl_util.col = col
                 if subplots:
                     pl_util.ax = axes_array[row, col]
 
@@ -580,7 +594,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                     if xlog:
                         pl_util.ax.set_xscale("log")
                         xlabel = pl_util.ax.get_xlabel()
-                        pl_util.ax.set_xlabel(f'{xlabel} (log)')
+                        # pl_util.ax.set_xlabel(f'{xlabel} (log)')
                     if sharey is False:
                         pl_util.ax.yaxis.set_tick_params(which='both', labelleft=True)
 
