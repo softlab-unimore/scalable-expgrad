@@ -49,8 +49,6 @@ if __name__ == "__main__":
         's_tr_1.1r',
         's_tr_2.0r',
         's_tr_2.1r',
-        'f_eta0_eps.1',
-        'f_eta0_eps.2',
         'most_frequent_sig.0r',
         'most_frequent_ACS.0r',
         'acs_to_binary1.0r',
@@ -66,10 +64,15 @@ if __name__ == "__main__":
         'acsE_h_gs1_EO_1.1r',
         'acs_h_eps_1.2r',
         'f_eta0_1.2',
+        'f_eta0_2.2',
+        'f_eta0_eps.3P',
+        'f_eta0_eps.4P',
+        'f_eta0_eps.3E',
+        'f_eta0_eps.4E',
+
 
 
         # doing in fairlearn-2
-        'f_eta0_2.2',
 
 
         # done on fairlearn-3
@@ -90,10 +93,19 @@ if __name__ == "__main__":
         'acsER_bin2.1r',
         'acsER_bin3.0r',
         'acsER_bin4.0r',
+        'f_eta0_eps.1',
+        'f_eta0_eps.2',
+        'acsER_binB1.0Mr',
+        'acsER_binB1.0r',
         # to update on fairlearn-3
 
 
+
         # doing on fairlearn-3
+        'acsER_binB1.1Mr',
+        'acsER_binB1.1r',
+        'acsER_binB2.0r',
+        'acsER_binB2.0Mr',
 
     ]
 
@@ -101,15 +113,10 @@ if __name__ == "__main__":
 
     conf_todo = [
         # next on fairlearn-2
-        'f_eta0_eps.1',
-        'f_eta0_eps.2',
-        'f_eta0_eps.3P',
-        'f_eta0_eps.4P',
-        'f_eta0_eps.3E',
-        'f_eta0_eps.4E',
-        # 'acsER_bin3.0rtest',
-        # next on fairlearn-3
+        'f_eta0_eps.4.2E',
+        'f_eta0_eps.3.2E',
 
+        # next on fairlearn-3
 
 
 
