@@ -5,6 +5,56 @@ import pandas as pd
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
+rename_word_dict = {'lr': 'Logistic Regression',
+                    'lgbm': 'LightGBM',
+                    'dp': 'Demographic Parity',
+                    'eo': 'Equalized Odds',
+                    'unmitigated': 'Unmitigated',
+                    'ACSEmployment': 'ACS Employment',
+                    'ACSPublicCoverage': 'ACS Public Coverage',
+                    'adult': 'Adult',
+                    'compas': 'COMPAS',
+                    'german': 'German',
+                    'time': 'Time (s)',
+                    'test_error': 'Test Error',
+                    'test_DemographicParity': 'Test Demographic Parity',
+                    'test_EqualizedOdds': 'Test Equalized Odds',
+                    'train_error': 'Train Error',
+                    'train_DemographicParity': 'Train Demographic Parity',
+                    'train_EqualizedOdds': 'Train Equalized Odds',
+                    'eps': 'Epsilon value (eps)',
+                    'EXPGRAD=adaptive': 'EXPGRAD++',
+                    'exp_frac': 'sample fraction',
+                    'RLP=False': 'EXPGRAD',
+                    'RLP=F': 'EXPGRAD',
+                    'GS=No': '',  # remove?
+                    'LP=Yes': '',  # remove?
+                    'LP=No': '',  # remove?
+                    'max_iter=50': '',  # remove?
+                    'full': '',  # remove?
+                    'zafarDI': 'ZAFAR',
+                    'zafarEO': 'ZAFAR',
+                    'Feld': 'FELD',
+                    'Calmon': 'CALMON',
+                    'ThresholdOptimizer': 'HARDT',
+                    'binary_mean': 'binary',
+                    'multivalued_mean': 'multivalued',
+                    # 'train_EqualizedOdds mean':'',
+                    # 'train_EqualizedOdds_orig mean',
+                    # 'train EqualizedOdds Multi mean',
+                    }
+
+
+# function to rename words in sentences by first splitting the sentence into words and then joining the words after using a dictionary to replace the words
+def replace_words(sentence):
+    words = sentence.split()
+    for i in range(len(words)):
+        if words[i] in rename_word_dict.keys():
+            words[i] = rename_word_dict[words[i]]
+    return ' '.join(words).strip()
+
+def replace_words_in_list(sentence_list):
+    return [replace_words(x) for x in sentence_list]
 
 def generate_map_df():
     values_dict = {}
@@ -15,8 +65,7 @@ def generate_map_df():
     grid_mode = ['sqrt', 'gf_1']
     to_iter = itertools.product(model_names, unconstrained, active_sampling, grid_mode)
 
-    for t_varing in ['exp', 'gri', 'eps', '']:
-        t_varing = '_' + t_varing if t_varing != '' else ''
+    for t_varing in ['_exp', '_gri', '_eps', '', ' binary']:
         for t_run_lp in run_linprog:
             for t_model_name, t_unconstrained, t_active_sampling, t_grid_mode in deepcopy(to_iter):
                 name = 'sub_' if t_active_sampling else ''
@@ -44,7 +93,8 @@ def generate_map_df():
         values_dict['unconstrained' + t_varing] = 'UNMITIGATED full'
         values_dict['unconstrained_frac' + t_varing] = 'UNMITIGATED=static'
 
-    return pd.DataFrame.from_dict(values_dict, orient='index', columns=['label'])
+    return pd.DataFrame.from_dict({key: replace_words(value) for key, value in values_dict.items()}, orient='index',
+                                  columns=['label'])
 
 
 linewidth = 1.5  # 0.5
@@ -68,15 +118,16 @@ class StyleUtility:
     map_df = generate_map_df()
     other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
     map_df = pd.concat([map_df,
-                        pd.DataFrame.from_dict({x: x for x in other_models},
+                        pd.DataFrame.from_dict({x: replace_words(x) for x in other_models},
                                                orient='index', columns=['label'])
                         ])
 
     graphic_style_map = {
-        'EXPGRAD': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
-        'EXPGRAD_orig': {'color': 'tab:blue', 'marker': MarkerStyle('o', fillstyle='none'), 'linestyle': '--', },
+        'EXPGRAD++': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
         'EXPGRAD=adaptive GS=No LP=Yes': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
+        'EXPGRAD=adaptive GS=No LP=Yes binary': {'color': 'tab:blue', 'marker': '.', 'linestyle': '--'},
         'EXPGRAD=static GS=No LP=Yes': {'color': 'tab:orange', 'marker': '.', 'linestyle': '-.'},
+        'EXPGRAD=static GS=No LP=Yes binary': {'color': 'tab:orange', 'marker': '.', 'linestyle': '-.'},
         'EXPGRAD=adaptive GS=No LP=Yes_orig': {'color': 'tab:blue', 'marker': MarkerStyle('o', fillstyle='none'),
                                                'linestyle': '-.', 's': markersize * 3},
         'EXPGRAD=adaptive GS=No LP=Yes Multi': {'color': 'tab:blue',
@@ -91,12 +142,14 @@ class StyleUtility:
         'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': '.', 'linestyle': '-.'},
 
         'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-'},
+        'UNMITIGATED full binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-'},
         'UNMITIGATED full_orig': {'color': 'tab:brown', 'marker': MarkerStyle('X', fillstyle='none'), 'linestyle': '-',
                                   's': markersize * 3},
         'UNMITIGATED full Multi': {'color': 'tab:brown',
                                    'marker': MarkerStyle('X', fillstyle='top', transform=Affine2D().rotate_deg(45)),
                                    'linestyle': '-', 's': markersize * 3},
-        'UNMITIGATED=static': {'color': 'tab:pink', 'marker': 'X', 'linestyle': '-.'},
+        'UNMITIGATED=static': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.'},
+        'UNMITIGATED=static binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.'},
 
         'Threshold': {'color': 'black', 'marker': 'P', 'linestyle': 'solid', 'linewidth': linewidth * .5},
 
@@ -108,18 +161,26 @@ class StyleUtility:
         'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 'd', 'linestyle': '-.', 's': rlp_false_markersize},
 
         'ThresholdOptimizer': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
+        'ThresholdOptimizer binary': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
         'ThresholdOptimizer_orig': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.', 'fillstyle': 'none'},
+
         'Calmon': {'color': 'tab:red', 'marker': '^', 'linestyle': '--'},
         'ZafarDI': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'ZafarDI binary': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)),
+                           'linewidth': linewidth * 1.5},
         'ZafarDI_orig': {'color': 'tab:purple', 'marker': MarkerStyle('s', fillstyle='none'), 'linestyle': (0, (1, 1)),
                          'linewidth': linewidth * 1.5, },
         'ZafarEO': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'ZafarEO binary': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)),
+                           'linewidth': linewidth * 1.5},
         'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
+        'Feld binary': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
         'Feld_orig': {'color': 'tab:orange', 'marker': MarkerStyle('D', fillstyle='none'), 'linestyle': (5, (10, 3))},
 
     }
 
-    graphic_style_map = {key: dict(base_config, label=key, **value) for key, value in graphic_style_map.items()}
+    graphic_style_map = {replace_words(key): dict(base_config, label=replace_words(key), **value) for key, value in
+                         graphic_style_map.items()}
 
     @staticmethod
     def get_label(model_code):
@@ -130,7 +191,11 @@ class StyleUtility:
 
     @staticmethod
     def get_style(key, index=None):
-        label = StyleUtility.get_label(key)
+        label = replace_words(StyleUtility.get_label(key))
         if label not in StyleUtility.graphic_style_map.keys():
             raise KeyError(f'key {label} not in graphic_style_map')
         return StyleUtility.graphic_style_map[label]
+
+    @staticmethod
+    def replace_words(sentence):
+        return replace_words(sentence)

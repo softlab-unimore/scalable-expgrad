@@ -12,7 +12,7 @@ from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 
 from graphic import utils_results_data
-from graphic.style_utility import StyleUtility
+from graphic.style_utility import StyleUtility, replace_words, replace_words_in_list
 from graphic.utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
     aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constrain_code_to_name
 import matplotlib as mpl
@@ -150,15 +150,15 @@ class PlotUtility():
 
     def _end_plot(self, x_axis, y_axis, title):
 
-        self.ax.set_ylabel(y_axis)
-        self.ax.set_title(f'{title} - {x_axis} v.s. {y_axis}')
+        self.ax.set_ylabel(StyleUtility.replace_words(y_axis))
+        self.ax.set_xlabel(StyleUtility.replace_words(f'{x_axis}'))
+        # self.ax.set_title(StyleUtility.replace_words(f'{title} - {x_axis} v.s. {y_axis}'))
         if x_axis == 'time':
             self.ax.set_xscale("log")
-        else:
-            self.ax.set_xlabel(f'{x_axis}')
+
         if y_axis == 'time':
             self.ax.set_yscale("log")
-            ylabel = self.ax.get_ylabel()
+            # ylabel = self.ax.get_ylabel() # todo delete
         self.ax.legend()
         if self.show:
             self.fig.show()
@@ -234,6 +234,7 @@ class PlotUtility():
         label_params = self.get_all_params(model_code)
         label_params['label'] += label_suffix
 
+        # todo plot axhline or axvline if a value is nan
         if len(set(y)) < 1 or pd.isna(y).all():
             line_params['linewidth'] *= 1.5
             for key in ['fmt', 'elinewidth']:
@@ -243,7 +244,7 @@ class PlotUtility():
                     pass
             if x[0] == 0 or pd.isna(x).all():
                 label_params.pop('marker')
-                label_params.pop('elinewidth')
+                # label_params.pop('elinewidth')
                 self.ax.axhline(y[-1], zorder=10, **(line_params | label_params))
                 return
             else:
@@ -380,7 +381,7 @@ class PlotUtility():
         plt.close('all')
         fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig, **kwargs)
-        ax.set_title(name)
+        ax.set_title(StyleUtility.replace_words(name))
         if self.show:
             plt.show()
         self.save_figure(additional_dir_path=additional_dir_path, name=name, fig=fig)
@@ -423,14 +424,15 @@ def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis
     # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
     df = df.set_index('model_code')
     yerr = df[y_axis_list + '_error']
-    yerr.columns = y_axis_list + '_mean'
-    df[y_axis_list + '_mean'].plot.bar(yerr=yerr, rot=0, fontsize=8, ax=ax)
+    yerr.columns = replace_words_in_list(y_axis_list)
+    df.columns = replace_words_in_list(df.columns)
+    df[yerr.columns].plot.bar(yerr=yerr, rot=0, fontsize=8, ax=ax)
 
 
 def phase_time_vs_frac(df, ax, fig, y_log=True):
     to_plot = df.groupby(['frac', 'phase']).agg({'time': ['mean', ('error', get_confidence_error)]}).unstack('phase')
     yerr = to_plot.loc[:, ('time', 'error', slice(None))]
-    to_plot.plot(y=('time', 'mean'), yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
+    to_plot.plot(y=('time', 'mean'), yerr=yerr.values.T, rot=0, ax=ax, ylabel=StyleUtility.replace_words('time'))
     if y_log:
         ax.set_yscale("log")
 
@@ -446,7 +448,7 @@ def plot_metrics_time(df, ax, fig):
 
     to_plot = all_df.groupby(cols).agg(['mean', ('error', get_confidence_error)])
     yerr = to_plot.loc[:, (slice(None), 'error')]
-    to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel='time')
+    to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel=StyleUtility.replace_words('time'))
 
 
 def plot_routine_performance_violation(all_model_df, dataset_name, save=True, show=True, suffix='', ):
@@ -589,11 +591,11 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
 
                     pl_util.add_multiple_lines(turn_df, grouping_col, model_list, increasing_marker_size, annotate_col)
                     pl_util._end_plot(x_axis, y_axis, f'{subplot_value}')
-                    pl_util.ax.set_title(f'{subplot_value}')
+                    pl_util.ax.set_title(StyleUtility.replace_words(f'{subplot_value}'))
                     pl_util.ax.get_legend().remove()
                     if xlog:
                         pl_util.ax.set_xscale("log")
-                        xlabel = pl_util.ax.get_xlabel()
+                        # xlabel = pl_util.ax.get_xlabel()
                         # pl_util.ax.set_xlabel(f'{xlabel} (log)')
                     if sharey is False:
                         pl_util.ax.yaxis.set_tick_params(which='both', labelleft=True)
@@ -633,7 +635,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
             for ax in axes_array[:-1, :].flat:
                 ax.set_xlabel('')
                 ax.xaxis.set_ticklabels([])
-            pl_util.fig.suptitle(f'{base_model_code} - {constraint_code}')
+            # pl_util.fig.suptitle(StyleUtility.replace_words(f'{base_model_code} - {constraint_code}'))
             if show:
                 fig.show()
             pl_util.save_figure(additional_dir_path=result_path_name,

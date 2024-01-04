@@ -350,7 +350,7 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
             if filepath.name.endswith('.csv'):
                 df = pd.read_csv(filepath)
 
-                current_config = utils_experiment.get_config_by_id(experiment_code)
+                current_config = utils_experiment_parameters.get_config_by_id(experiment_code)
                 df = prepare_data(df)
                 if 'grid_fractions' in current_config.keys() and current_config['grid_fractions'] == [1]:
                     models_with_gridsearch = df.query('phase == "grid_frac"')['model_code'].unique()

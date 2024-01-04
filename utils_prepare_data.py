@@ -278,9 +278,9 @@ def find_privileged_unprivileged(X, y, sensitive_features):
 def get_dataset(dataset_str, prm=None):
     if dataset_str == "adult":
         return load_transform_Adult()
-    elif dataset_str in utils_experiment.sigmod_datasets + utils_experiment.sigmod_datasets_aif360:
+    elif dataset_str in utils_experiment_parameters.sigmod_datasets + utils_experiment_parameters.sigmod_datasets_aif360:
         return load_convert_dataset_aif360(dataset_str)
-    elif dataset_str in utils_experiment.ACS_dataset_names:
+    elif dataset_str in utils_experiment_parameters.ACS_dataset_names:
         return load_transform_ACS(dataset_str=dataset_str, states=prm['states'])
     else:
         raise_dataset_name_error(dataset_str)
