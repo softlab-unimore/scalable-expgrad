@@ -46,7 +46,10 @@ if __name__ == '__main__':
     rlp_false_conf_list = [
         'f_eta0_eps.1',
         'f_eta0_eps.2',
-        'f_eta0_1.2',
+        'f_eta0_eps.3P',
+        'f_eta0_eps.4P',
+        'f_eta0_eps.3E',
+        'f_eta0_eps.4E',
     ]
 
     dataset_results_path = os.path.join("results")
@@ -54,7 +57,6 @@ if __name__ == '__main__':
     results_df = utils_results_data.load_results_experiment_id(experiment_code_list, dataset_results_path)
 
     results_df = results_df[~((results_df['model_code'] == "unconstrained") & (results_df['exp_frac'] == 0.251))]
-
 
     # Check number of replication
     # all_df.loc[all_df['model_name'] == 'ZafarDI', ['train_test_fold', 'random_seed', 'train_test_seed']].apply(lambda x: '_'.join(x.astype(str)), 1).nunique()
@@ -70,14 +72,13 @@ if __name__ == '__main__':
 
     restricted = ['hybrid_7', 'unconstrained', ]  # PlotUtility.other_models + ['hybrid_7_exp',]
 
-
     grouping_col = 'eps'
     x_axis_list = ['eps']
 
     # Version v1 nad v2
     rlp_df_filtered = rlp_df[rlp_df['max_iter'].isin([5, 10, 50, 100])]
     all_df = pd.concat([results_df, rlp_df_filtered])
-    restricted_v1 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered[
+    restricted_v1 = restricted + ['Calmon', 'Feld', 'ZafarDI', 'ZafarEO', 'ThresholdOptimizer', ] + rlp_df_filtered[
         'model_code'].unique().tolist()
     # todo add most_frequent
 
@@ -94,10 +95,9 @@ if __name__ == '__main__':
                              save=save, show=show,
                              axis_to_plot=list(itertools.product(x_axis_list, y_axis_list)))
 
-
     rlp_df_filtered_v2 = rlp_df[rlp_df['max_iter'].isin([50])]
     all_df = pd.concat([results_df, rlp_df_filtered_v2])
-    restricted_v2 = restricted + ['Calmon', 'ZafarDI', 'ThresholdOptimizer', 'Feld', 'ZafarEO'] + rlp_df_filtered_v2[
+    restricted_v2 = restricted + ['Calmon', 'Feld', 'ZafarDI', 'ZafarEO', 'ThresholdOptimizer', ] + rlp_df_filtered_v2[
         'model_code'].unique().tolist()
     sort_map = {name: i for i, name in enumerate(restricted_v2)}
     all_df = all_df.assign(model_sort=all_df['model_code'].map(sort_map)).sort_values(

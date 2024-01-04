@@ -69,27 +69,27 @@ if __name__ == '__main__':
     gf_1_conf = set(experiment_code_list) - set(sqrt_conf)
 
     grid_chart_models = [
-        # 'expgrad_fracs_exp',
-        # 'hybrid_3_exp_gf_1',
-        # 'hybrid_5_exp',
-        # 'hybrid_3_exp',
-        # 'hybrid_3_exp_gf_1',
-        'hybrid_7_exp',
-        # 'sub_hybrid_5_exp',
-        'sub_hybrid_3_exp_gf_1',
+        # 'expgrad_fracs',
+        # 'hybrid_3_gf_1',
+        # 'hybrid_5',
+        # 'hybrid_3',
+        # 'hybrid_3_gf_1',
+        'hybrid_7',
+        # 'sub_hybrid_5',
+        'sub_hybrid_3_gf_1',
         '',
     ]
     grid_sqrt_models = [
-        'hybrid_3_exp',
-        'hybrid_3_exp_gf_1',
-        'sub_hybrid_3_exp',  # sqrt
-        'sub_hybrid_3_exp_gf_1',
+        'hybrid_3',
+        'hybrid_3_gf_1',
+        'sub_hybrid_3',  # sqrt
+        'sub_hybrid_3_gf_1',
     ]
     exp_frac_models = [
-        'hybrid_7_exp',
-        'hybrid_5_exp',
-        'unconstrained_exp',
-        'unconstrained_frac_exp',
+        'hybrid_7',
+        'hybrid_5',
+        # 'unconstrained',
+        'unconstrained_frac',
     ]
 
     sort_map = {name: i for i, name in enumerate(grid_chart_models)}
@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     gf_1_df = all_df
     """
-     Loading sqrt only when needed. Avoid multiple version of same configs (eg. hybrid_5_exp)
+     Loading sqrt only when needed. Avoid multiple version of same configs (eg. hybrid_5)
      loading and selecting only models with sqrt from sqrt experiments results.
     """
     sqrt_df = utils_results_data.load_results_experiment_id(sqrt_conf, dataset_results_path)
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     employment_sqrt_df = employment_sqrt_df.query('dataset_name == "ACSEmployment"')
                                                   # ' and train_test_fold == 0 and random_seed == 0 and train_test_seed == 0')
 
-    # gf_1_df = gf_1_df[gf_1_df['model_code'].isin(['sub_hybrid_3_exp_gf_1'])] # todo delete
+    # gf_1_df = gf_1_df[gf_1_df['model_code'].isin(['sub_hybrid_3_gf_1'])] # todo delete
     all_df = pd.concat([sqrt_df, gf_1_df, employment_sqrt_df]).reset_index(drop=True)
 
     all_df = select_oracle_call_time(all_df)

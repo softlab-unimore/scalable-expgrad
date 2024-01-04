@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     normal_expgrad['max_iter'] = 50
     all_df = best_gap_filter_on_eta0(all_df)
-    expgrad_name = 'EXPGRAD'
+    expgrad_name = 'EXPGRAD++'
     normal_expgrad['model_code'] = expgrad_name
     all_df = pd.concat([all_df, normal_expgrad  # , non_selected_df
                         ])
@@ -62,16 +62,19 @@ if __name__ == '__main__':
             if col == 0:
                 _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, .25)) for d in ret_kwargs]
             elif col == 1:
-                _ = [d.update(textcoords='offset fontsize', xytext=(.25, .25)) for d in ret_kwargs]
+                if row == 1:
+                    _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, .25)) for d in ret_kwargs]
+                elif row == 0:
+                    _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, -1.1)) for d in ret_kwargs]
             else:
-                _ = [d.update(textcoords='offset fontsize', xytext=(.45, -1.1)) for d in ret_kwargs]
+                _ = [d.update(textcoords='offset fontsize', xytext=(.35, .25)) for d in ret_kwargs]
             # _ = [d.update(textcoords='offset fontsize', xytext=(-3, .25)) for d, an in zip(ret_kwargs, annotate_values) if an == 22.5]
         elif model_code.startswith('RLP'):
             _ = [d.update(textcoords='offset fontsize', xytext=(-1.3, .25)) for d in ret_kwargs]
         return ret_kwargs
 
 
-    y_lim_map = { 'train_violation': (-0.005, 0.05), }
+    y_lim_map = {'train_violation': (-0.005, 0.05), }
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
         pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all',
