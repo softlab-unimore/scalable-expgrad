@@ -15,16 +15,16 @@ rename_word_dict = {'lr': 'Logistic Regression',
                     'adult': 'Adult',
                     'compas': 'COMPAS',
                     'german': 'German',
-                    'time': 'Time (s)',
+                    'time': 'Training time [s]',
                     'test_error': 'Test Error',
-                    'test_DemographicParity': 'Test Demographic Parity',
-                    'test_EqualizedOdds': 'Test Equalized Odds',
+                    'test_DemographicParity': 'Demographic parity\ndifference on test data',
+                    'test_EqualizedOdds': 'Equalized odds\ndifference on test data',
                     'train_error': 'Train Error',
-                    'train_DemographicParity': 'Train Demographic Parity',
-                    'train_EqualizedOdds': 'Train Equalized Odds',
+                    'train_DemographicParity': 'Demographic parity\ndifference on train data',
+                    'train_EqualizedOdds': 'Equalized odds\ndifference on train data',
                     'eps': 'Epsilon value (eps)',
                     'EXPGRAD=adaptive': 'EXPGRAD++',
-                    'exp_frac': 'sample fraction',
+                    'exp_frac': r'Sampling fraction $\rho$',
                     'RLP=False': 'EXPGRAD',
                     'RLP=F': 'EXPGRAD',
                     'GS=No': '',  # remove?
@@ -32,11 +32,11 @@ rename_word_dict = {'lr': 'Logistic Regression',
                     'LP=No': '',  # remove?
                     'max_iter=50': '',  # remove?
                     'full': '',  # remove?
-                    'zafarDI': 'ZAFAR',
-                    'zafarEO': 'ZAFAR',
-                    'Feld': 'FELD',
+                    'ZafarDI': 'Zafar DI',
+                    'ZafarEO': 'Zafar EO',
+                    'Feld': 'Feld',
                     'Calmon': 'CALMON',
-                    'ThresholdOptimizer': 'HARDT',
+                    'ThresholdOptimizer': 'Hardt',
                     'binary_mean': 'binary',
                     'multivalued_mean': 'multivalued',
                     # 'train_EqualizedOdds mean':'',
@@ -47,14 +47,21 @@ rename_word_dict = {'lr': 'Logistic Regression',
 
 # function to rename words in sentences by first splitting the sentence into words and then joining the words after using a dictionary to replace the words
 def replace_words(sentence):
+    """
+    Replace words in a sentence using a dictionary
+    :param sentence: sentence to replace words
+    :return: sentence with words replaced
+    """
     words = sentence.split()
     for i in range(len(words)):
         if words[i] in rename_word_dict.keys():
             words[i] = rename_word_dict[words[i]]
     return ' '.join(words).strip()
 
+
 def replace_words_in_list(sentence_list):
     return [replace_words(x) for x in sentence_list]
+
 
 def generate_map_df():
     values_dict = {}
@@ -103,13 +110,14 @@ rlp_false_markersize = markersize ** .5
 base_config = dict(linewidth=linewidth, elinewidth=linewidth / 4,
                    marker=MarkerStyle('1', 'left', 0), s=markersize, markevery=1,  # mew=linewidth / 2,
                    )
+unmitigated_markersize = markersize ** 0.9
 
 
 class StyleUtility:
     linewidth = linewidth
     markersize = markersize
 
-    common_keys = ['color']
+    common_keys = ['color', 'alpha', 'zorder']
     line_keys = common_keys + ['linestyle', 'linewidth', 'elinewidth']
     marker_keys = common_keys + ['marker', 's']
     bar_keys = common_keys + ['label']
@@ -141,17 +149,18 @@ class StyleUtility:
         'EXPGRAD=static GS=1 LP=Yes': {'color': 'tab:purple', 'marker': '.', 'linestyle': '-.'},
         'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': '.', 'linestyle': '-.'},
 
-        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-'},
-        'UNMITIGATED full binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-'},
+        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize, 'zorder':3},
+        'UNMITIGATED full binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize, 'zorder':3},
         'UNMITIGATED full_orig': {'color': 'tab:brown', 'marker': MarkerStyle('X', fillstyle='none'), 'linestyle': '-',
-                                  's': markersize * 3},
+                                  's': markersize * 3, 'zorder':3},
         'UNMITIGATED full Multi': {'color': 'tab:brown',
                                    'marker': MarkerStyle('X', fillstyle='top', transform=Affine2D().rotate_deg(45)),
                                    'linestyle': '-', 's': markersize * 3},
-        'UNMITIGATED=static': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.'},
-        'UNMITIGATED=static binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.'},
+        'UNMITIGATED=static': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.', 's': unmitigated_markersize, 'zorder':3},
+        'UNMITIGATED=static binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.',
+                                      's': unmitigated_markersize},
 
-        'Threshold': {'color': 'black', 'marker': 'P', 'linestyle': 'solid', 'linewidth': linewidth * .5},
+        'Threshold': {'color': 'black', 'marker': 'P', 'linestyle': 'solid', 'linewidth': linewidth},
 
         'RLP=F': {'color': 'tab:orange', 'marker': 's', 'linestyle': '-.', 's': rlp_false_markersize},
         'RLP=F max_iter=5': {'color': 'tab:brown', 'marker': 'v', 'linestyle': '-.', 's': rlp_false_markersize},
@@ -160,20 +169,20 @@ class StyleUtility:
         'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': '>', 'linestyle': '-.', 's': rlp_false_markersize * 1.5},
         'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 'd', 'linestyle': '-.', 's': rlp_false_markersize},
 
-        'ThresholdOptimizer': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
+        'ThresholdOptimizer': {'color': 'tab:green', 'marker':'*', 'linestyle': '-.', 's': markersize * 1.25},
         'ThresholdOptimizer binary': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
         'ThresholdOptimizer_orig': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.', 'fillstyle': 'none'},
 
         'Calmon': {'color': 'tab:red', 'marker': '^', 'linestyle': '--'},
-        'ZafarDI': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+        'ZafarDI': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth},
         'ZafarDI binary': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)),
-                           'linewidth': linewidth * 1.5},
+                           'linewidth': linewidth},
         'ZafarDI_orig': {'color': 'tab:purple', 'marker': MarkerStyle('s', fillstyle='none'), 'linestyle': (0, (1, 1)),
-                         'linewidth': linewidth * 1.5, },
-        'ZafarEO': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth * 1.5},
+                         'linewidth': linewidth, },
+        'ZafarEO': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth},
         'ZafarEO binary': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)),
-                           'linewidth': linewidth * 1.5},
-        'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
+                           'linewidth': linewidth},
+        'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3)), 'alpha':0.75 },
         'Feld binary': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
         'Feld_orig': {'color': 'tab:orange', 'marker': MarkerStyle('D', fillstyle='none'), 'linestyle': (5, (10, 3))},
 

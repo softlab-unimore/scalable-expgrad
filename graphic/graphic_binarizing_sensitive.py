@@ -23,6 +23,7 @@ if __name__ == '__main__':
         # 'acsER_bin2.1r',
         # 'acsER_bin3.0r',
         # 'acsER_bin4.0r',
+        # 'acsER_binB2.1r',
     ]
 
     dataset_results_path = os.path.join("results")
@@ -51,9 +52,9 @@ if __name__ == '__main__':
         multivalued_sensitive_df[to_synch + new_cols],
         on=to_synch, how='outer')
 
-    restricted = ['hybrid_7', 'unconstrained', ]
+    restricted = [ 'unconstrained', ]
     # restricted = [x.replace('_exp', '_eps') for x in restricted]
-    restricted += ['ThresholdOptimizer', 'Feld', 'ZafarDI', 'UNMITIGATED full', 'EXPGRAD=adaptive GS=No LP=Yes']
+    restricted += ['UNMITIGATED full',  'Feld', 'ZafarDI', 'ThresholdOptimizer',  'EXPGRAD=adaptive GS=No LP=Yes', 'hybrid_7',]
 
     sort_map = {name: i for i, name in enumerate(restricted)}
 
@@ -65,11 +66,15 @@ if __name__ == '__main__':
     grouping_col = 'eps'
     x_axis_list = ['eps']
     y_axis_list_long = ['_'.join(x) for x in
-                        itertools.product(['test',
-                                           'train'], [  # 'error',
+                        itertools.product(['test'], [  # 'error',
                                               'DemographicParity', 'DemographicParity_orig',
                                               'DemographicParity Multi'])]
-    y_axis_list_short = [x for x in y_axis_list_long if 'train' in x]
+    y_axis_list_short = ['_'.join(x) for x in
+                         itertools.product(['train'], [
+                             # 'DemographicParity',  # binary over binary
+                             'DemographicParity_orig',  # binary over multi-valued
+                             'DemographicParity Multi',  # multi over multi-valued
+                         ])]
 
     tranformed_df_list = []
     model_list = []
@@ -104,6 +109,8 @@ if __name__ == '__main__':
 
     model_list = list(restricted)
     all_df['model_code'] = all_df['model_code'].str[:-7]
+    # exclude ZafarDI when constraint_code is eo
+    all_df = all_df[~((all_df['model_code'] == 'ZafarDI') & (all_df['constraint_code'] == 'eo'))]
     mean_error_df = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
     mean_error_df['model_code'] = mean_error_df['model_code'].map(StyleUtility.get_label)
     mean_error_df['model_code'] = mean_error_df['model_code'].str.replace('EXPGRAD=adaptive GS=No LP=Yes',
@@ -116,11 +123,11 @@ if __name__ == '__main__':
     for key, value in y_axis_map.items():
         mean_error_df.columns = mean_error_df.columns.str.replace(key, value)
     y_bin_map = {f'{phase}_{cc}{agg}': f'{phase}_{cc} binary{agg}' for phase in ['test', 'train'] for cc in
-                 ['DemographicParity', 'EqualizedOdds'] for agg in ['','_mean','_error'] }
+                 ['DemographicParity', 'EqualizedOdds'] for agg in ['', '_mean', '_error']}
     mean_error_df = mean_error_df.rename(columns=y_bin_map)
     pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all')
     for (y_axis_list, suffix), (t_constraint, cc) in itertools.product(
-            [(y_axis_list_long, ''), (y_axis_list_short, '_v2')],
+            [(y_axis_list_short, '_v2'), (y_axis_list_long, ''), ],
             [('DemographicParity', 'dp'), ('EqualizedOdds', 'eo')]):
         # plot_all_df_subplots(all_df, model_list=restricted, chart_name='eps' + suffix, grouping_col='eps',
         #                      save=save, show=show,

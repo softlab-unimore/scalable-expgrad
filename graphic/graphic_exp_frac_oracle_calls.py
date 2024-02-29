@@ -86,13 +86,14 @@ if __name__ == '__main__':
         'sub_hybrid_3_gf_1',
     ]
     exp_frac_models = [
-        'hybrid_7',
-        'hybrid_5',
-        # 'unconstrained',
         'unconstrained_frac',
+        'hybrid_5',
+        'hybrid_7',
+        # 'unconstrained',
+
     ]
 
-    sort_map = {name: i for i, name in enumerate(grid_chart_models)}
+    sort_map = {name: i for i, name in enumerate(exp_frac_models)}
 
     dataset_results_path = os.path.join("results")
 

@@ -29,16 +29,18 @@ from utils_experiment_parameters import get_config_by_id
 from utils_general import DeprecateAction, mark_deprecated_help_strings, Singleton
 from utils_prepare_data import get_constraint
 
+def adjust_minus(x):
+    return x if x.startswith('--') else '--' + x
 
 def to_arg(list_p, dict_p, original_argv):
-    res_string = original_argv + list_p
+    res_string = original_argv + [adjust_minus(x) for x in list_p]
     for key, value in dict_p.items():
         if isinstance(value, list) or isinstance(value, range):
             value = [str(x) for x in value]
             # value = ' '.join([str(x) for x in value])
         else:
             value = [value]
-        res_string += [key] + value
+        res_string += [adjust_minus(key)] + value
         # res_string += [f'{key}={value}']
     return res_string
 
@@ -51,7 +53,8 @@ def execute_experiment(list_p, dict_p, original_argv):
     sys.argv = orig_argv
 
 
-params_initials_map = {'d': 'dataset', 'm': 'method', 'e': 'eps', 'ndp': 'num_data_points', 'nf': 'num_features',
+params_initials_map = {'d': 'dataset_name', 'm': 'model_name', 'e': 'eps', 'ndp': 'num_data_points',
+                       'nf': 'num_features',
                        't': 'theta', 'g': 'groups', 'gp': 'group_prob', 'yp': 'y_prob', 'sp': 'switch_pos',
                        'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
@@ -109,17 +112,18 @@ def launch_experiment_by_id(experiment_id: str):
     logging.info(f'Started logging.')
     to_iter = itertools.product(base_model_code_list, dataset_name_list, model_name_list)
     original_argv = sys.argv.copy()
-    for base_model_code, dataset_name, model_name in to_iter:
+    for base_model_code, dataset_name, model_name in to_iter:  # todo treat also constraint_code as list
         gc.collect()
         turn_a = datetime.now()
         logging.info(f'Starting combination:'
                      f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
-        args = [dataset_name, model_name] + params
-        kwargs = {}
-        for key in exp_dict.keys():
-            kwargs[f'--{key}'] = exp_dict[key]
+        # args = [dataset_name, model_name] + params
+        args = params
+        kwargs = {'dataset_name': dataset_name,
+                  'model_name': model_name}
+        kwargs.update(**exp_dict)
         if base_model_code is not None:
-            kwargs['--base_model_code'] = base_model_code
+            kwargs['base_model_code'] = base_model_code
         execute_experiment(args, kwargs, original_argv)
         turn_b = datetime.now()
         logging.info(
@@ -131,8 +135,6 @@ def launch_experiment_by_id(experiment_id: str):
 def set_general_random_seed(random_seed):
     np.random.seed(random_seed)
     joblib.parallel.PRNG = np.random.RandomState(random_seed)
-    
-
 
 
 class ExperimentRun(metaclass=Singleton):
@@ -148,8 +150,8 @@ class ExperimentRun(metaclass=Singleton):
     def get_arguments(self):
         simplefilter(action='ignore', category=FutureWarning)
         arg_parser = ArgumentParser()
-        arg_parser.add_argument("dataset")
-        arg_parser.add_argument("method")
+        arg_parser.add_argument('--dataset_name')
+        arg_parser.add_argument('--model_name')
 
         arg_parser.add_argument("--metrics", choices=['default', 'conversion_to_binary_sensitive_attribute'],
                                 default='default')
@@ -164,8 +166,8 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None, nargs='+')
         arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
         # Others
-        arg_parser.add_argument("--save", default=True)
-        arg_parser.add_argument("-v", "--random_seeds", help='random_seeds for everything. (aka random_state) '
+        arg_parser.add_argument("--no_save", default=True, dest='save', action='store_false')
+        arg_parser.add_argument("--random_seeds", help='random_seeds for everything. (aka random_state) '
                                                              'For models it\'s summed to train_test_fold when cross validating ',
                                 default=0,
                                 nargs='+', type=int)
@@ -213,7 +215,7 @@ class ExperimentRun(metaclass=Singleton):
         print('*' * 100)
         self.prm = prm
         ### Load dataset
-        self.dataset_str = prm['dataset']
+        self.dataset_str = prm['dataset_name']
 
         self.metrics_dict = metrics.get_metrics_dict(prm['metrics'])
 
@@ -266,7 +268,7 @@ class ExperimentRun(metaclass=Singleton):
     def run_model(self, datasets_divided, random_seed, other_params):
         results_list = []
         set_general_random_seed(random_seed)
-        if 'hybrids' == self.prm['method']:
+        if 'hybrids' == self.prm['model_name']:
             print(
                 f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
@@ -280,11 +282,11 @@ class ExperimentRun(metaclass=Singleton):
                                             random_seed=random_seed,
                                             constraint_code=self.prm['constraint_code'],
                                             **other_params)
-        elif 'unmitigated' == self.prm['method']:
+        elif 'unmitigated' == self.prm['model_name']:
             turn_results = self.run_unmitigated(*datasets_divided,
                                                 random_seed=random_seed,
                                                 base_model_code=self.prm['base_model_code'])
-        # elif 'fairlearn' == self.prm['method']:
+        # elif 'fairlearn' == self.prm['model_name']:
         #     turn_results = self.run_fairlearn_full(*datasets_divided, eps=self.prm['eps'],
         #                                            run_linprog_step=self.prm['run_linprog_step'],
         #                                            random_seed=random_seed,
@@ -312,7 +314,8 @@ class ExperimentRun(metaclass=Singleton):
         os.makedirs(directory, exist_ok=True)
         for prefix in [  # f'{self.time_str}',
             f'last']:
-            path = os.path.join(directory, f'{prefix}_{name}_{self.prm["dataset"]}_{self.prm["base_model_code"]}.csv')
+            path = os.path.join(directory,
+                                f"ds{prefix}_{name}_{self.prm['dataset_name']}_{self.prm['base_model_code']}.csv")
             if os.path.isfile(path):
                 old_df = pd.read_csv(path)
                 df = pd.concat([old_df, df])
@@ -320,7 +323,7 @@ class ExperimentRun(metaclass=Singleton):
             print(f'Saving results in: {path}')
 
     def set_base_data_dict(self):
-        keys = ['dataset', 'method', 'frac', 'model_name', 'base_model_code',
+        keys = ['dataset_name', 'model_name', 'frac', 'model_name', 'base_model_code',
                 'constraint_code', 'train_test_fold', 'total_train_size', 'total_test_size', 'phase',
                 'time']
         self.data_dict = {key: None for key in keys}
@@ -571,7 +574,7 @@ class ExperimentRun(metaclass=Singleton):
         self.test_data = test_data
         model = self.init_fairness_model(**kwargs)
         self.turn_results = []
-        self.data_dict.update({'model_name': self.prm['method']})
+        self.data_dict.update({'model_name': self.prm['model_name']})
         self.data_dict.update(**kwargs)
         eval_dataset_dict = {'train': train_data,
                              'test': test_data}
@@ -588,7 +591,7 @@ class ExperimentRun(metaclass=Singleton):
         base_model = self.load_base_model_with_best_param(base_model_code, random_state=random_seed,
                                                           fraction=fraction)  # TODO: fix random seed. Using 0 to simplify
         constrain_name = constraint_code_to_name[self.prm['constraint_code']]
-        return models.get_model(method_str=self.prm['method'], base_model=base_model, constrain_name=constrain_name,
+        return models.get_model(method_str=self.prm['model_name'], base_model=base_model, constrain_name=constrain_name,
                                 random_state=random_seed, datasets=self.datasets, **kwargs)
 
     def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all,

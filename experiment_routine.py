@@ -69,11 +69,10 @@ if __name__ == "__main__":
         'f_eta0_eps.4P',
         'f_eta0_eps.3E',
         'f_eta0_eps.4E',
-
-
+        'f_eta0_eps.4.2E',
+        'f_eta0_eps.3.2E',
 
         # doing in fairlearn-2
-
 
         # done on fairlearn-3
         's_zDI_1.2',
@@ -99,8 +98,6 @@ if __name__ == "__main__":
         'acsER_binB1.0r',
         # to update on fairlearn-3
 
-
-
         # doing on fairlearn-3
         'acsER_binB1.1Mr',
         'acsER_binB1.1r',
@@ -109,21 +106,14 @@ if __name__ == "__main__":
 
     ]
 
-
-
     conf_todo = [
         # next on fairlearn-2
-        'f_eta0_eps.4.2E',
-        'f_eta0_eps.3.2E',
-
         # next on fairlearn-3
-
-
+        'acsER_binB2.1r',
 
         # testing
         # 'acs_h_gs1_1.test',
         # 'f_eta0_1.0.test',
-
 
     ]
 

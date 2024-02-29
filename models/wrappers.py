@@ -1,4 +1,5 @@
 import copy
+import inspect
 from random import seed
 
 import numpy as np
@@ -351,21 +352,33 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
             res_dict[key] = getattr(self, key)
         return res_dict
 
-method_str_to_class = dict(
+additional_models_dict = dict(
     most_frequent=partial(sklearn.dummy.DummyClassifier, strategy="most_frequent"),
 )
 
 def create_wrapper(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
-    model_class = method_str_to_class.get(method_str)
+    model_class = additional_models_dict.get(method_str)
     class PersonalizedWrapper:
         def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
             self.method_str = method_str
             self.model = model_class(random_state=random_state, **kwargs)
 
+    params = inspect.signature(model_class.fit).parameters.keys()
+    if 'sensitive_features' in params:
+        def fit(self, X, y, sensitive_features):
+            self.model.fit(X, y, sensitive_features)
+            return self
+    else:
         def fit(self, X, y, sensitive_features):
             self.model.fit(X, y)
             return self
+    PersonalizedWrapper.fit = fit
 
+    params = inspect.signature(model_class.predict).parameters.keys()
+    if 'sensitive_features' in params:
+        def predict(self, X, sensitive_features):
+            return super().predict(X, sensitive_features=sensitive_features)
+    else:
         def predict(self, X):
             return self.model.predict(X)
 

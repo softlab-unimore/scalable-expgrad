@@ -50,6 +50,17 @@ eta_params_restricted_v2 = json.dumps({'eta0': [2.0], 'run_linprog_step': [False
                                        'max_iter': [100]})
 
 experiment_configurations = [
+
+{'experiment_id': 'experiment_code.0',
+     'dataset_names': ['ACSEmployment'], # list of dataset names
+     'model_names': ['hybrids'], # list of model names
+     'eps': BASE_EPS_V1, # list of epsilons
+     'exp_fractions': EXP_FRACTIONS_v1, # list of fractions
+     'base_model_code': ['lr', 'lgbm'], # list of base model codes
+     'random_seeds': RANDOM_SEEDS_v1, # list of random seeds
+     'constraint_code': 'dp', # constraint code
+     'other_params': eta_params_v1,
+     },
     {'experiment_id': 's_h_1.0.TEST',
      'dataset_names': sigmod_datasets,
      'model_names': ['hybrids'],
@@ -1102,6 +1113,16 @@ experiment_configurations = [
      'base_model_code': ['lr'],
      'random_seeds': RANDOM_SEEDS_v1,
      'constraint_code': 'eo',
+     },
+    {'experiment_id': 'acsER_binB2.1r',
+     'dataset_names': ['ACSEmployment'],
+     'model_names': ['ZafarEO'],
+     'eps': BASE_EPS_V1,
+     'base_model_code': ['lr'],
+     'random_seeds': RANDOM_SEEDS_v1,
+     'constraint_code': 'eo',
+     'metrics': 'conversion_to_binary_sensitive_attribute',
+     'preprocessing': 'binary_split_by_mean_y',
      },
 
 ]

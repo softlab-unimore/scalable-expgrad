@@ -57,24 +57,25 @@ if __name__ == '__main__':
     def custom_annotation_rlp(x, y, annotate_values, model_code=None, **kwargs):
         col = kwargs.get('col')
         row = kwargs.get('row')
-        ret_kwargs = [dict(text=f'{tt:.3g}', xy=(tx, ty), xycoords='data') for tx, ty, tt in zip(x, y, annotate_values)]
+        ret_kwargs = [dict(text=f'{tt: .3g}', xy=(tx, ty), xycoords='data') for tx, ty, tt in zip(x, y, annotate_values)]
         if model_code == expgrad_name:
             if col == 0:
-                _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, .25)) for d in ret_kwargs]
+                _ = [d.update(textcoords='offset fontsize', xytext=(-1.5, .25)) for d in ret_kwargs]
             elif col == 1:
                 if row == 1:
-                    _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, .25)) for d in ret_kwargs]
+                    _ = [d.update(textcoords='offset fontsize', xytext=(-1.5, .25)) for d in ret_kwargs]
                 elif row == 0:
-                    _ = [d.update(textcoords='offset fontsize', xytext=(-2.5, -1.1)) for d in ret_kwargs]
+                    _ = [d.update(textcoords='offset fontsize', xytext=(-1.5, -1.1)) for d in ret_kwargs]
             else:
-                _ = [d.update(textcoords='offset fontsize', xytext=(.35, .25)) for d in ret_kwargs]
+                _ = [d.update(textcoords='offset fontsize', xytext=(.45, .35)) for d in ret_kwargs]
             # _ = [d.update(textcoords='offset fontsize', xytext=(-3, .25)) for d, an in zip(ret_kwargs, annotate_values) if an == 22.5]
         elif model_code.startswith('RLP'):
             _ = [d.update(textcoords='offset fontsize', xytext=(-1.3, .25)) for d in ret_kwargs]
         return ret_kwargs
 
 
-    y_lim_map = {'train_violation': (-0.005, 0.05), }
+    all_df['last_iter_'] = all_df['last_iter_'] + 1
+    y_lim_map = {'train_violation': (-0.005, 0.05), 'train_error':(.2,.355) }
     for y_axis_list, suffix in [(y_axis_list_short, '_v2'), (y_axis_list_long, '')]:
         y_lim_list = [y_lim_map.get(x, None) for x in y_axis_list]
         pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode='all',
@@ -82,9 +83,9 @@ if __name__ == '__main__':
         pl_util.custom_annotation_hook = custom_annotation_rlp
         plot_all_df_subplots(all_df, model_list=all_df['model_code'].unique(), chart_name='eta0' + suffix,
                              grouping_col='max_iter',
-                             save=save, show=show, sharex=False, annotate_col='n_oracle_calls_',
+                             save=save, show=show, sharex=False, annotate_col='last_iter_',
                              sharey=False, axis_to_plot=list(itertools.product(['time'], y_axis_list)),
-                             add_threshold=False, pl_util=pl_util, ylim_list=y_lim_list, )
+                             add_threshold=False, pl_util=pl_util, ylim_list=y_lim_list, params=dict(same_scale_ylim_row=True))
 
     # plot_by_df(pl_util, all_df, all_df['model_code'].unique(), model_set_name='eta0',
     #            grouping_col='max_iter')

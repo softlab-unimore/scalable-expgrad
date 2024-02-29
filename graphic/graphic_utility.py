@@ -139,9 +139,6 @@ class PlotUtility():
             self.custom_add_graphic_object = self.add_bar
         else:
             self.custom_add_graphic_object = None
-        # plt.rcParams['lines.markersize'] = self.markersize
-        # plt.rcParams['lines.linewidth'] = self.linewidth
-        # self.label_map = {} # todo label map to change label names
 
     def _start_plot(self):
         plt.close('all')
@@ -151,7 +148,8 @@ class PlotUtility():
     def _end_plot(self, x_axis, y_axis, title):
 
         self.ax.set_ylabel(StyleUtility.replace_words(y_axis))
-        self.ax.set_xlabel(StyleUtility.replace_words(f'{x_axis}'))
+        self.ax.set_xlabel(StyleUtility.replace_words(x_axis))
+
         # self.ax.set_title(StyleUtility.replace_words(f'{title} - {x_axis} v.s. {y_axis}'))
         if x_axis == 'time':
             self.ax.set_xscale("log")
@@ -235,29 +233,28 @@ class PlotUtility():
         label_params['label'] += label_suffix
 
         # todo plot axhline or axvline if a value is nan
-        if len(set(y)) < 1 or pd.isna(y).all():
-            line_params['linewidth'] *= 1.5
-            for key in ['fmt', 'elinewidth']:
-                try:
-                    line_params.pop(key)
-                except:
-                    pass
+        if len(set(y)) == 1 or pd.isna(y).all():
             if x[0] == 0 or pd.isna(x).all():
+                for key in ['fmt', 'elinewidth']:
+                    try:
+                        line_params.pop(key)
+                    except:
+                        pass
                 label_params.pop('marker')
                 # label_params.pop('elinewidth')
-                self.ax.axhline(y[-1], zorder=10, **(line_params | label_params))
+                self.ax.axhline(y[-1], **(line_params | label_params))
                 return
             else:
-                self.ax.axhline(y[-1], zorder=10, **line_params)
+                # self.ax.axhline(y[-1], zorder=10, **line_params)
+                pass
 
 
         markers_params['markersize'] = markers_params.pop('s') ** .5
-        params = markers_params | label_params
-        if len(set(x)) > 1:
-            params = params | line_params
+        params = markers_params | label_params | line_params
+        # if len(set(x)) > 1:
+        #     params.pop('linewidth')
         self.ax.errorbar(**value_dict, **params)
-        # self.ax.scatter(x, y, **markers_params)
-        # self.ax.errorbar([], [], xerr=[], yerr=[], **label_params)
+
 
     def add_bar(self, value_dict, grouping_values, model_code, index, n_lines, label_suffix=''):
         if pd.isna(list(value_dict.values())).all():
@@ -381,7 +378,7 @@ class PlotUtility():
         plt.close('all')
         fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig, **kwargs)
-        ax.set_title(StyleUtility.replace_words(name))
+        # ax.set_title(StyleUtility.replace_words(name))
         if self.show:
             plt.show()
         self.save_figure(additional_dir_path=additional_dir_path, name=name, fig=fig)
@@ -403,7 +400,7 @@ def time_stacked_by_phase(df, ax, fig: plt.figure, name_col='label'):
     to_plot = to_plot.query('phase == "expgrad_fracs"')
     yerr = to_plot.loc[:, [x + '_error' for x in to_index]]
     to_plot.plot.bar(x='frac', stacked=True, y=[x + '_mean' for x in to_index], yerr=yerr.values.T, rot=45, ax=ax)
-    # todo fix replicated legend labels
+
     xticklabels = ax.xaxis.get_ticklabels()
     for label in xticklabels:
         label.set_ha('right')
@@ -420,13 +417,38 @@ def bar_plot_function_by_dataset(df, ax, fig: plt.figure, name_col='label', y_ax
 
 
 def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
-    y_axis_list = pd.Series(list(y_axis_list))
+    orig_y_axis_list = pd.Series(y_axis_list)
+    y_axis_list = pd.Series(replace_words_in_list(y_axis_list))
     # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
+    ylabel = ' '.join(y_axis_list[0].split(' ')[:5])
+    y_axis_list = pd.Series([' '.join(x.split(' ')[5:]) for x in y_axis_list])
+    # fig.
+
     df = df.set_index('model_code')
+    index = df.index.array
+    index[1::2] = '\n' + index[1::2]
+    df.index = index
+    df = df[pd.concat([orig_y_axis_list, orig_y_axis_list+ '_error'])]
+
+    df = df.rename(columns=dict(zip(orig_y_axis_list, y_axis_list)))
+    df = df.rename(columns=dict(zip(orig_y_axis_list + '_error', y_axis_list + '_error')))
     yerr = df[y_axis_list + '_error']
-    yerr.columns = replace_words_in_list(y_axis_list)
-    df.columns = replace_words_in_list(df.columns)
-    df[yerr.columns].plot.bar(yerr=yerr, rot=0, fontsize=8, ax=ax)
+    yerr.columns = y_axis_list
+
+    fig.set_size_inches(np.array([6.4, 4.8]) / 1.5)
+    df[yerr.columns].plot.bar(yerr=yerr, rot=0, fontsize=10, ax=ax)
+    legend = ax.get_legend()
+    labels = (x.get_text() for x in legend.get_texts())
+    ax.get_legend().remove()
+    fig.legend(legend.legendHandles, labels,
+               # ncol=min(7, len(y_axis_list)),
+               loc='upper center',
+               bbox_to_anchor=(0.5, 0.0),
+               bbox_transform=fig.transFigure,
+               fontsize=10,
+               )
+    ax.set_xlabel('')
+    ax.set_ylabel(ylabel)
 
 
 def phase_time_vs_frac(df, ax, fig, y_log=True):
@@ -530,7 +552,7 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                          increasing_marker_size=False,
                          subplots_by_col='dataset_name', subplots=True,
                          ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None,
-                         custom_add_graphic_object=None, pl_util=None, params=None):
+                         custom_add_graphic_object=None, pl_util=None, params={}):
     if annotate_col is not None:
         annotate_col += '_mean'
     if chart_name != '':
@@ -595,8 +617,6 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                     pl_util.ax.get_legend().remove()
                     if xlog:
                         pl_util.ax.set_xscale("log")
-                        # xlabel = pl_util.ax.get_xlabel()
-                        # pl_util.ax.set_xlabel(f'{xlabel} (log)')
                     if sharey is False:
                         pl_util.ax.yaxis.set_tick_params(which='both', labelleft=True)
 
@@ -614,16 +634,19 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                 if ylim_list is not None:
                     for r, lim in enumerate(ylim_list):
                         if lim is not None:
-                            axes_array[r, 0].set_ylim(lim)
+                            for tax in axes_array[r, :]:
+                                tax.set_ylim(lim)
+            if params.get('same_scale_ylim_row', False):
+                same_scale_ylim_row(axes_array)
             tmp_dict = [ax.get_legend_handles_labels() for ax in axes_array.flat[::-1]]
             handles, labels = max(tmp_dict, key=lambda x: len(x[1]))
             if len(labels) != len(model_list):
                 logging.warning('Some model are not displayed.')
-            fig.legend(handles, labels, ncol=min(6, len(model_list)),
-                       loc='lower center',
+            fig.legend(handles, labels, ncol=min(7, len(model_list)),
+                       loc='upper center',
                        bbox_to_anchor=(0.5, 0.0),
                        bbox_transform=fig.transFigure,
-                       borderaxespad=-2,
+                       # borderaxespad=-2,
                        fontsize=10,
                        )
             for ax in axes_array[1:].flat:
@@ -632,10 +655,25 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
             for ax in axes_array[:, 1:].flat:
                 ax.set_ylabel('')
                 # ax.label_outer()
-            for ax in axes_array[:-1, :].flat:
+            xlabels = []
+            for ax in axes_array[:, :].flat:
+                xlabels.append(ax.get_xlabel())
                 ax.set_xlabel('')
-                ax.xaxis.set_ticklabels([])
+            # for ax in axes_array[:-1, :].flat:
+            #     ax.xaxis.set_ticklabels([])
+            fig.tight_layout()
+            if np.unique(xlabels).size == 1:
+                fig.supxlabel(xlabels[0].replace('\n',' '), y=0, va='baseline', fontsize='small')
+                # fig.text(StyleUtility.replace_words(f'{xlabels[0]}'),
+                #                   xy=(0.5, -0.1),  # Position below x-axis labels
+                #                   xytext=(0.5, -0.2),  # Position of the main title
+                #                   xycoords='axes fraction',
+                #                   arrowprops=dict(arrowstyle='-'),
+                #                   annotation_clip=False)
+
             # pl_util.fig.suptitle(StyleUtility.replace_words(f'{base_model_code} - {constraint_code}'))
+            # fig.subplots_adjust(bottom=0.1)
+
             if show:
                 fig.show()
             pl_util.save_figure(additional_dir_path=result_path_name,
@@ -647,6 +685,20 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
     # if single_chart:
     #     plot_all_df_single_chart(pl_util, grouping_col, mean_error_df, model_set_name)
     return mean_error_df
+
+
+
+def same_scale_ylim_row(axes_array):
+    for axes_row in axes_array:
+        ylim_list = [ax.get_ylim() for ax in axes_row]
+        max_diff = max(ymax - ymin for ymin, ymax in ylim_list)
+        for ax, (ymin, ymax) in zip(axes_row, ylim_list):
+            center = np.mean((ymin, ymax))
+            new_ymin = center - max_diff / 2.0
+            new_ymax = new_ymin + max_diff
+            ax.set_ylim(new_ymin, new_ymax)
+
+
 
 
 def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name='',
@@ -736,16 +788,6 @@ def plot_by_df(pl_util: PlotUtility, all_df, model_list, model_set_name, groupin
             df_to_plot = rename_columns_to_plot(turn_df, x_axis, y_axis)
             pl_util._start_plot()
             pl_util.add_multiple_lines(df_to_plot, grouping_col, model_list, increasing_marker_size=True)
-            # df_groups = df_to_plot.groupby(['model_code'], sort=False, dropna=False)[
-            #     ['x', 'xerr', 'y', 'yerr', grouping_col]]
-            # n_lines = len(df_groups)
-            # for i, (model_code, value) in enumerate(df_groups):
-            #     value = value.sort_values(grouping_col)
-            #     value_dict = value[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
-            #     grouping_values = value[grouping_col]
-            #     pl_util.add_line_errorbar(value_dict, grouping_values, model_code=model_code,
-            #                               label_suffix='', i=i, n_lines=n_lines)
-            #     pl_util.add_annotation(value_dict['x'], value_dict['y'], grouping_values)
             pl_util._end_plot(x_axis, y_axis,
                               title=f'{constraint_code} - {dataset_name} - {base_model_code} - VARY {grouping_col}')
             name = f'all_{base_model_code}_{constraint_code}_VARY_{grouping_col}_{x_axis}_vs_{y_axis}'
