@@ -51,14 +51,23 @@ eta_params_restricted_v2 = json.dumps({'eta0': [2.0], 'run_linprog_step': [False
 
 experiment_configurations = [
 
-{'experiment_id': 'experiment_code.0',
-     'dataset_names': ['ACSEmployment'], # list of dataset names
-     'model_names': ['hybrids'], # list of model names
-     'eps': BASE_EPS_V1, # list of epsilons
-     'exp_fractions': EXP_FRACTIONS_v1, # list of fractions
-     'base_model_code': ['lr', 'lgbm'], # list of base model codes
-     'random_seeds': RANDOM_SEEDS_v1, # list of random seeds
-     'constraint_code': 'dp', # constraint code
+    {'experiment_id': 'demo.0',
+     'dataset_names': ['ACSIncome'],
+     'model_names': ['hybrids', 'ThresholdOptimizer', 'Feld', 'ZafarDI', 'ZafarEO'],
+     'eps': BASE_EPS_V1,
+     'base_model_code': ['lr'],
+     'random_seeds': [0],
+     'train_test_fold': [0],
+     'constraint_code': 'dp',
+     },
+    {'experiment_id': 'experiment_code.0',
+     'dataset_names': ['ACSEmployment'],  # list of dataset names
+     'model_names': ['hybrids'],  # list of model names
+     'eps': BASE_EPS_V1,  # list of epsilons
+     'exp_fractions': EXP_FRACTIONS_v1,  # list of fractions
+     'base_model_code': ['lr', 'lgbm'],  # list of base model codes
+     'random_seeds': RANDOM_SEEDS_v1,  # list of random seeds
+     'constraint_code': 'dp',  # constraint code
      'other_params': eta_params_v1,
      },
     {'experiment_id': 's_h_1.0.TEST',

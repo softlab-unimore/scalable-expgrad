@@ -109,8 +109,9 @@ if __name__ == "__main__":
     conf_todo = [
         # next on fairlearn-2
         # next on fairlearn-3
-        'acsER_binB2.1r',
 
+        #'acsER_binB2.1r',
+        'demo.0',
         # testing
         # 'acs_h_gs1_1.test',
         # 'f_eta0_1.0.test',

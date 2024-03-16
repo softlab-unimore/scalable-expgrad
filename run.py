@@ -29,8 +29,10 @@ from utils_experiment_parameters import get_config_by_id
 from utils_general import DeprecateAction, mark_deprecated_help_strings, Singleton
 from utils_prepare_data import get_constraint
 
+
 def adjust_minus(x):
     return x if x.startswith('--') else '--' + x
+
 
 def to_arg(list_p, dict_p, original_argv):
     res_string = original_argv + [adjust_minus(x) for x in list_p]
@@ -119,12 +121,15 @@ def launch_experiment_by_id(experiment_id: str):
                      f' base model: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name}')
         # args = [dataset_name, model_name] + params
         args = params
-        kwargs = {'dataset_name': dataset_name,
-                  'model_name': model_name}
+        kwargs = {'dataset_name': dataset_name, 'model_name': model_name}
         kwargs.update(**exp_dict)
         if base_model_code is not None:
             kwargs['base_model_code'] = base_model_code
-        execute_experiment(args, kwargs, original_argv)
+
+        try:
+            execute_experiment(args, kwargs, original_argv)
+        except Exception as e:
+            pass
         turn_b = datetime.now()
         logging.info(
             f'Ended: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name} in:\n {turn_b - turn_a}')
@@ -148,6 +153,9 @@ class ExperimentRun(metaclass=Singleton):
         self.time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     def get_arguments(self):
+
+        # TODO move specific parameters of expgrad from explicit arguments to other_params. [eps, exp_fractions, grid_fractions, exp_grid_ratio, exp_subset, constrain_code]
+        # TODO separate in a different function the syntetich data generation
         simplefilter(action='ignore', category=FutureWarning)
         arg_parser = ArgumentParser()
         arg_parser.add_argument('--dataset_name')
@@ -168,7 +176,7 @@ class ExperimentRun(metaclass=Singleton):
         # Others
         arg_parser.add_argument("--no_save", default=True, dest='save', action='store_false')
         arg_parser.add_argument("--random_seeds", help='random_seeds for everything. (aka random_state) '
-                                                             'For models it\'s summed to train_test_fold when cross validating ',
+                                                       'For models it\'s summed to train_test_fold when cross validating ',
                                 default=0,
                                 nargs='+', type=int)
         arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default=None, nargs='+',

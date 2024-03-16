@@ -337,7 +337,7 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
     # elif dataset_str in utils_experiment.dataset_names:
     data_values = DataValuesSingleton()
     if split_strategy == 'StratifiedKFold':
-        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed)
+        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=train_test_seed) # todo add to prm the number of splits
         X, y, A = datasets[:3]
         to_stratify = pd.Series(A).astype(str) + '_' + pd.Series(y).astype(str)
         if data_values.original_sensitive_attr is not None:
@@ -347,8 +347,7 @@ def split_dataset_generator(dataset_str, datasets, train_test_seed, split_strate
             datasets_divided = []
             for turn_index in [train_index, test_index]:  # train test split of datasets
                 datasets_divided.append([df.iloc[turn_index] for df in [X, y, A]])
-            data_values.train_index = train_index
-            data_values.test_index = test_index
+            data_values.set_train_test_index(train_index=train_index, test_index=test_index)
             yield datasets_divided
     elif split_strategy == 'stratified_train_test_split':
         X, y, A = datasets[:3]
