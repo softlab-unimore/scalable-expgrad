@@ -23,7 +23,7 @@ rename_word_dict = {'lr': 'Logistic Regression',
                     'train_DemographicParity': 'Demographic parity\ndifference on train data',
                     'train_EqualizedOdds': 'Equalized odds\ndifference on train data',
                     'eps': 'Epsilon value (eps)',
-                    'EXPGRAD=adaptive': 'EXPGRAD++',
+                    'EXPGRAD=adaptive': 'EXPGRAD++ (adaptive sampling)',
                     'exp_frac': r'Sampling fraction $\rho$',
                     'RLP=False': 'EXPGRAD',
                     'RLP=F': 'EXPGRAD',
@@ -32,13 +32,15 @@ rename_word_dict = {'lr': 'Logistic Regression',
                     'LP=No': '',  # remove?
                     'max_iter=50': '',  # remove?
                     'full': '',  # remove?
-                    'ZafarDI': 'Zafar DI',
-                    'ZafarEO': 'Zafar EO',
-                    'Feld': 'Feld',
+                    'ZafarDI': 'ZAFAR DI',
+                    'ZafarEO': 'ZAFAR EO',
+                    'Feld': 'FELD',
                     'Calmon': 'CALMON',
-                    'ThresholdOptimizer': 'Hardt',
+                    'ThresholdOptimizer': 'HARDT',
                     'binary_mean': 'binary',
                     'multivalued_mean': 'multivalued',
+                    'UNMITIGATED=static': 'UNMITIGATED (static sampling)',
+                    'EXPGRAD=static': 'EXPGRAD++ (static sampling)',
                     # 'train_EqualizedOdds mean':'',
                     # 'train_EqualizedOdds_orig mean',
                     # 'train EqualizedOdds Multi mean',
@@ -124,7 +126,7 @@ class StyleUtility:
     label_keys = common_keys + ['marker', 'label']
 
     map_df = generate_map_df()
-    other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI']
+    other_models = ['ThresholdOptimizer', 'Calmon', 'ZafarDI', 'Feld']
     map_df = pd.concat([map_df,
                         pd.DataFrame.from_dict({x: replace_words(x) for x in other_models},
                                                orient='index', columns=['label'])
@@ -149,14 +151,17 @@ class StyleUtility:
         'EXPGRAD=static GS=1 LP=Yes': {'color': 'tab:purple', 'marker': '.', 'linestyle': '-.'},
         'EXPGRAD=static GS=sqrt LP=Yes': {'color': 'tab:green', 'marker': '.', 'linestyle': '-.'},
 
-        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize, 'zorder':3},
-        'UNMITIGATED full binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize, 'zorder':3},
+        'UNMITIGATED full': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize,
+                             'zorder': 3},
+        'UNMITIGATED full binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-', 's': unmitigated_markersize,
+                                    'zorder': 3},
         'UNMITIGATED full_orig': {'color': 'tab:brown', 'marker': MarkerStyle('X', fillstyle='none'), 'linestyle': '-',
-                                  's': markersize * 3, 'zorder':3},
+                                  's': markersize * 3, 'zorder': 3},
         'UNMITIGATED full Multi': {'color': 'tab:brown',
                                    'marker': MarkerStyle('X', fillstyle='top', transform=Affine2D().rotate_deg(45)),
                                    'linestyle': '-', 's': markersize * 3},
-        'UNMITIGATED=static': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.', 's': unmitigated_markersize, 'zorder':3},
+        'UNMITIGATED=static': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.', 's': unmitigated_markersize,
+                               'zorder': 3},
         'UNMITIGATED=static binary': {'color': 'tab:brown', 'marker': 'X', 'linestyle': '-.',
                                       's': unmitigated_markersize},
 
@@ -169,7 +174,7 @@ class StyleUtility:
         'RLP=F max_iter=50': {'color': 'tab:pink', 'marker': '>', 'linestyle': '-.', 's': rlp_false_markersize * 1.5},
         'RLP=F max_iter=100': {'color': 'tab:cyan', 'marker': 'd', 'linestyle': '-.', 's': rlp_false_markersize},
 
-        'ThresholdOptimizer': {'color': 'tab:green', 'marker':'*', 'linestyle': '-.', 's': markersize * 1.25},
+        'ThresholdOptimizer': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.', 's': markersize * 1.25},
         'ThresholdOptimizer binary': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.'},
         'ThresholdOptimizer_orig': {'color': 'tab:green', 'marker': '*', 'linestyle': '-.', 'fillstyle': 'none'},
 
@@ -182,7 +187,7 @@ class StyleUtility:
         'ZafarEO': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)), 'linewidth': linewidth},
         'ZafarEO binary': {'color': 'tab:purple', 'marker': 's', 'linestyle': (0, (1, 1)),
                            'linewidth': linewidth},
-        'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3)), 'alpha':0.75 },
+        'Feld': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3)), 'alpha': 0.75},
         'Feld binary': {'color': 'tab:orange', 'marker': 'D', 'linestyle': (5, (10, 3))},
         'Feld_orig': {'color': 'tab:orange', 'marker': MarkerStyle('D', fillstyle='none'), 'linestyle': (5, (10, 3))},
 

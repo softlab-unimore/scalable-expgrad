@@ -374,9 +374,10 @@ class PlotUtility():
         host_name, current_time_str = get_info()
         return os.path.join(base_plot_dir, host_name + suffix, additional_dir_path)
 
-    def apply_plot_function_and_save(self, df, additional_dir_path, plot_function, name, **kwargs):
+    def apply_plot_function_and_save(self, df, additional_dir_path, plot_function, name, fig=None, ax=None, **kwargs):
         plt.close('all')
-        fig, ax = plt.subplots()
+        if fig is None or ax is None:
+            fig, ax = plt.subplots()
         plot_function(df, ax=ax, fig=fig, **kwargs)
         # ax.set_title(StyleUtility.replace_words(name))
         if self.show:
@@ -422,11 +423,10 @@ def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis
     # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
     ylabel = ' '.join(y_axis_list[0].split(' ')[:5])
     y_axis_list = pd.Series([' '.join(x.split(' ')[5:]) for x in y_axis_list])
-    # fig.
 
     df = df.set_index('model_code')
     index = df.index.array
-    index[1::2] = '\n' + index[1::2]
+    # index[1::2] = '\n' + index[1::2]
     df.index = index
     df = df[pd.concat([orig_y_axis_list, orig_y_axis_list+ '_error'])]
 
@@ -434,14 +434,13 @@ def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis
     df = df.rename(columns=dict(zip(orig_y_axis_list + '_error', y_axis_list + '_error')))
     yerr = df[y_axis_list + '_error']
     yerr.columns = y_axis_list
-
-    fig.set_size_inches(np.array([6.4, 4.8]) / 1.5)
+    # fig.set_size_inches(np.array([6.4, 4.8]) / 1.8)
     df[yerr.columns].plot.bar(yerr=yerr, rot=0, fontsize=10, ax=ax)
     legend = ax.get_legend()
     labels = (x.get_text() for x in legend.get_texts())
     ax.get_legend().remove()
     fig.legend(legend.legendHandles, labels,
-               # ncol=min(7, len(y_axis_list)),
+               ncol=min(7, len(y_axis_list)),
                loc='upper center',
                bbox_to_anchor=(0.5, 0.0),
                bbox_transform=fig.transFigure,
