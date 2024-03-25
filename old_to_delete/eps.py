@@ -24,7 +24,7 @@ if __name__ == "__main__":
         kwargs.update(**{
             '--eps': eps_list,
             '--sample_seeds': sample_seeds,
-            '--exp_fractions': fixed_sample_frac,
+            '--train_fractions': fixed_sample_frac,
             '--grid_fractions': fixed_sample_frac})
         execute_experiment(args, kwargs, original_argv)
 

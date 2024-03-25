@@ -15,7 +15,7 @@ if __name__ == "__main__":
         kwargs.update(**{
             '--eps': utils_experiment.eps_values,
             '--sample_seeds': utils_experiment.sample_variation,
-            '--exp_fractions': utils_experiment.fractions[-2:],
+            '--train_fractions': utils_experiment.fractions[-2:],
             '--grid_fractions': 1,
             '--base_model_code': 'lr',
             '--random_seed': 2,

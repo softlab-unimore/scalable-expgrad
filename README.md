@@ -37,7 +37,7 @@ import json
 # Experiment configurations example
 RANDOM_SEEDS_v1 = [0,1]
 BASE_EPS_V1 = [0.005]
-EXP_FRACTIONS_v1 = [0.001, 0.004, 0.016, 0.063, 0.251, 1]
+train_fractions_v1 = [0.001, 0.004, 0.016, 0.063, 0.251, 1]
 eta_params_v1 = json.dumps({'eta0': [0.5, 1.0, 2.0], 'run_linprog_step': [False],
                             'max_iter': [5, 10, 20, 50, 100]})
 
@@ -47,11 +47,11 @@ experiment_configurations = [
     'dataset_names': ['ACSEmployment'], # list of dataset names
     'model_names': ['hybrids'], # list of model names
     'eps': BASE_EPS_V1, # list of epsilons
-    'exp_fractions': EXP_FRACTIONS_v1, # list of fractions     
+    'train_fractions': train_fractions_v1, # list of fractions     
     'base_model_code': ['lr', 'lgbm'], # list of base model codes
     'random_seeds': RANDOM_SEEDS_v1, # list of random seeds
     'constraint_code': 'dp', # constraint code
-    'other_params': eta_params_v1,
+    'model_params': eta_params_v1,
 },
 ]
 ```
@@ -59,7 +59,7 @@ experiment_configurations = [
 Otherways, you can launch the experiment directly from the command line using the following command:
 
 ```bash
-python -m run.py ACSEmployment hybrids --experiment_id experiment_code.0 --eps 0.005 --exp_fractions 0.001 0.004 0.016 0.063 0.251 1 --random_seeds 0 1 --constraint_code dp --other_params {"eta0": [0.5, 1.0, 2.0], "run_linprog_step": [false], "max_iter": [5, 10, 20, 50, 100]} --base_model_code lr
+python -m run.py ACSEmployment hybrids --experiment_id experiment_code.0 --eps 0.005 --train_fractions 0.001 0.004 0.016 0.063 0.251 1 --random_seeds 0 1 --constraint_code dp --model_params {"eta0": [0.5, 1.0, 2.0], "run_linprog_step": [false], "max_iter": [5, 10, 20, 50, 100]} --base_model_code lr
 ```
 
 List of available models can be found in the `models.wrappers` module.
@@ -118,14 +118,14 @@ additional_models_dict = {
 
 [//]: # (```)
 
-[//]: # (time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=10000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test_ratio=0.3 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --exp_fractions=0.016 --grid-fraction=0.5)
+[//]: # (time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=10000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test_ratio=0.3 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --train_fractions=0.016 --grid-fraction=0.5)
 
 [//]: # (```)
 
 [//]: # ()
 [//]: # (```)
 
-[//]: # (time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=1000000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test_ratio=0.3 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --exp_fractions=0.016 --grid-fraction=0.5)
+[//]: # (time stdbuf -oL python run.py synth hybrids --eps=0.05 -n=1000000 -f=3 -t=0.5 -t0=0.3 -t1=0.6 -v=1 --test_ratio=0.3 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --train_fractions=0.016 --grid-fraction=0.5)
 
 [//]: # (```)
 
@@ -173,7 +173,7 @@ additional_models_dict = {
 
 [//]: # (```)
 
-[//]: # (time stdbuf -oL python run.py adult hybrids --eps=0.05 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --exp_fractions=0.001,0.004,0.016,0.063,0.251,1 --grid-fraction=0.5)
+[//]: # (time stdbuf -oL python run.py adult hybrids --eps=0.05 --sample_seeds=0,1,2,3,4,5,6,7,8,9 --train_fractions=0.001,0.004,0.016,0.063,0.251,1 --grid-fraction=0.5)
 
 [//]: # (```)
 

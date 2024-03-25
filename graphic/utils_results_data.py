@@ -108,7 +108,7 @@ def prepare_data(df):
     hybrid = df[expgrad_mask].copy()
     non_hybrid = df[~expgrad_mask]
     if not hybrid.empty:
-        hybrid['exp_frac'].fillna(1, inplace=True)
+        hybrid['frac'].fillna(1, inplace=True)
         # hybrid = calculate_movign_param(None, hybrid)
         if not df[df['phase'] == 'grid_frac'].empty:
             hybrid = take_max_for_grid_search(hybrid)

@@ -21,7 +21,7 @@ if __name__ == "__main__":
             kwargs.update(**{
                 '--eps': utils_experiment.eps,
                 '--sample_seeds': utils_experiment.sample_variation,
-                '--exp_fractions': utils_experiment.fractions,
+                '--train_fractions': utils_experiment.fractions,
                 # '--exp_grid_ratio': 'sqrt',
                 # '--grid_fractions': fixed_sample_frac,
                 '--grid_fractions': 1,
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         # kwargs.update(**{
         #     '--eps': eps,
         #     '--sample_seeds': sample_variation,
-        #     '--exp_fractions': 0.001,
+        #     '--train_fractions': 0.001,
         #     '--grid_fractions': fractions})
         # kwargs.pop('--exp_grid_ratio')
         # execute_experiment(args, kwargs, original_argv)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     #         kwargs = base_kwargs.copy()
     #         kwargs.update(**{
     #             '--sample_seeds': sample_variation,
-    #             '--exp_fractions': 0.016,
+    #             '--train_fractions': 0.016,
     #             '--grid-fraction': g})
     #         execute_experiment(args, kwargs, original_argv)
     #

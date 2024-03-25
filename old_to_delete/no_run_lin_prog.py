@@ -17,7 +17,7 @@ if __name__ == "__main__":
         kwargs.update(**{
             '--eps': eps,
             '--sample_seeds': sample_variation,
-            '--exp_fractions': fractions,
+            '--train_fractions': fractions,
             '--exp_grid_ratio': 'sqrt',
 
             # '--grid_fractions': fixed_sample_frac

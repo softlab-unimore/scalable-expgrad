@@ -169,7 +169,8 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser.add_argument("--eps", nargs='+', type=float, default=[None])
         arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
         # For hybrid methods
-        arg_parser.add_argument("--exp_fractions", nargs='+', type=float, default=[1])
+        arg_parser.add_argument("--train_fractions", nargs='+', type=float, default=[1])
+        arg_parser.add_argument("--expgrad_fractions", nargs='+', type=float, default=None)
         arg_parser.add_argument("--grid_fractions", nargs='+', type=float, default=None)
         arg_parser.add_argument("--exp_grid_ratio", choices=['sqrt', None], default=None, nargs='+')
         arg_parser.add_argument("--no_exp_subset", action="store_false", default=True, dest='exp_subset')
@@ -258,9 +259,16 @@ class ExperimentRun(metaclass=Singleton):
                 self.data_dict['train_test_seed'] = train_test_seed
                 self.data_dict['train_test_fold'] = train_test_fold
                 self.data_dict['random_seed'] = random_seed
-                params_to_iterate = {'eps': self.prm['eps']}
-                params_to_iterate.update(**self.prm['other_params'])
-                keys = params_to_iterate.keys()
+                params_to_iterate = {'eps': self.prm['eps'],
+                                     'train_fractions': self.prm['train_fractions'], }
+                # check that all values of model_params hasy type list or set or tuple, if not convert to list
+                for key, value in self.prm['model_params'].items():
+                    if not isinstance(value, (list, set, tuple)):
+                        self.prm['model_params'][key] = [value]
+
+
+                params_to_iterate.update(**self.prm['model_params'])
+                params_keys = params_to_iterate.keys()
                 for values in itertools.product(*params_to_iterate.values()):
                     turn_params_dict = dict(zip(keys, values))
                     self.data_dict.update(**turn_params_dict)
@@ -375,7 +383,7 @@ class ExperimentRun(metaclass=Singleton):
             eps = [eps]
         if not hasattr(grid_fractions, '__iter__'):
             grid_fractions = [grid_fractions]
-        to_iter = list(itertools.product(eps, exp_fractions, grid_fractions))
+        to_iter = list(itertools.product(eps, expgrad_fractions, grid_fractions))
         # Iterations on difference fractions
         for i, (turn_eps, exp_f, grid_f) in tqdm(list(enumerate(to_iter))):
             print('')
