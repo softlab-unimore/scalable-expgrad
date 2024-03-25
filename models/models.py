@@ -57,22 +57,23 @@ def finetune_model(base_model_code, X, y, random_seed=0):
     return clf
 
 
-def get_model(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
-    param_dict = dict(method_str=method_str, base_model=base_model, constrain_name=constrain_name, eps=eps,
-                      random_state=random_state, datasets=datasets)
-    model_list = ['hybrids', 'unmitigated', 'fairlearn', 'ThresholdOptimizer', 'MetaFairClassifier',
+model_list = ['hybrids', 'unmitigated', 'fairlearn', 'ThresholdOptimizer', 'MetaFairClassifier',
                   'AdversarialDebiasing', 'Kearns', 'Calmon', 'ZafarDI', 'Hardt', 'fairlearn_full', 'ZafarEO',
                   'Feld']
+
+def get_model(method_str, random_state=42, **kwargs):
+    param_dict = dict(method_str=method_str, random_state=random_state, )
+
     methods_name_dict = {x: x for x in model_list}
     if method_str == methods_name_dict['ThresholdOptimizer']:
+        estimator = kwargs.pop('base_model', None)
         model = wrappers.ThresholdOptimizerWrapper(
-            estimator=base_model,
-            constraints=constrain_name,
+            estimator=estimator,
             objective="accuracy_score",
             prefit=False,
             predict_method='predict_proba',
-            random_state=random_state)
-        if eps is not None:
+            random_state=random_state, **kwargs)
+        if kwargs.get('eps') is not None:
             logging.warning(f"eps has no effect with {method_str} methos")
     elif method_str == methods_name_dict['AdversarialDebiasing']:
         pass
@@ -96,12 +97,13 @@ def get_model(method_str, base_model, constrain_name, eps, random_state, dataset
         model = wrappers.ZafarEO(**param_dict, **kwargs)
     elif method_str == methods_name_dict['Hardt']:
         model = wrappers.Hardt(**param_dict, **kwargs)
-    elif method_str == methods_name_dict['fairlearn_full']:
+    elif method_str in [methods_name_dict['fairlearn_full'], methods_name_dict['fairlearn']]:
         model = wrappers.ExponentiatedGradientPmf(**param_dict, **kwargs)
     else:
         try:
             model = wrappers.create_wrapper(**param_dict, **kwargs)
         except Exception as e:
+            raise e
             raise ValueError(
                 f'the method specified ({method_str}) is not allowed. Valid options are {methods_name_dict.values()}')
     return model

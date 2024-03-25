@@ -1,30 +1,30 @@
 import gc
+import inspect
 import itertools
 import json
 import logging
-import traceback
-from copy import deepcopy
-from functools import partial
-import joblib, re
-import numpy as np
-import send2trash
-
-from tqdm import tqdm
-import sys
 import os
 import socket
+import sys
+import traceback
 from argparse import ArgumentParser
+from copy import deepcopy
 from datetime import datetime
+from functools import partial
 from warnings import simplefilter
+
+import joblib
+import numpy as np
 import pandas as pd
+import re
+import send2trash
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 import metrics
-from models import models
 import utils_prepare_data
-import inspect
+from models import models
 from models.hybrid_models import Hybrid5, Hybrid1, Hybrid2, Hybrid3, Hybrid4, ExponentiatedGradientPmf
-
 from utils_experiment_parameters import get_config_by_id
 from utils_general import DeprecateAction, mark_deprecated_help_strings, Singleton
 from utils_prepare_data import get_constraint
@@ -35,11 +35,14 @@ def adjust_minus(x):
 
 
 def to_arg(list_p, dict_p, original_argv):
-    res_string = original_argv + [adjust_minus(x) for x in list_p]
+    res_string = [original_argv[0]] + [adjust_minus(x) for x in list_p]
     for key, value in dict_p.items():
         if isinstance(value, list) or isinstance(value, range):
             value = [str(x) for x in value]
             # value = ' '.join([str(x) for x in value])
+
+        elif isinstance(value, dict):
+            value = [json.dumps(value)]
         else:
             value = [value]
         res_string += [adjust_minus(key)] + value
@@ -48,7 +51,7 @@ def to_arg(list_p, dict_p, original_argv):
 
 
 def execute_experiment(list_p, dict_p, original_argv):
-    orig_argv = sys.argv
+    orig_argv = sys.argv.copy()
     sys.argv = to_arg(list_p, dict_p, original_argv)
     exp_run = ExperimentRun()
     exp_run.run()
@@ -58,7 +61,7 @@ def execute_experiment(list_p, dict_p, original_argv):
 params_initials_map = {'d': 'dataset_name', 'm': 'model_name', 'e': 'eps', 'ndp': 'num_data_points',
                        'nf': 'num_features',
                        't': 'theta', 'g': 'groups', 'gp': 'group_prob', 'yp': 'y_prob', 'sp': 'switch_pos',
-                       'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'exp_fractions', 'gf': 'grid_fractions',
+                       'sn': 'switch_neg', 'sv': 'sample_variations', 'ef': 'train_fractions', 'gf': 'grid_fractions',
                        'egr': 'exp_grid_ratio', 'es': 'exp_subset', 's': 'states', 'rs': 'random_seed',
                        'rls': 'run_linprog_step', 'rt': 'redo_tuning', 're': 'redo_exp', 'bmc': 'base_model_code',
                        'cc': 'constraint_code', 'gri': 'grid_fractions', 'tts': 'train_test_split',
@@ -69,10 +72,10 @@ def get_initials(s: str, split_char='_'):
     return "".join([x[0] for x in re.split(split_char, s)])
 
 
-def launch_experiment_by_id(experiment_id: str):
-    exp_dict = get_config_by_id(experiment_id)
+def launch_experiment_by_config(exp_dict:dict):
     if exp_dict is None:
-        raise ValueError(f"{experiment_id} is not a valid experiment id")
+        raise ValueError(f"{exp_dict} is not a valid experiment id")
+    experiment_id = exp_dict.get('experiment_id', 'default')
     exp_dict_orig = exp_dict.copy()
     for attr in ['dataset_names', 'model_names']:
         if attr not in exp_dict.keys():
@@ -87,21 +90,22 @@ def launch_experiment_by_id(experiment_id: str):
         params = exp_dict.pop('params')
     else:
         params = []
+    results_dir = exp_dict.get('results_dir', 'results')
 
     host_name = socket.gethostname()
-    results_dir = os.path.join(f'results', host_name, experiment_id)
-    os.makedirs(results_dir, exist_ok=True)
     if "." in host_name:
         host_name = host_name.split(".")[-1]
+    full_results_dir = os.path.join(results_dir, host_name, experiment_id)
+    os.makedirs(full_results_dir, exist_ok=True)
     try:
-        for filepath in os.scandir(results_dir):
+        for filepath in os.scandir(full_results_dir):
             send2trash.send2trash(filepath)
     except:
         pass
     # logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)s:%(name)s: %(message)s', datefmt='%d/%m/%y %H:%M:%S',
-                        handlers=[logging.FileHandler(os.path.join(results_dir, 'run.log'), mode='a'),
+                        handlers=[logging.FileHandler(os.path.join(full_results_dir, 'run.log'), mode='a'),
                                   logging.StreamHandler()], force=True)
 
     def exc_handler(exctype, value, tb):
@@ -129,12 +133,23 @@ def launch_experiment_by_id(experiment_id: str):
         try:
             execute_experiment(args, kwargs, original_argv)
         except Exception as e:
-            pass
+            logging.info('****' * 10 + '\n' * 4 + f'Exception occured: {e}' + '\n' * 4 + '****' * 10)
+            gettrace = getattr(sys, 'gettrace', None)
+            if gettrace is None:
+                pass
+            elif gettrace():
+                raise e
+
         turn_b = datetime.now()
         logging.info(
             f'Ended: {base_model_code}, dataset_name: {dataset_name}, model_name: {model_name} in:\n {turn_b - turn_a}')
     b = datetime.now()
     logging.info(f'Ended experiment. It took: {b - a}')
+
+
+def launch_experiment_by_id(experiment_id: str):
+    exp_dict = get_config_by_id(experiment_id)
+    return launch_experiment_by_config(exp_dict)
 
 
 def set_general_random_seed(random_seed):
@@ -154,12 +169,12 @@ class ExperimentRun(metaclass=Singleton):
 
     def get_arguments(self):
 
-        # TODO move specific parameters of expgrad from explicit arguments to other_params. [eps, exp_fractions, grid_fractions, exp_grid_ratio, exp_subset, constrain_code]
+        # TODO move specific parameters of expgrad from explicit arguments to model_params. [eps, train_fractions, grid_fractions, exp_grid_ratio, exp_subset, constraint_code]
         # TODO separate in a different function the syntetich data generation
         simplefilter(action='ignore', category=FutureWarning)
         arg_parser = ArgumentParser()
-        arg_parser.add_argument('--dataset_name')
-        arg_parser.add_argument('--model_name')
+        arg_parser.add_argument('--dataset_name', nargs='+', required=True)
+        arg_parser.add_argument('--model_name', nargs='+', required=True)
 
         arg_parser.add_argument("--metrics", choices=['default', 'conversion_to_binary_sensitive_attribute'],
                                 default='default')
@@ -167,7 +182,7 @@ class ExperimentRun(metaclass=Singleton):
                                 default='default')
         # For Fairlearn and Hybrids
         arg_parser.add_argument("--eps", nargs='+', type=float, default=[None])
-        arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default='dp')
+        arg_parser.add_argument("--constraint_code", choices=['dp', 'eo'], default=None)
         # For hybrid methods
         arg_parser.add_argument("--train_fractions", nargs='+', type=float, default=[1])
         arg_parser.add_argument("--expgrad_fractions", nargs='+', type=float, default=None)
@@ -181,7 +196,7 @@ class ExperimentRun(metaclass=Singleton):
                                 default=0,
                                 nargs='+', type=int)
         arg_parser.add_argument('--train_test_seeds', help='seeds for train test split', default=None, nargs='+',
-                                type=int, action=DeprecateAction)
+                                type=int)
         arg_parser.add_argument('--test_size',
                                 help='when splitting without cross validation train_test_split test_size', default=0.3,
                                 type=float)
@@ -197,9 +212,12 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser.add_argument("--states", nargs='+', type=str)
         arg_parser.add_argument("--base_model_code", default=None)
         arg_parser.add_argument("--experiment_id", default=None)
-        arg_parser.add_argument("--other_params", default={}, type=json.loads,
-                                help='dict with keys as name of params to add and list of values to'
-                                     ' be iterated combining each value with the other combination of params ')
+        arg_parser.add_argument("--model_params", default={}, type=json.loads,
+                                help='dict with key, value pairs of model hyper parameter names (key) and list of values to'
+                                     ' be iterated (values). When multiple list of parameters are specified the cross'
+                                     ' product is used to generate all the combinations to test.')
+
+        arg_parser.add_argument("--debug", action="store_true", default=False)
         # For synthetic data
         arg_parser.add_argument("--num_data_points", type=int)
         arg_parser.add_argument("--num_features", type=int)
@@ -222,16 +240,27 @@ class ExperimentRun(metaclass=Singleton):
         for key, value in prm.items():
             print(f'{key}: {value}')
         print('*' * 100)
+        # Handling deprecated parameters
+        if prm.get('expgrad_fractions') is not None:
+            prm['model_params']['expgrad_fractions'] = prm['expgrad_fractions']
+            del prm['expgrad_fractions']
+        if prm.get('constraint_code') is not None:
+            prm['model_params']['constraint_code'] = [prm['constraint_code']]
+            del prm['constraint_code']
+        deprecated_args = ['train_test_seeds', 'constraint_code', 'expgrad_fractions', 'grid_fractions']
+
         self.prm = prm
         ### Load dataset
         self.dataset_str = prm['dataset_name']
 
         self.metrics_dict = metrics.get_metrics_dict(prm['metrics'])
 
-        return prm
+
 
     def run(self):
-        prm = self.get_arguments()
+        self.get_arguments()
+        prm = self.prm
+
 
         datasets = utils_prepare_data.get_dataset(self.dataset_str, prm=self.prm)
         datasets = utils_prepare_data.preprocess_dataset(datasets, prm=self.prm)
@@ -244,7 +273,7 @@ class ExperimentRun(metaclass=Singleton):
                 train_test_seed = original_random_seed
             self.set_base_data_dict()
             if prm['base_model_code'] is not None:
-                self.tuning_step(base_model_code=prm['base_model_code'], X=X, y=y, fractions=prm['exp_fractions'],
+                self.tuning_step(base_model_code=prm['base_model_code'], X=X, y=y, fractions=prm['train_fractions'],
                                  random_seed=0,
                                  redo_tuning=prm[
                                      'redo_tuning'])  # TODO: random_seed=0 to simplify, may be corrected later.
@@ -270,34 +299,38 @@ class ExperimentRun(metaclass=Singleton):
                 params_to_iterate.update(**self.prm['model_params'])
                 params_keys = params_to_iterate.keys()
                 for values in itertools.product(*params_to_iterate.values()):
-                    turn_params_dict = dict(zip(keys, values))
-                    self.data_dict.update(**turn_params_dict)
+                    all_params = dict(zip(params_keys, values))
+                    self.data_dict.update(**all_params)
                     logging.info(f'Starting step: random_seed: {random_seed}, train_test_seed: {train_test_seed}, '
                                  f'train_test_fold: {train_test_fold} \n'
-                                 + json.dumps(turn_params_dict, default=list))
+                                 + json.dumps(all_params, default=list))
                     a = datetime.now()
+                    turn_model_params = {key: all_params[key] for key in self.prm['model_params'].keys()}
                     self.run_model(datasets_divided=datasets_divided, random_seed=random_seed,
-                                   other_params=turn_params_dict)
+                                   model_params=turn_model_params)
                     b = datetime.now()
                     logging.info(f'Ended step in: {b - a}')
 
-    def run_model(self, datasets_divided, random_seed, other_params):
+    def run_model(self, datasets_divided, random_seed, model_params):
         results_list = []
         set_general_random_seed(random_seed)
         if 'hybrids' == self.prm['model_name']:
             print(
-                f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['exp_fractions']}, "
+                f"\nRunning Hybrids with random_seed {random_seed} and fractions {self.prm['train_fractions']}, "
                 f"and grid-fraction={self.prm['grid_fractions']}...\n")
-            turn_results = self.run_hybrids(*datasets_divided,
-                                            exp_fractions=self.prm['exp_fractions'],
-                                            grid_fractions=self.prm['grid_fractions'],
+            try:
+                model_params.pop('eps')
+            except:
+                pass
+            model_params = dict(grid_fractions=self.prm['grid_fractions'],
                                             exp_subset=self.prm['exp_subset'],
                                             exp_grid_ratio=self.prm['exp_grid_ratio'],
-                                            base_model_code=self.prm['base_model_code'],
                                             run_linprog_step=self.prm['run_linprog_step'],
                                             random_seed=random_seed,
+                                            base_model_code=self.prm['base_model_code'],
                                             constraint_code=self.prm['constraint_code'],
-                                            **other_params)
+                                            eps=self.data_dict.get('eps')) | model_params
+            turn_results = self.run_hybrids(*datasets_divided, **model_params)
         elif 'unmitigated' == self.prm['model_name']:
             turn_results = self.run_unmitigated(*datasets_divided,
                                                 random_seed=random_seed,
@@ -308,9 +341,9 @@ class ExperimentRun(metaclass=Singleton):
         #                                            random_seed=random_seed,
         #                                            base_model_code=self.prm['base_model_code'], )
         else:
+            model_params = dict(random_seed=random_seed, base_model_code=self.prm['base_model_code']) | model_params
             turn_results = self.run_general_fairness_model(*datasets_divided,
-                                                           random_seed=random_seed,
-                                                           base_model_code=self.prm['base_model_code'], **other_params)
+                                                           **model_params)
         results_list += turn_results
         results_df = pd.DataFrame(results_list)
         self.save_result(df=results_df)
@@ -351,7 +384,7 @@ class ExperimentRun(metaclass=Singleton):
                 self.data_dict[t_key] = 'empty'
 
     def run_hybrids(self, train_data: list, test_data: list, eps,
-                    random_seed, exp_fractions, grid_fractions, base_model_code='lr',
+                    random_seed,  grid_fractions=[1], expgrad_fractions=[1], base_model_code='lr',
                     exp_subset=True, exp_grid_ratio=None, run_linprog_step=True,
                     constraint_code='dp', add_unconstrained=False):
         simplefilter(action='ignore', category=FutureWarning)
@@ -586,14 +619,24 @@ class ExperimentRun(metaclass=Singleton):
 
     def run_general_fairness_model(self, train_data: list, test_data: list,
                                    **kwargs):
+
+        eval_dataset_dict = {}
+        frac = self.data_dict.get('train_fractions')
+        if frac is not None and frac < 1:
+            full_train = train_data
+            sample_index = np.random.choice(range(train_data[0].shape[0]), int(train_data[0].shape[0] * frac),
+                                            replace=False)
+            train_data = [x.iloc[sample_index] for x in train_data]
+            eval_dataset_dict.update(**{'full_train': full_train})
+
         self.train_data = train_data
         self.test_data = test_data
+        eval_dataset_dict.update(**{'train': train_data,
+                                    'test': test_data})
         model = self.init_fairness_model(**kwargs)
         self.turn_results = []
         self.data_dict.update({'model_name': self.prm['model_name']})
         self.data_dict.update(**kwargs)
-        eval_dataset_dict = {'train': train_data,
-                             'test': test_data}
         metrics_res, time_train_dict, time_eval_dict = self.fit_evaluate_model(model, train_data, eval_dataset_dict)
         time_train_dict['phase'] = 'train'
         if hasattr(model, 'get_stats_dict'):
@@ -606,17 +649,17 @@ class ExperimentRun(metaclass=Singleton):
                                    'eo': 'equalized_odds'}
         base_model = self.load_base_model_with_best_param(base_model_code, random_state=random_seed,
                                                           fraction=fraction)  # TODO: fix random seed. Using 0 to simplify
-        constrain_name = constraint_code_to_name[self.prm['constraint_code']]
-        return models.get_model(method_str=self.prm['model_name'], base_model=base_model, constrain_name=constrain_name,
-                                random_state=random_seed, datasets=self.datasets, **kwargs)
+        # kwargs['constraint_code'] = constraint_code_to_name[kwargs['constraint_code']]
+        if base_model is not None:
+            kwargs['base_model'] = base_model
+        return models.get_model(method_str=self.prm['model_name'], random_state=random_seed, datasets=self.datasets, **kwargs)
 
-    def run_unmitigated(self, X_train_all, y_train_all, A_train_all, X_test_all, y_test_all, A_test_all,
+    def run_unmitigated(self, train_data: list, test_data: list,
                         base_model_code, random_seed=0):
         self.turn_results = []
-        eval_dataset_dict = {'train': [X_train_all, y_train_all, A_train_all],
-                             'test': [X_test_all, y_test_all, A_test_all]}
+        eval_dataset_dict = {'train': train_data,
+                                    'test': test_data}
         base_model = self.load_base_model_with_best_param(base_model_code=base_model_code, random_state=random_seed)
-        train_data = dict(X=X_train_all, y=y_train_all, sensitive_features=A_train_all)
         metrics_res, time_exp_dict, time_eval_dict = self.fit_evaluate_model(base_model, train_data,
                                                                              eval_dataset_dict)
         time_exp_dict['phase'] = 'unconstrained'

@@ -29,9 +29,9 @@ from functools import partial
 
 class GeneralAifModel():
     def __init__(self, datasets):
-        # def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
-        # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
-        # __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+        # def __init__(self, method_str, base_model, constraint_code, eps, random_state, datasets, **kwargs):
+        # __init__(self, method_str, base_model, constraint_code, eps, random_state, datasets):
+        # __init__(self, method_str, base_model, constraint_code, eps, random_state, datasets):
 
         if len(datasets) >= 4:
             self.aif_dataset = copy.deepcopy(datasets[3])
@@ -42,20 +42,22 @@ class GeneralAifModel():
     def get_aif_dataset(datasets):
         X, Y, A = datasets[:3]
         priviliged_class = [Y.groupby(A).mean().sort_values(ascending=False).index.tolist()[0]]
+        if Y.name is None:
+            Y.name = 'label'
         protected_name = A.name
-        return StandardDataset(df=pd.concat([X,Y,A], axis=1),
-            label_name=Y.name,
-             favorable_classes=[1],
-             protected_attribute_names=[protected_name],
-             privileged_classes=[priviliged_class],
-             instance_weights_name=None,
-             categorical_features=[],
-             features_to_keep=X.columns.tolist() + [Y.name, protected_name],
-             na_values=[np.nan],
-             metadata=dict(label_maps= [{1: 1, 0: 0}],
-                       protected_attribute_maps= [{x:x for x in A.unique()}]
-                           ),
-             custom_preprocessing=None)
+        return StandardDataset(df=pd.concat([X, Y, A], axis=1),
+                               label_name=Y.name,
+                               favorable_classes=[1],
+                               protected_attribute_names=[protected_name],
+                               privileged_classes=[priviliged_class],
+                               instance_weights_name=None,
+                               categorical_features=[],
+                               features_to_keep=X.columns.tolist() + [Y.name, protected_name],
+                               na_values=[np.nan],
+                               metadata=dict(label_maps=[{1: 1, 0: 0}],
+                                             protected_attribute_maps=[{x: x for x in A.unique()}]
+                                             ),
+                               custom_preprocessing=None)
 
     def fit(self, X, y, sensitive_features):
         pass
@@ -81,7 +83,7 @@ def replace_values_aif360_dataset(X, y, sensitive_features, aif360_dataset):
 
 
 class CalmonWrapper(GeneralAifModel):
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+    def __init__(self, method_str, base_model, datasets, eps=None, constraint_code=None, random_state=None):
         super().__init__(datasets)
         X, y, A = datasets[:3]
         self.op = OptimPreproc(OptTools, self.get_option(self.aif_dataset),
@@ -123,8 +125,9 @@ class CalmonWrapper(GeneralAifModel):
             raise ValueError(f'{key} not found in available dataset configurations')
         return base_conf
 
+
 class FeldWrapper(GeneralAifModel):
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+    def __init__(self, method_str, base_model, datasets, eps=None, constraint_code=None, random_state=None):
         super().__init__(datasets)
         X, y, A = datasets[:3]
         self.preprocess_model = DisparateImpactRemover(sensitive_attribute=A.name)
@@ -163,12 +166,14 @@ class FeldWrapper(GeneralAifModel):
 
 
 class Hardt(GeneralAifModel):
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+    def __init__(self, random_state, method_str=None, base_model=None, datasets=None, eps=None, constraint_code=None, ):
         super().__init__(datasets)
+        self.method_str = method_str
         X, y, A = datasets
         self.base_model = base_model
         self.postprocess_model = EqOddsPostprocessing(
-            privileged_groups=[{self.aif_dataset.protected_attribute_names[0]: self.aif_dataset.privileged_protected_attributes}],
+            privileged_groups=[
+                {self.aif_dataset.protected_attribute_names[0]: self.aif_dataset.privileged_protected_attributes}],
             unprivileged_groups=[
                 {self.aif_dataset.protected_attribute_names[0]: self.aif_dataset.unprivileged_protected_attributes}],
             seed=random_state)
@@ -189,11 +194,11 @@ class Hardt(GeneralAifModel):
 
 
 class ZafarDI:
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
-
+    def __init__(self, method_str, base_model, datasets, eps=None, constraint_code=None, random_state=None):
         seed(random_state)  # set the random seed so that the random permutations can be reproduced again
         np.random.seed(random_state)
         X, y, A = datasets[:3]
+        self.method_str = method_str
 
         """ Classify such that we optimize for fairness subject to a certain loss in accuracy """
         params = dict(
@@ -230,17 +235,18 @@ class ZafarDI:
 
 
 class ZafarEO:
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+    def __init__(self, method_str, base_model, datasets, eps=None, constraint_code=None, random_state=None):
         seed(random_state)  # set the random seed so that the random permutations can be reproduced again
         np.random.seed(random_state)
-        X, y, A = datasets[:3] # todo fix name of A to race
-
+        X, y, A = datasets[:3]  # todo fix name of A to race
+        self.method_str = method_str
         """ Now classify such that we optimize for accuracy while achieving perfect fairness """
         # sensitive_attrs_to_cov_thresh = {A.name: {group: {0: 0, 1: 0} for group in A.unique()}}  # zero covariance threshold, means try to get the fairest solution
-        sensitive_attrs_to_cov_thresh = {A.name: {0:{0:0, 1:0}, 1:{0:0, 1:0}, 2:{0:0, 1:0}}} # zero covariance threshold, means try to get the fairest solution
+        sensitive_attrs_to_cov_thresh = {A.name: {0: {0: 0, 1: 0}, 1: {0: 0, 1: 0}, 2: {0: 0,
+                                                                                        1: 0}}}  # zero covariance threshold, means try to get the fairest solution
 
         cons_params = dict(
-            cons_type=1, # see cons_type in fair_classification.funcs_disp_mist.get_constraint_list_cov line 198
+            cons_type=1,  # see cons_type in fair_classification.funcs_disp_mist.get_constraint_list_cov line 198
             tau=5.0,
             mu=1.2,
             sensitive_attrs_to_cov_thresh=sensitive_attrs_to_cov_thresh,
@@ -251,17 +257,17 @@ class ZafarEO:
         self.fit_params = dict(loss_function="logreg",  # log_loss_sklearn,
 
                                EPS=1e-6,
-                               cons_params= cons_params,
+                               cons_params=cons_params,
                                )
-
 
     def fit(self, X, y, sensitive_features):
         self.scaler = StandardScaler()
         self.scaler.fit(X)
         X = self.scaler.transform(X)
         self.w = fair_classification.funcs_disp_mist.train_model_disp_mist(X, y * 2 - 1,
-                        {self.sensitive_attrs[0]: sensitive_features},
-                        **self.fit_params)
+                                                                           {self.sensitive_attrs[
+                                                                                0]: sensitive_features},
+                                                                           **self.fit_params)
         return self
 
     def predict(self, X):
@@ -273,7 +279,7 @@ class ZafarEO:
 
 class Kearns(GeneralAifModel):
     # todo to complete. Not working
-    def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets):
+    def __init__(self, method_str, base_model, datasets, eps=None, constraint_code=None, random_state=None):
         super().__init__(datasets)
         X, y, A = datasets
         self.base_model = base_model
@@ -330,12 +336,18 @@ class ThresholdOptimizerWrapper(ThresholdOptimizer):
 
 
 class ExponentiatedGradientPmf(ExponentiatedGradient):
-    def __init__(self, base_model, constrain_name, eps, random_state, datasets, run_linprog_step, eta0,
-                 method_str='fairlearn_full', **kwargs):
+    def __init__(self, base_model, constraint_code, eps, random_state, run_linprog_step=None, eta0=None,
+                 method_str='fairlearn_full', datasets=None, **kwargs):
         self.method_str = method_str
-        constraint = utils_prepare_data.get_constraint(constraint_code=constrain_name, eps=eps)
-        super().__init__(base_model, constraints=copy.deepcopy(constraint), eps=eps, nu=1e-6,
-                         run_linprog_step=run_linprog_step, random_state=random_state, eta0=eta0, **kwargs)
+        if eta0 is not None:
+            kwargs['eta0'] = eta0
+        if run_linprog_step is not None:
+            kwargs['run_linprog_step'] = run_linprog_step
+        if 'constraint_code' in kwargs:
+            kwargs.pop('constraint_code')
+        constraint = utils_prepare_data.get_constraint(constraint_code=constraint_code, eps=eps)
+        super(ExponentiatedGradientPmf, self).__init__(base_model, constraints=copy.deepcopy(constraint), eps=eps,
+                                                       nu=1e-6, random_state=random_state, **kwargs)
 
     def fit(self, X, y, sensitive_features, **kwargs):
         return super().fit(X, y, sensitive_features=sensitive_features, **kwargs)
@@ -352,14 +364,18 @@ class ExponentiatedGradientPmf(ExponentiatedGradient):
             res_dict[key] = getattr(self, key)
         return res_dict
 
-additional_models_dict = dict(
-    most_frequent=partial(sklearn.dummy.DummyClassifier, strategy="most_frequent"),
-)
 
-def create_wrapper(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+additional_models_dict = {
+    'most_frequent': partial(sklearn.dummy.DummyClassifier, strategy="most_frequent"),
+    'LogisticRegression': sklearn.linear_model.LogisticRegression,
+}
+
+
+def create_wrapper(method_str, random_state=42, datasets=None,  **kwargs):
     model_class = additional_models_dict.get(method_str)
+
     class PersonalizedWrapper:
-        def __init__(self, method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs):
+        def __init__(self, method_str, random_state=42, **kwargs):
             self.method_str = method_str
             self.model = model_class(random_state=random_state, **kwargs)
 
@@ -377,9 +393,10 @@ def create_wrapper(method_str, base_model, constrain_name, eps, random_state, da
     params = inspect.signature(model_class.predict).parameters.keys()
     if 'sensitive_features' in params:
         def predict(self, X, sensitive_features):
-            return super().predict(X, sensitive_features=sensitive_features)
+            return self.model.predict(X, sensitive_features=sensitive_features)
     else:
         def predict(self, X):
             return self.model.predict(X)
+    PersonalizedWrapper.predict = predict
 
-    return PersonalizedWrapper(method_str, base_model, constrain_name, eps, random_state, datasets, **kwargs)
+    return PersonalizedWrapper(method_str, random_state, **kwargs)
