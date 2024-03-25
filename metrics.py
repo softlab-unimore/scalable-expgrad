@@ -69,9 +69,13 @@ def trueRateBalance(X, Y, S, y_pred):
     mask_1 = (S == s_values[1]).ravel()
     results = {}
     for turn_mask, group in zip([mask_1, mask_0], [1, 0]):
-        TN, FP, FN, TP = confusion_matrix(Y[turn_mask], y_pred[turn_mask] == 1).ravel()
-        results[f'TPR_{group}'] = TP / (TP + FN)
-        results[f'TNR_{group}'] = TN / (FP + TN)
+        try:
+            TN, FP, FN, TP = confusion_matrix(Y[turn_mask], y_pred[turn_mask] == 1).ravel()
+            results[f'TPR_{group}'] = TP / (TP + FN)
+            results[f'TNR_{group}'] = TN / (FP + TN)
+        except Exception as e:
+            results[f'TPR_{group}'] = np.nan
+            results[f'TNR_{group}'] = np.nan
     return results
 
 

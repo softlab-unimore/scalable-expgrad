@@ -1,4 +1,4 @@
-,vary,constrain_code,base_model_code,model_names,dataset_name,state,exp_name
+,vary,constraint_code,base_model_code,model_names,dataset_name,state,exp_name
 0,eps,dp,lr,hybrids,compas,done,s_h_1.0
 1,eps,dp,lr,hybrids,german,done,s_h_1.0
 2,eps,dp,lr,hybrids,adult_sigmod,done,s_h_1.0

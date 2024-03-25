@@ -14,7 +14,7 @@ from matplotlib.transforms import Affine2D
 from graphic import utils_results_data
 from graphic.style_utility import StyleUtility, replace_words, replace_words_in_list
 from graphic.utils_results_data import get_info, get_confidence_error, mean_confidence_interval, \
-    aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constrain_code_to_name
+    aggregate_phase_time, load_results, filter_results, seed_columns, prepare_for_plot, constraint_code_to_name
 import matplotlib as mpl
 
 sns.set()  # for plot styling
@@ -234,7 +234,7 @@ class PlotUtility():
 
         # todo plot axhline or axvline if a value is nan
         if len(set(y)) == 1 or pd.isna(y).all():
-            if x[0] == 0 or pd.isna(x).all():
+            if pd.isna(x).all():
                 for key in ['fmt', 'elinewidth']:
                     try:
                         line_params.pop(key)
@@ -248,13 +248,11 @@ class PlotUtility():
                 # self.ax.axhline(y[-1], zorder=10, **line_params)
                 pass
 
-
         markers_params['markersize'] = markers_params.pop('s') ** .5
         params = markers_params | label_params | line_params
         # if len(set(x)) > 1:
         #     params.pop('linewidth')
         self.ax.errorbar(**value_dict, **params)
-
 
     def add_bar(self, value_dict, grouping_values, model_code, index, n_lines, label_suffix=''):
         if pd.isna(list(value_dict.values())).all():
@@ -280,11 +278,12 @@ class PlotUtility():
         df_groups = df.groupby('model_code', sort=False)
         # df['model_code'].drop_duplicates().apply(StyleUtility.get_label).tolist() # to get missing labels
         for i, (model_code, turn_df) in enumerate(df_groups):
-            turn_df = turn_df.sort_values(grouping_col)
+            if grouping_col is not None:
+                turn_df = turn_df.sort_values(grouping_col)
             index = list(model_list).index(model_code)
             value_dict = turn_df[['x', 'xerr', 'y', 'yerr']].to_dict(orient='list')
             grouping_values = None
-            if increasing_marker_size:
+            if increasing_marker_size and grouping_col is not None:
                 grouping_values = turn_df[grouping_col]
             if self.custom_add_graphic_object is None:
                 self.add_line_errorbar(value_dict, grouping_values=grouping_values, model_code=model_code,
@@ -297,7 +296,8 @@ class PlotUtility():
                 self.add_annotation(value_dict['x'], value_dict['y'], annotate_values, model_code=model_code)
 
     def add_annotation(self, x, y, annotate_values, annotation_fontize=10, model_code=None):
-        to_annotate = self.custom_annotation_hook(x, y, annotate_values, model_code=model_code, col=self.col, row=self.row)
+        to_annotate = self.custom_annotation_hook(x, y, annotate_values, model_code=model_code, col=self.col,
+                                                  row=self.row)
         if self.annotate_mode == 'first-last':
             to_iter = [to_annotate[0], to_annotate[-1]]
         elif self.annotate_mode == 'all':
@@ -417,24 +417,26 @@ def bar_plot_function_by_dataset(df, ax, fig: plt.figure, name_col='label', y_ax
     tmp.plot.bar(logy=True, yerr=yerr, rot=0, ax=ax, fontsize=8, )
 
 
-def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis_list=None):
+def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='model_code', y_axis_list=None):
     orig_y_axis_list = pd.Series(y_axis_list)
-    y_axis_list = pd.Series(replace_words_in_list(y_axis_list))
-    # ax.bar(df['model_code'], height=height, yerr=yerr, rot=0, fontsize=8)
-    ylabel = ' '.join(y_axis_list[0].split(' ')[:5])
-    y_axis_list = pd.Series([' '.join(x.split(' ')[5:]) for x in y_axis_list])
+    y_axis_list = pd.Series(replace_words_in_list(orig_y_axis_list))
 
-    df = df.set_index('model_code')
+    # ylabel = ' '.join(y_axis_list[0].split(' ')[:5])
+    # y_axis_list = pd.Series([' '.join(x.split(' ')[5:]) for x in y_axis_list])
+
+    df = df.set_index(name_col)
     index = df.index.array
     # index[1::2] = '\n' + index[1::2]
     df.index = index
-    df = df[pd.concat([orig_y_axis_list, orig_y_axis_list+ '_error'])]
+    df = df[pd.concat([orig_y_axis_list, orig_y_axis_list + '_error'])]
 
     df = df.rename(columns=dict(zip(orig_y_axis_list, y_axis_list)))
     df = df.rename(columns=dict(zip(orig_y_axis_list + '_error', y_axis_list + '_error')))
     yerr = df[y_axis_list + '_error']
     yerr.columns = y_axis_list
-    # fig.set_size_inches(np.array([6.4, 4.8]) / 1.8)
+
+
+
     df[yerr.columns].plot.bar(yerr=yerr, rot=0, fontsize=10, ax=ax)
     legend = ax.get_legend()
     labels = (x.get_text() for x in legend.get_texts())
@@ -447,7 +449,7 @@ def bar_plot_function_by_model(df, ax, fig: plt.figure, name_col='label', y_axis
                fontsize=10,
                )
     ax.set_xlabel('')
-    ax.set_ylabel(ylabel)
+    # ax.set_ylabel(ylabel)
 
 
 def phase_time_vs_frac(df, ax, fig, y_log=True):
@@ -469,7 +471,8 @@ def plot_metrics_time(df, ax, fig):
 
     to_plot = all_df.groupby(cols).agg(['mean', ('error', get_confidence_error)])
     yerr = to_plot.loc[:, (slice(None), 'error')]
-    to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax, ylabel=StyleUtility.replace_words('time'))
+    to_plot.loc[:, (slice(None), 'mean')].plot(yerr=yerr.values.T, rot=0, ax=ax,
+                                               ylabel=StyleUtility.replace_words('time'))
 
 
 def plot_routine_performance_violation(all_model_df, dataset_name, save=True, show=True, suffix='', ):
@@ -545,13 +548,40 @@ def rename_columns_to_plot(df, x_axis, y_axis):
     return df
 
 
-def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, show, axis_to_plot=None,
+def plot_all_df_subplots(all_df, model_list, chart_name, save, show=True, grouping_col=None, axis_to_plot=None,
                          sharex=True,
                          sharey='row', result_path_name='all_df', single_chart=False, xlog=False,
                          increasing_marker_size=False,
                          subplots_by_col='dataset_name', subplots=True,
                          ylim_list=None, add_threshold=False, annotate_mode='all', annotate_col=None,
                          custom_add_graphic_object=None, pl_util=None, params={}):
+    """
+
+    :param all_df:
+    :param model_list: List of model codes to plot
+    :param chart_name:
+    :param save:
+    :param show:
+    :param grouping_col: Column to group by the results in order to compare the metrics when varying the parameter of a model.
+                E.g.: 'fraction' for comparing perfomance of the model when varying the fraction of the dataset used for training.
+    :param axis_to_plot:
+    :param sharex:
+    :param sharey:
+    :param result_path_name:
+    :param single_chart:
+    :param xlog:
+    :param increasing_marker_size:
+    :param subplots_by_col:
+    :param subplots:
+    :param ylim_list:
+    :param add_threshold:
+    :param annotate_mode:
+    :param annotate_col:
+    :param custom_add_graphic_object:
+    :param pl_util:
+    :param params:
+    :return:
+    """
     if annotate_col is not None:
         annotate_col += '_mean'
     if chart_name != '':
@@ -576,15 +606,16 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                         [grouping_col, 'train_error'],
                         [grouping_col, 'train_violation'],
                         ]
+        assert grouping_col is not None, 'grouping_col must be defined if axis_to_plot is not defined.'
 
     for keys, df_to_plot in mean_error_df.groupby(['base_model_code', 'constraint_code'], sort=False):
         base_model_code, constraint_code = keys
         # replace 'violation' with turn constraint name
-        turn_axis_list = [[x.replace('violation', constrain_code_to_name[constraint_code]) for x in pair] for pair in
+        turn_axis_list = [[x.replace('violation', constraint_code_to_name[constraint_code]) for x in pair] for pair in
                           axis_to_plot]
         if subplots:
             pl_util.show = False
-            figsize = np.array([14.4, 2.4 * len(list(turn_axis_list))])
+            figsize = np.array([14.4/5*df_to_plot[subplots_by_col].nunique(), 2.4 * len(list(turn_axis_list))])
             if len(list(turn_axis_list)) == 1:
                 figsize = np.array([5, 5])
             fig, axes_array = plt.subplots(nrows=len(turn_axis_list), ncols=df_to_plot[subplots_by_col].nunique(),
@@ -596,11 +627,12 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
         for row, (x_axis, y_axis) in enumerate(turn_axis_list):
             pl_util.row = row
             if 'violation' in y_axis:
-                y_axis = y_axis.replace('violation', constrain_code_to_name[constraint_code])
+                y_axis = y_axis.replace('violation', constraint_code_to_name[constraint_code])
             check_axis_validity(df_to_plot, x_axis, y_axis)
             df_to_plot = rename_columns_to_plot(df_to_plot, x_axis, y_axis)
 
-            col_to_use = ['x', 'xerr', 'y', 'yerr', grouping_col, 'model_code']
+            col_to_use = ['x', 'xerr', 'y', 'yerr', 'model_code'] + ([grouping_col] if grouping_col is not None else [])
+
             if annotate_col is not None:
                 col_to_use += [annotate_col]
             df_subplot = df_to_plot.groupby([subplots_by_col], sort=False, )[col_to_use]
@@ -641,13 +673,17 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
             handles, labels = max(tmp_dict, key=lambda x: len(x[1]))
             if len(labels) != len(model_list):
                 logging.warning('Some model are not displayed.')
-            fig.legend(handles, labels, ncol=min(7, len(model_list)),
-                       loc='upper center',
-                       bbox_to_anchor=(0.5, 0.0),
-                       bbox_transform=fig.transFigure,
-                       # borderaxespad=-2,
-                       fontsize=10,
-                       )
+
+            if pl_util.params.get('legend_hook', None) is not None:
+                pl_util.params['legend_hook'](fig, handles, labels)
+            else:
+                fig.legend(handles, labels, ncol=min(7, len(labels)),
+                           loc='upper center',
+                           bbox_to_anchor=(0.5, 0.0),
+                           bbox_transform=fig.transFigure,
+                           # borderaxespad=-2,
+                           fontsize=10,
+                           )
             for ax in axes_array[1:].flat:
                 ax.set_title('')
             # Remove axis labels from inner plots
@@ -655,20 +691,17 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
                 ax.set_ylabel('')
                 # ax.label_outer()
             xlabels = []
-            for ax in axes_array[:, :].flat:
-                xlabels.append(ax.get_xlabel())
-                ax.set_xlabel('')
-            # for ax in axes_array[:-1, :].flat:
-            #     ax.xaxis.set_ticklabels([])
-            fig.tight_layout()
-            if np.unique(xlabels).size == 1:
-                fig.supxlabel(xlabels[0].replace('\n',' '), y=0, va='baseline', fontsize='small')
-                # fig.text(StyleUtility.replace_words(f'{xlabels[0]}'),
-                #                   xy=(0.5, -0.1),  # Position below x-axis labels
-                #                   xytext=(0.5, -0.2),  # Position of the main title
-                #                   xycoords='axes fraction',
-                #                   arrowprops=dict(arrowstyle='-'),
-                #                   annotation_clip=False)
+
+            if sharex:
+                for ax in axes_array[:, :].flat:
+                    xlabels.append(ax.get_xlabel())
+                    ax.set_xlabel('')
+                # for ax in axes_array[:-1, :].flat:
+                #     ax.xaxis.set_ticklabels([])
+                fig.tight_layout()
+                if np.unique(xlabels).size == 1:
+                    fig.supxlabel(xlabels[0].replace('\n', ' '), y=0, va='baseline', fontsize='small')
+
 
             # pl_util.fig.suptitle(StyleUtility.replace_words(f'{base_model_code} - {constraint_code}'))
             # fig.subplots_adjust(bottom=0.1)
@@ -686,7 +719,6 @@ def plot_all_df_subplots(all_df, model_list, chart_name, grouping_col, save, sho
     return mean_error_df
 
 
-
 def same_scale_ylim_row(axes_array):
     for axes_row in axes_array:
         ylim_list = [ax.get_ylim() for ax in axes_row]
@@ -696,8 +728,6 @@ def same_scale_ylim_row(axes_array):
             new_ymin = center - max_diff / 2.0
             new_ymax = new_ymin + max_diff
             ax.set_ylim(new_ymin, new_ymax)
-
-
 
 
 def plot_all_df_single_chart(pl_util, grouping_col, filtered_df, model_set_name='',
@@ -778,7 +808,7 @@ def plot_by_df(pl_util: PlotUtility, all_df, model_list, model_set_name, groupin
                                          ))
         for y_axis, x_axis in to_iter:
             if 'violation' in y_axis:
-                y_axis = y_axis.replace('violation', constrain_code_to_name[constraint_code])
+                y_axis = y_axis.replace('violation', constraint_code_to_name[constraint_code])
             # to_plot_models = [x.replace('_exp', '_eps') for x in to_plot_models]
             if model_set_name != '' and x_axis == 'frac':
                 continue
@@ -798,6 +828,131 @@ def check_axis_validity(df, x_axis, y_axis):
         raise ValueError(f'{x_axis} is not a valid x_axis')
     if y_axis == x_axis:
         raise ValueError(f'{x_axis} and {y_axis} are not a valid x_axis, y_axis combination.')
+
+def plot_demo_subplots(all_df, model_list, chart_name, save, show=True, grouping_col=None, axis_to_plot=None,
+                       sharex=True,
+                       sharey='row', result_path_name='all_df', single_chart=False, xlog=False,
+                       increasing_marker_size=False,
+                       horizontal_subplots_by_col='dataset_name', single_plot=True,
+                       ylim_list=None, annotate_mode='all', annotate_col=None,
+                       custom_add_graphic_object=None, pl_util=None, params={}):
+    if annotate_col is not None:
+        annotate_col += '_mean'
+    name_suffix = f' - VARY {grouping_col}' if grouping_col is not None else ''
+    # filtered_df = utils_results_data.prepare_data(all_df)
+    model_list = list(model_list)
+
+    df_to_plot = prepare_for_plot(all_df[all_df['model_code'].isin(model_list)], grouping_col)
+    # mean_error_df = mean_error_df[mean_error_df['model_code']]
+    if pl_util is None:
+        pl_util = PlotUtility(save=save, show=show, suffix='', annotate_mode=annotate_mode,
+                              custom_add_graphic_object=custom_add_graphic_object)
+    if single_plot:
+        pl_util.show = False
+        if params.get('figsize', None) is not None:
+            figsize = params['figsize']
+        else:
+            figsize = np.array([14.4 / 5 * df_to_plot[horizontal_subplots_by_col].nunique(), 2.4 * len(list(axis_to_plot))])
+        fig, axes_array = plt.subplots(nrows=len(axis_to_plot), ncols=df_to_plot[horizontal_subplots_by_col].nunique(),
+                                       sharex=sharex,
+                                       sharey=sharey, figsize=figsize,
+                                       tight_layout=True)  # todo fix sharey not showing multiple axis labels
+        axes_array = np.array(axes_array).reshape(len(axis_to_plot), -1)
+        pl_util.fig = fig
+    for row, (x_axis, y_axis) in enumerate(axis_to_plot):
+        pl_util.row = row
+        check_axis_validity(df_to_plot, x_axis, y_axis)
+        df_to_plot = rename_columns_to_plot(df_to_plot, x_axis, y_axis)
+
+        col_to_use = ['x', 'xerr', 'y', 'yerr', 'model_code'] + ([grouping_col] if grouping_col is not None else [])
+
+        if annotate_col is not None:
+            col_to_use += [annotate_col]
+        df_subplot = df_to_plot.groupby([horizontal_subplots_by_col], sort=False, )[col_to_use]
+
+        for col, (subplot_value, turn_df) in enumerate(df_subplot):
+            pl_util.col = col
+            if single_plot:
+                pl_util.ax = axes_array[row, col]
+
+                pl_util.add_multiple_lines(turn_df, grouping_col, model_list, increasing_marker_size, annotate_col)
+                pl_util._end_plot(x_axis, y_axis, f'{subplot_value}')
+                pl_util.ax.set_title(StyleUtility.replace_words(f'{subplot_value}'))
+                pl_util.ax.get_legend().remove()
+                if xlog:
+                    pl_util.ax.set_xscale("log")
+                if sharey is False:
+                    pl_util.ax.yaxis.set_tick_params(which='both', labelleft=True)
+
+            else:
+                pl_util._start_plot()
+                pl_util.add_multiple_lines(df_to_plot, grouping_col, model_list, increasing_marker_size=True,
+                                           annotate_col=annotate_col)
+                pl_util._end_plot(x_axis, y_axis,
+                                  title=f'{subplot_value}{name_suffix}')
+                name = f'{chart_name}_{name_suffix}_{x_axis}_vs_{y_axis}'
+                pl_util.save_figure(additional_dir_path=result_path_name, name=name)
+
+    if single_plot:
+        if sharey == 'row':
+            if ylim_list is not None:
+                for r, lim in enumerate(ylim_list):
+                    if lim is not None:
+                        for tax in axes_array[r, :]:
+                            tax.set_ylim(lim)
+        if params.get('same_scale_ylim_row', False):
+            same_scale_ylim_row(axes_array)
+        tmp_dict = [ax.get_legend_handles_labels() for ax in axes_array.flat[::-1]]
+        handles, labels = max(tmp_dict, key=lambda x: len(x[1]))
+        if len(labels) != len(model_list):
+            logging.warning('Some model are not displayed.')
+
+        if pl_util.params.get('legend_hook', None) is not None:
+            pl_util.params['legend_hook'](fig, handles, labels)
+        else:
+            fig.legend(handles, labels, ncol=min(7, len(labels)),
+                       loc='upper center',
+                       bbox_to_anchor=(0.5, 0.0),
+                       bbox_transform=fig.transFigure,
+                       # borderaxespad=-2,
+                       fontsize=10,
+                       )
+        for ax in axes_array[1:].flat:
+            ax.set_title('')
+        # Remove axis labels from inner plots
+        for ax in axes_array[:, 1:].flat:
+            ax.set_ylabel('')
+            # ax.label_outer()
+        xlabels = []
+
+        if sharex:
+            for ax in axes_array[:, :].flat:
+                xlabels.append(ax.get_xlabel())
+                ax.set_xlabel('')
+            # for ax in axes_array[:-1, :].flat:
+            #     ax.xaxis.set_ticklabels([])
+            fig.tight_layout()
+            if np.unique(xlabels).size == 1:
+                fig.supxlabel(xlabels[0].replace('\n', ' '), y=0, va='baseline', fontsize='small')
+
+        # pl_util.fig.suptitle(StyleUtility.replace_words(f'{base_model_code} - {constraint_code}'))
+        # fig.subplots_adjust(bottom=0.1)
+
+        if show:
+            fig.show()
+        pl_util.save_figure(additional_dir_path=result_path_name,
+                            name=f'{chart_name}_VARY_{grouping_col}_subplots')
+    # replace 'violation' with turn constraint name
+
+    pl_util.show = show
+
+    dir_path = pl_util.get_base_path(additional_dir_path=result_path_name)
+    df_to_plot.to_csv(os.path.join(dir_path, f'{chart_name}_VARY_{grouping_col}_metrics_mean_error.csv'))
+    # if single_chart:
+    #     plot_all_df_single_chart(pl_util, grouping_col, mean_error_df, model_set_name)
+    return df_to_plot
+
+
 
 
 save = True

@@ -38,7 +38,7 @@ suffix_attr_map = {
     'gri': 'grid_frac',
 }
 
-constrain_code_to_name = {'dp': 'DemographicParity', 'eo': 'EqualizedOdds'}
+constraint_code_to_name = {'dp': 'DemographicParity', 'eo': 'EqualizedOdds'}
 
 
 def get_numerical_cols(df):
@@ -363,8 +363,12 @@ def load_results_experiment_id(experiment_code_list, dataset_results_path):
                                                                         'last_iter_', 'best_gap_', 'best_iter_',
                                                                         'grid_frac'
                                                                         'time_oracles','eps']] = np.nan
+
                 df_list.append(df)
     all_df = pd.concat(df_list)
+    mask = all_df['model_code'].str.contains('unconstrained')
+    if 'exp_frac' in all_df.columns:
+        all_df.loc[mask, 'exp_frac'] = all_df.loc[mask, 'exp_frac'].fillna(1)
     return all_df
 
 
@@ -391,7 +395,7 @@ def add_threshold(df):
         df_row['model_code'] = 'Threshold'
         constraint_code = values[-2]
         eps = values[-1]
-        constraint_name = constrain_code_to_name[constraint_code]
+        constraint_name = constraint_code_to_name[constraint_code]
 
         for phase in ['train', 'test']:
             df_row[f'{phase}_{constraint_name}_mean'] = eps
@@ -407,21 +411,24 @@ def align_seeds(df):
     return pd.concat(df_list)
 
 
-def prepare_for_plot(df, grouping_col):
+def prepare_for_plot(df, grouping_col=None):
     # df = align_seeds(df)
     time_aggregated_df = aggregate_phase_time(df)
-
-    groupby_col = np.intersect1d(cols_to_index + [grouping_col], time_aggregated_df.columns).tolist()
+    groupby_col_list = cols_to_index
+    if grouping_col is not None:
+        groupby_col_list += [grouping_col]
+    groupby_col_list = np.intersect1d(groupby_col_list, time_aggregated_df.columns).tolist()
     time_aggregated_df.columns = time_aggregated_df.columns.str.replace('violation', 'DemographicParity')
     time_aggregated_df = time_aggregated_df.rename(columns=column_rename_map_before_plot)
-    new_numerical_cols = list(set(get_numerical_cols(time_aggregated_df) + [grouping_col]))
-
+    new_numerical_cols = list(set(get_numerical_cols(time_aggregated_df) + groupby_col_list))
+    # convert to numeric all columns from new_numerical_cols that are not already numeric
+    time_aggregated_df[new_numerical_cols] = time_aggregated_df[new_numerical_cols].apply(pd.to_numeric, errors='ignore')
     # # all datasets
     #     # Check available combinations
     # df[['base_model_code', 'constraint_code', 'dataset_name','exp_grid_ratio','exp_frac']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
     # df[['random_seed','train_test_seed','train_test_fold']].astype('str').apply(lambda x: '_'.join(x.astype(str)), axis=1).value_counts()
     # todo check seed values, filter older seeds.
-    grouped_data = time_aggregated_df.groupby(groupby_col, as_index=True, dropna=False, sort=False)[
+    grouped_data = time_aggregated_df.groupby(groupby_col_list, as_index=True, dropna=False, sort=False)[
         new_numerical_cols]
     mean_error_df = grouped_data.agg(['mean', ('error', get_error)])
     mean_error_df.loc[:, (slice(None), 'error')] = mean_error_df.loc[:, (slice(None), 'error')].fillna(0)
