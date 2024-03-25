@@ -388,8 +388,8 @@ class DataValuesSingleton(metaclass=Singleton):
     phase = None
 
     def set_phase(self, phase):
-        if phase not in ['train', 'test']:
-            raise Exception(f'phase {phase} not allowed.')
+        #if phase not in ['train', 'test']:
+        #    raise Exception(f'phase {phase} not allowed.')
         self.phase = phase
 
     def set_train_test_index(self, train_index, test_index):
