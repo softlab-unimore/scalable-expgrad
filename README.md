@@ -75,16 +75,6 @@ additional_models_dict = {
 
 ```
 
-# Links etc.
-### Links:
-* Parul’s latest nb with documentation: https://github.com/UMass-Responsible-AI/fairlearn/blob/pargupta/experiment/notebooks/hybrid-scalable-model.ipynb 
-* Github forking Fairlearn: https://github.com/UMass-Responsible-AI/fairlearn/
-
-
-### Papers:
-* Original Fairlearn: https://arxiv.org/pdf/1803.02453.pdf 
-* Maliha’s: https://people.cs.umass.edu/~afariha/papers/FairnessAnalysis.pdf
-* Paper using CelabA (and Adult): https://openaccess.thecvf.com/content_CVPR_2019/papers/Quadrianto_Discovering_Fair_Representations_in_the_Data_Domain_CVPR_2019_paper.pdf
 
 
 
