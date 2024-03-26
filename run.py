@@ -135,9 +135,11 @@ def launch_experiment_by_config(exp_dict:dict):
         except Exception as e:
             logging.info('****' * 10 + '\n' * 4 + f'Exception occured: {e}' + '\n' * 4 + '****' * 10)
             gettrace = getattr(sys, 'gettrace', None)
-            if gettrace is None:
+            if gettrace is None and 'debug' not in params:
                 pass
             elif gettrace():
+                raise e
+            else:
                 raise e
 
         turn_b = datetime.now()
