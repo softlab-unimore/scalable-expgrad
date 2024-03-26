@@ -90,7 +90,7 @@ def launch_experiment_by_config(exp_dict:dict):
         params = exp_dict.pop('params')
     else:
         params = []
-    results_dir = exp_dict.get('results_dir', 'results')
+    results_dir = exp_dict.get('results_path', 'results')
 
     host_name = socket.gethostname()
     if "." in host_name:
@@ -175,6 +175,7 @@ class ExperimentRun(metaclass=Singleton):
         arg_parser = ArgumentParser()
         arg_parser.add_argument('--dataset_name', nargs='+', required=True)
         arg_parser.add_argument('--model_name', nargs='+', required=True)
+        arg_parser.add_argument('--results_path', default=None)
 
         arg_parser.add_argument("--metrics", choices=['default', 'conversion_to_binary_sensitive_attribute'],
                                 default='default')
@@ -240,7 +241,13 @@ class ExperimentRun(metaclass=Singleton):
         for key, value in prm.items():
             print(f'{key}: {value}')
         print('*' * 100)
-        # Handling deprecated parameters
+
+        # use custom results path when specified
+        if prm['results_path'] is not None:
+            self.base_result_dir = prm['results_path']
+
+
+        # Moving model specific parameters into model_params
         if prm.get('expgrad_fractions') is not None:
             prm['model_params']['expgrad_fractions'] = prm['expgrad_fractions']
             del prm['expgrad_fractions']
