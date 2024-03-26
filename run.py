@@ -258,9 +258,13 @@ class ExperimentRun(metaclass=Singleton):
             del prm['constraint_code']
         deprecated_args = ['train_test_seeds', 'constraint_code', 'expgrad_fractions', 'grid_fractions']
 
+        prm['model_name'] = prm['model_name'][0]
+        prm['dataset_name'] = prm['dataset_name'][0]
+
         self.prm = prm
         ### Load dataset
         self.dataset_str = prm['dataset_name']
+
 
         self.metrics_dict = metrics.get_metrics_dict(prm['metrics'])
 
@@ -371,9 +375,12 @@ class ExperimentRun(metaclass=Singleton):
             directory = os.path.join(directory, additional_dir)
         os.makedirs(directory, exist_ok=True)
         for prefix in [  # f'{self.time_str}',
-            f'last']:
+            # f'last_'
+            ''
+        ]:
+            suffix = f"_{self.prm['base_model_code']}" if self.prm['base_model_code'] is not None else ''
             path = os.path.join(directory,
-                                f"ds{prefix}_{name}_{self.prm['dataset_name']}_{self.prm['base_model_code']}.csv")
+                                f"{prefix}{name}_{self.prm['dataset_name']}{suffix}.csv")
             if os.path.isfile(path):
                 old_df = pd.read_csv(path)
                 df = pd.concat([old_df, df])
